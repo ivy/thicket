@@ -1,7 +1,7 @@
 ---
 id: "010"
 title: CLI — provision and doctor
-status: in-progress
+status: done
 component: apps/cli
 language: typescript
 depends_on: ["002", "007"]
@@ -51,20 +51,20 @@ must pace itself rather than burst and fail.
 
 ## Acceptance criteria
 
-- [ ] `--dry-run` prints the diff between current and desired app configuration and
+- [x] `--dry-run` prints the diff between current and desired app configuration and
       makes no API calls that mutate.
-- [ ] Running `provision` twice with an unchanged roster is a no-op — no spurious
+- [x] Running `provision` twice with an unchanged roster is a no-op — no spurious
       `apps.manifest.update` calls.
-- [ ] Changing one agent's description updates only that app.
-- [ ] Config token rotation happens transparently; a run longer than the token lifetime
+- [x] Changing one agent's description updates only that app.
+- [x] Config token rotation happens transparently; a run longer than the token lifetime
       completes.
-- [ ] Provisioning four agents respects the Tier 1 rate limit and does not fail on
+- [x] Provisioning four agents respects the Tier 1 rate limit and does not fail on
       `ratelimited`.
-- [ ] `doctor` detects and reports, with distinct messages: a missing tailnet tag, an
+- [x] `doctor` detects and reports, with distinct messages: a missing tailnet tag, an
       uninstalled Slack app, a stale card, an account without lingering, and being at
       the workspace app cap.
-- [ ] `doctor` exits non-zero when any check fails, zero when all pass.
-- [ ] No token value appears in any log line or terminal output.
+- [x] `doctor` exits non-zero when any check fails, zero when all pass.
+- [x] No token value appears in any log line or terminal output.
 
 ## Out of scope
 
