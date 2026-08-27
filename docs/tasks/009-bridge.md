@@ -1,7 +1,7 @@
 ---
 id: "009"
 title: bridge — Slack Socket Mode to A2A
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["002"]
@@ -80,26 +80,26 @@ request land back in the right thread.
 
 ## Acceptance criteria
 
-- [ ] Every row of the status mapping table has a test.
-- [ ] A terminal event with `queued_turn_count > 0` leaves the session `processing`;
+- [x] Every row of the status mapping table has a test.
+- [x] A terminal event with `queued_turn_count > 0` leaves the session `processing`;
       with `0` it goes `active`.
-- [ ] Streaming artifact events produce exactly one `chat.startStream`, N
+- [x] Streaming artifact events produce exactly one `chat.startStream`, N
       `chat.appendStream`, one `chat.stopStream`, and the concatenation matches the
       artifact text.
-- [ ] An agent whose card lacks `capabilities.streaming` gets a single
+- [x] An agent whose card lacks `capabilities.streaming` gets a single
       `chat.postMessage` and no stream calls.
-- [ ] `agent_session_stopped` issues `CancelTask` for the in-flight task on that thread.
-- [ ] A non-mention message in an engaged thread reaches the agent with
+- [x] `agent_session_stopped` issues `CancelTask` for the in-flight task on that thread.
+- [x] A non-mention message in an engaged thread reaches the agent with
       `shouldQuery: false` and triggers no turn.
-- [ ] With `queueing: bridge`, two rapid messages produce two sequential A2A calls;
+- [x] With `queueing: bridge`, two rapid messages produce two sequential A2A calls;
       with `queueing: harness`, both are sent without waiting.
-- [ ] An agent returning a `contextId` different from the derived one is recorded, and
+- [x] An agent returning a `contextId` different from the derived one is recorded, and
       the next message in that thread uses the agent's value.
-- [ ] An unreachable agent produces an in-thread notice and a queued request that is
+- [x] An unreachable agent produces an in-thread notice and a queued request that is
       delivered on recovery.
-- [ ] A dropped Socket Mode connection reconnects without restarting the process and
+- [x] A dropped Socket Mode connection reconnects without restarting the process and
       without dropping other agents' connections.
-- [ ] Restarting the bridge with a task in flight still routes that task's completion to
+- [x] Restarting the bridge with a task in flight still routes that task's completion to
       the correct thread.
 
 ## Out of scope
