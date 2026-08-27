@@ -72,6 +72,10 @@ export class BridgeEngine {
   private readonly logger: EngineLogger;
   /** Per-thread promise chains for queueing: bridge. */
   private readonly chains = new Map<string, Promise<void>>();
+  /** Streams currently open per thread; release waits for the last one. */
+  private readonly turnsOpen = new Map<string, number>();
+  /** Deferred session-status release, applied when turnsOpen drains to 0. */
+  private readonly pendingRelease = new Map<string, SlackSessionStatus>();
   constructor(options: EngineOptions) {
     this.agent = options.agent;
     this.queueing = options.queueing;
@@ -87,7 +91,7 @@ export class BridgeEngine {
       if (task.agent !== this.agent) {
         continue;
       }
-      void this.pump(
+      void this.pumpTracked(
         this.client.resubscribe(task.taskId),
         task.channel,
         task.threadTs,
@@ -167,7 +171,7 @@ export class BridgeEngine {
     const message = this.buildMessage(channel, threadTs, text, messageTs, true);
     try {
       if (card.streaming) {
-        await this.pump(this.client.stream(message), channel, threadTs, contextId);
+        await this.pumpTracked(this.client.stream(message), channel, threadTs, contextId);
       } else {
         const task = await this.client.send(message);
         await this.finishBlocking(task, channel, threadTs, contextId);
@@ -247,6 +251,35 @@ export class BridgeEngine {
       extensions: [],
       referenceTaskIds: [],
     };
+  }
+
+  /**
+   * Wraps pump with per-thread accounting. Concurrent per-send streams
+   * deliver events in no global order, so a stale terminal from a slow
+   * stream could overwrite the final session status; instead, terminal
+   * releases are deferred until the thread's last open stream drains.
+   */
+  private async pumpTracked(
+    events: AsyncIterable<A2AEvent>,
+    channel: string,
+    threadTs: string,
+    sentContextId: string | undefined,
+  ): Promise<void> {
+    const key = `${channel}:${threadTs}`;
+    this.turnsOpen.set(key, (this.turnsOpen.get(key) ?? 0) + 1);
+    try {
+      await this.pump(events, channel, threadTs, sentContextId);
+    } finally {
+      const left = (this.turnsOpen.get(key) ?? 1) - 1;
+      this.turnsOpen.set(key, left);
+      if (left === 0) {
+        const release = this.pendingRelease.get(key);
+        if (release !== undefined) {
+          this.pendingRelease.delete(key);
+          await this.slack.setStatus(channel, threadTs, release);
+        }
+      }
+    }
   }
 
   /** Consumes a task event stream, driving Slack as events arrive. */
@@ -348,13 +381,21 @@ export class BridgeEngine {
       );
     }
 
+    const key = `${channel}:${threadTs}`;
     if (TERMINAL.has(state)) {
       this.state.removeTask(taskId);
       const queuedTurns = Number(metadata?.[META_QUEUED_TURN_COUNT] ?? 0);
       if (queuedTurns > 0) {
-        // More turns follow without further input; the session is still
-        // busy from the user's point of view.
-        await this.slack.setStatus(channel, threadTs, "processing");
+        // More turns follow without further input: the session is already
+        // processing and their streams are still open, so stay held and
+        // let a later terminal set the release.
+        return;
+      }
+      if ((this.turnsOpen.get(key) ?? 0) > 0) {
+        // Defer: another stream for this thread is still open, and event
+        // order across streams is not global — a stale terminal must not
+        // overwrite the final state.
+        this.pendingRelease.set(key, slackStatusFor(state));
         return;
       }
     }

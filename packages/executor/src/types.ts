@@ -60,3 +60,8 @@ export const META_SHOULD_QUERY = "thicket.shouldQuery";
 export const META_PRIORITY = "thicket.priority";
 /** Stamped on the synthetic task acknowledging a context-only message. */
 export const META_CONTEXT_ONLY = "thicket.contextOnly";
+/**
+ * On the acknowledgment task of a send that was coalesced into another
+ * send's turn: the task id that actually carries the answer.
+ */
+export const META_FOLDED_INTO = "thicket.foldedInto";

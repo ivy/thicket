@@ -8,6 +8,7 @@ import type { AgentExecutionEvent } from "@a2a-js/sdk/server";
 
 import { TurnTranslator, ASSISTANT_TEXT_ARTIFACT_ID } from "./translator.js";
 import {
+  META_FOLDED_INTO,
   META_FOLDED_MESSAGE_IDS,
   META_QUEUED_TURN_COUNT,
   type PendingSend,
@@ -156,10 +157,21 @@ test("two sends coalesce into one task recording both message ids", () => {
   h.translator.registerSend(send("send-second", 2));
   run(h, loadFixture("coalesced-turn"));
 
-  const taskEvents = h.events.filter((e) => e.kind === "task");
-  assert.equal(taskEvents.length, 1, "exactly one task for the coalesced turn");
-  assert.ok(taskEvents[0]?.kind === "task");
-  assert.equal(taskEvents[0].data.id, "task-1");
+  const working = h.events.filter(
+    (e) => e.kind === "task" && e.data.status?.state === TaskState.TASK_STATE_WORKING,
+  );
+  assert.equal(working.length, 1, "exactly one working task for the coalesced turn");
+  assert.ok(working[0]?.kind === "task");
+  assert.equal(working[0].data.id, "task-1");
+  // The folded send's own call gets a completed acknowledgment pointing at
+  // the task that carries the answer.
+  const acks = h.events.filter(
+    (e) => e.kind === "task" && e.data.status?.state === TaskState.TASK_STATE_COMPLETED,
+  );
+  assert.equal(acks.length, 1);
+  assert.ok(acks[0]?.kind === "task");
+  assert.equal(acks[0].data.id, "task-2");
+  assert.equal(acks[0].data.metadata?.[META_FOLDED_INTO], "task-1");
 
   const status = terminalStatus(h.events);
   assert.deepEqual(status.metadata?.[META_FOLDED_MESSAGE_IDS], ["a2a-msg-1", "a2a-msg-2"]);

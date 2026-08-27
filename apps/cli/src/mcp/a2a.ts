@@ -108,6 +108,18 @@ export class A2aJsonRpcClient {
     };
   }
 
+  /** Tasks in a given state, newest first. stateName is the proto enum name. */
+  async listTasks(stateName: string, pageSize = 20): Promise<Record<string, unknown>[]> {
+    const result = await this.call("ListTasks", {
+      tenant: "",
+      contextId: "",
+      status: stateName,
+      pageToken: "",
+      pageSize,
+    });
+    return (result.tasks ?? []) as Record<string, unknown>[];
+  }
+
   async taskStatus(taskId: string): Promise<AskResult> {
     const task = await this.call("GetTask", { tenant: "", id: taskId });
     const status = (task.status ?? {}) as { state?: string };

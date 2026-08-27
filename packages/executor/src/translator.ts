@@ -10,6 +10,7 @@ import { AgentEvent } from "@a2a-js/sdk/server";
 import type { AgentExecutionEvent } from "@a2a-js/sdk/server";
 
 import {
+  META_FOLDED_INTO,
   META_FOLDED_MESSAGE_IDS,
   META_QUEUED_TURN_COUNT,
   type PendingSend,
@@ -240,6 +241,18 @@ export class TurnTranslator {
       turn.terminalEmitted = true;
     }
     for (const send of folded) {
+      if (send.uuid !== turn.send.uuid) {
+        // A folded send's own A2A call still needs a well-formed response:
+        // acknowledge with a completed task pointing at the task that
+        // carries the answer, instead of leaving its caller to the
+        // server's executor-published-nothing failure path.
+        this.publish(
+          AgentEvent.task({
+            ...this.taskShell(send, TaskState.TASK_STATE_COMPLETED),
+            metadata: { [META_FOLDED_INTO]: turn.send.taskId },
+          }),
+        );
+      }
       this.resolveWaiter(send.uuid);
     }
     this.cancelRequested.delete(turn.send.taskId);

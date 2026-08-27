@@ -1,0 +1,30 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/roster"
+    },
+    {
+      "path": "../../packages/executor"
+    },
+    {
+      "path": "../../apps/agentd"
+    },
+    {
+      "path": "../../apps/bridge"
+    },
+    {
+      "path": "../../apps/cli"
+    },
+    {
+      "path": "../../packages/slack-manifest"
+    }
+  ]
+}

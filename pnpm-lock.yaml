@@ -156,6 +156,40 @@ importers:
         specifier: ^5.9.2
         version: 5.9.3
 
+  tests/integration:
+    dependencies:
+      '@a2a-js/sdk':
+        specifier: ^1.1.0
+        version: 1.1.0(express@5.2.1)
+      '@thicket/agentd':
+        specifier: workspace:*
+        version: link:../../apps/agentd
+      '@thicket/bridge':
+        specifier: workspace:*
+        version: link:../../apps/bridge
+      '@thicket/cli':
+        specifier: workspace:*
+        version: link:../../apps/cli
+      '@thicket/executor':
+        specifier: workspace:*
+        version: link:../../packages/executor
+      '@thicket/roster':
+        specifier: workspace:*
+        version: link:../../packages/roster
+      '@thicket/slack-manifest':
+        specifier: workspace:*
+        version: link:../../packages/slack-manifest
+    devDependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.3.247
+        version: 0.3.247(@anthropic-ai/sdk@0.121.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(zod@4.4.3)
+      '@types/node':
+        specifier: ^22.17.0
+        version: 22.20.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
 packages:
 
   '@a2a-js/sdk@1.1.0':

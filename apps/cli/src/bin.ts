@@ -15,6 +15,7 @@ function usage(): never {
   process.stderr.write(
     "usage: thicket provision [--dry-run] [--agent NAME]\n" +
       "       thicket doctor\n" +
+      "       thicket fleet\n" +
       "       thicket mcp\n",
   );
   process.exit(2);
@@ -58,6 +59,24 @@ async function main(): Promise<void> {
       process.stdout.write(`rendered ${written.length} per-account config files\n`);
     }
     return;
+  }
+
+  if (command === "fleet") {
+    const { fleetHealth, formatFleet } = await import("./fleet.js");
+    const { egressHttp } = await import("./mcp/http.js");
+    const { socketPath } = await import("@thicket/roster");
+    const results = await fleetHealth(roster, {
+      http: egressHttp(process.env.THICKET_EGRESS_SOCKET ?? socketPath("netd-egress")),
+      tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
+      endpointOverrides:
+        process.env.THICKET_MCP_ENDPOINTS !== undefined
+          ? (JSON.parse(process.env.THICKET_MCP_ENDPOINTS) as Record<string, string>)
+          : undefined,
+    });
+    for (const line of formatFleet(results)) {
+      process.stdout.write(line + "\n");
+    }
+    process.exit(results.every((r) => r.up) ? 0 : 1);
   }
 
   if (command === "mcp") {

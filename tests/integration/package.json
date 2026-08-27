@@ -1,0 +1,23 @@
+{
+  "name": "@thicket/integration",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"dist/**/*.test.js\""
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "^1.1.0",
+    "@thicket/agentd": "workspace:*",
+    "@thicket/bridge": "workspace:*",
+    "@thicket/cli": "workspace:*",
+    "@thicket/executor": "workspace:*",
+    "@thicket/roster": "workspace:*",
+    "@thicket/slack-manifest": "workspace:*"
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.247",
+    "@types/node": "^22.17.0",
+    "typescript": "^5.9.2"
+  }
+}

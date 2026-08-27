@@ -4,6 +4,7 @@ export { Provisioner, diffPaths, type ProvisionDeps, type ProvisionInput, type S
 export { runDoctor, doctorExitCode, formatResults, type CheckResult, type DoctorProbes } from "./doctor.js";
 export { renderAccountConfigs, type RenderConfigOptions } from "./render-config.js";
 export { HttpSlackAdminApi } from "./slack-admin.js";
+export { fleetHealth, formatFleet, type FleetAgentHealth, type FleetDeps } from "./fleet.js";
 export { buildMcpServer, type McpDeps } from "./mcp/server.js";
 export { CardCache } from "./mcp/card-cache.js";
 export { A2aJsonRpcClient, taskText, type AskResult } from "./mcp/a2a.js";
