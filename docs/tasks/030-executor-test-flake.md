@@ -1,7 +1,7 @@
 ---
 id: "030"
 title: Executor attachment tests flake under the workspace test run
-status: in-progress
+status: done
 component: packages/executor
 language: typescript
 depends_on: ["018"]
@@ -39,9 +39,37 @@ the same event-loop-drain shape as an unref'd timer, not an assertion bug.
 
 ## Acceptance criteria
 
-- [ ] Five consecutive `pnpm test` runs pass with zero cancelled tests.
-- [ ] The root cause is written down: what was pending, and why only the
+- [x] Five consecutive `pnpm test` runs pass with zero cancelled tests.
+- [x] The root cause is written down: what was pending, and why only the
       parallel run exposed it.
+
+## Root cause (2026-08-27)
+
+The three attachment tests synchronized with a fixed 20ms sleep between
+starting `execute()` and pushing the fixture frames:
+
+```
+const running = executor.execute(ctx, stubBus(events));
+await new Promise((r) => setTimeout(r, 20));   // hope execute() got far enough
+session.queue.push(...withUuid(fixture, "uuid-1"));
+await running;                                  // hangs when it didn't
+```
+
+`execute()` runs the attachment preamble — an HTTP fetch and disk writes —
+*before* `registerSend`. On an idle machine that takes under 20ms; under
+the parallel workspace run it can take longer, so the frames arrived
+while no send was registered, the translator dropped them
+(`turn bound to unknown user_message_uuid … ignoring`), and the turn's
+`done` promise never resolved. With nothing else on the event loop, the
+runner cancelled the test (`Promise resolution is still pending but the
+event loop has already resolved`) and its two siblings with it — which is
+why the failure list always started at the first attachment test.
+
+The fix removes the timing dependency: the tests now wait for the send to
+appear in the fake session (`untilSent`), which by construction happens
+after `registerSend`, so the frames always find their turn. The
+production code needed no change — the race lived entirely in the tests'
+sleep.
 
 ## Out of scope
 

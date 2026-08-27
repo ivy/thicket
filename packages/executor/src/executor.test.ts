@@ -368,6 +368,26 @@ function servingFetch(body = "hello world"): { impl: typeof fetch; calls: string
   return { impl, calls };
 }
 
+
+/**
+ * Waits until the executor has pushed its send into the session — which
+ * happens only after registerSend, so frames pushed afterwards always
+ * find their turn. The fixed 20ms sleep this replaces lost that race
+ * under a loaded parallel test run: the attachment preamble (fetch plus
+ * disk writes) could outlast the sleep, the fixture frames arrived
+ * before the send was registered, the translator dropped them as an
+ * unknown uuid, and the turn never settled (task 030).
+ */
+async function untilSent(session: FakeSession, count = 1): Promise<void> {
+  for (let i = 0; i < 5000; i += 1) {
+    if (session.sent.length >= count) {
+      return;
+    }
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  throw new Error(`timed out waiting for send #${count}`);
+}
+
 test("an attached file is fetched and its path leads the prompt", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "exec-attach-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -382,7 +402,7 @@ test("an attached file is fetched and its path leads the prompt", async (t) => {
   const events: AgentExecutionEvent[] = [];
   const ctx = requestContext("task-1", "ctx-1", "what do you make of this?", {}, [UPLOAD]);
   const running = executor.execute(ctx, stubBus(events));
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await untilSent(session);
   session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
   await running;
 
@@ -410,7 +430,7 @@ test("an agent that refuses attachments never fetches, and says so", async (t) =
   const events: AgentExecutionEvent[] = [];
   const ctx = requestContext("task-1", "ctx-1", "read this", {}, [UPLOAD]);
   const running = executor.execute(ctx, stubBus(events));
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await untilSent(session);
   session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
   await running;
 
@@ -435,7 +455,7 @@ test("a failed fetch degrades to a note; the turn still answers", async (t) => {
   const events: AgentExecutionEvent[] = [];
   const ctx = requestContext("task-1", "ctx-1", "read this", {}, [UPLOAD]);
   const running = executor.execute(ctx, stubBus(events));
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await untilSent(session);
   session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
   await running;
 
