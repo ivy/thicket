@@ -1,7 +1,7 @@
 ---
 id: "032"
 title: A mention in a channel fails at chat.startStream
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["015"]
