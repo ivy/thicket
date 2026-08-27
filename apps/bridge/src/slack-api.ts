@@ -6,6 +6,40 @@ export interface SlackApiLogger {
   info(msg: string, fields?: Record<string, unknown>): void;
 }
 
+/**
+ * Slack's own behaviour past ~4,000 characters is to split the message
+ * itself, at any point it likes — observed mid-word. Splitting below
+ * that threshold, at boundaries a reader can live with, keeps the choice
+ * of break ours.
+ */
+export const POST_TEXT_MAX = 3_500;
+
+/**
+ * Splits text into pieces of at most `max` characters, preferring
+ * paragraph breaks, then line breaks, then spaces; a single unbroken run
+ * longer than `max` is hard-cut rather than looping forever.
+ */
+export function splitText(text: string, max: number = POST_TEXT_MAX): string[] {
+  const pieces: string[] = [];
+  let rest = text;
+  while (rest.length > max) {
+    const window = rest.slice(0, max + 1);
+    const cut =
+      lastBoundary(window, "\n\n") ?? lastBoundary(window, "\n") ?? lastBoundary(window, " ") ?? max;
+    pieces.push(rest.slice(0, cut));
+    rest = rest.slice(cut).replace(/^[ \n]+/, "");
+  }
+  if (rest !== "") {
+    pieces.push(rest);
+  }
+  return pieces;
+}
+
+function lastBoundary(window: string, separator: string): number | undefined {
+  const at = window.lastIndexOf(separator);
+  return at > 0 ? at : undefined;
+}
+
 /** Activity status names, in the vocabulary Slack's task cards use. */
 const CARD_STATUS = {
   running: "in_progress",
@@ -68,8 +102,11 @@ export class WebSlackApi implements SlackApi {
   }
 
   async postMessage(channel: string, threadTs: string, text: string): Promise<void> {
-    this.log("chat.postMessage", { channel, thread_ts: threadTs, text });
-    await this.web.chat.postMessage({ channel, thread_ts: threadTs, text });
+    // Sequential, so the pieces read in order.
+    for (const piece of splitText(text)) {
+      this.log("chat.postMessage", { channel, thread_ts: threadTs, text: piece });
+      await this.web.chat.postMessage({ channel, thread_ts: threadTs, text: piece });
+    }
   }
 
   async startStream(channel: string, threadTs: string, recipient?: string): Promise<string> {

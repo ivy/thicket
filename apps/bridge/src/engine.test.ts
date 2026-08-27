@@ -254,6 +254,7 @@ function rig(
     context?: "native" | "replay";
     dbPath?: string;
     fileBaseUrl?: string;
+    streamTextBudget?: number;
   } = {},
 ): Rig {
   const slack = new FakeSlack();
@@ -269,6 +270,9 @@ function rig(
     state,
     logger: { info: () => {}, warn: (msg) => warnings.push(msg) },
     ...(options.fileBaseUrl === undefined ? {} : { fileBaseUrl: options.fileBaseUrl }),
+    ...(options.streamTextBudget === undefined
+      ? {}
+      : { streamTextBudget: options.streamTextBudget }),
   });
   return { engine, slack, client, state, warnings };
 }
@@ -1015,5 +1019,58 @@ test("a refused stream degrades to one plain message carrying the whole answer",
   assert.deepEqual(r.slack.posts(), ["the answer in two chunks"]);
   assert.equal(r.slack.lastStatus(), "active", "the turn settled normally");
   assert.ok(r.warnings.some((w) => w.includes("stream refused")));
+  r.state.close();
+});
+
+// ------------------------------------------------------- stream rollover
+
+test("a long answer rolls over to fresh streamed messages at word boundaries", async () => {
+  const r = rig(
+    {
+      script: () => [
+        taskEvent("t1", "ctx"),
+        artifactEvent("t1", "aaaa bbbb cccc dddd ", false, false),
+        artifactEvent("t1", "eeee ffff gggg hhhh iiii jjjj", true, true),
+        statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+      ],
+    },
+    { streamTextBudget: 40 },
+  );
+  await r.engine.handleEvent(dm("write me something long"));
+
+  const appendsByStream = new Map<string, string>();
+  let stopsBeforeSecondStart = 0;
+  let starts = 0;
+  for (const call of r.slack.calls) {
+    if (call.type === "startStream") {
+      starts += 1;
+    }
+    if (call.type === "stop" && starts === 1) {
+      stopsBeforeSecondStart += 1;
+    }
+    if (call.type === "append") {
+      appendsByStream.set(call.ts, (appendsByStream.get(call.ts) ?? "") + call.text);
+    }
+  }
+  assert.equal(starts, 2, "the answer spans two streamed messages");
+  assert.equal(stopsBeforeSecondStart, 1, "the first message is closed before the second opens");
+  const [first, second] = [...appendsByStream.values()];
+  assert.equal(first, "aaaa bbbb cccc dddd eeee ffff gggg hhhh");
+  assert.equal(second, "iiii jjjj");
+  assert.equal(r.slack.lastStatus(), "active");
+  r.state.close();
+});
+
+test("a normal-length answer streams exactly as before", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "a modest answer", false, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  await r.engine.handleEvent(dm("hi"));
+  assert.equal(r.slack.calls.filter((c) => c.type === "startStream").length, 1);
+  assert.equal(r.slack.calls.filter((c) => c.type === "stop").length, 1);
   r.state.close();
 });

@@ -153,3 +153,32 @@ test("a channel stream carries the recipient and team; a DM stream never does", 
   assert.equal("recipient_user_id" in dmStream, false, "DM path stays exactly as before");
   assert.equal("recipient_team_id" in dmStream, false);
 });
+
+test("splitText prefers paragraph, then line, then space boundaries", async () => {
+  const { splitText } = await import("./slack-api.js");
+  const paragraphs = "alpha alpha.\n\nbeta beta.\n\ngamma gamma.";
+  assert.deepEqual(splitText(paragraphs, 20), ["alpha alpha.", "beta beta.", "gamma gamma."]);
+
+  const lines = "one one one\ntwo two two\nthree three";
+  assert.deepEqual(splitText(lines, 25), ["one one one\ntwo two two", "three three"]);
+
+  const words = "aa bb cc dd ee ff";
+  assert.deepEqual(splitText(words, 8), ["aa bb cc", "dd ee ff"]);
+
+  assert.deepEqual(splitText("short", 100), ["short"], "short text passes through whole");
+  assert.deepEqual(
+    splitText("x".repeat(12), 5),
+    ["xxxxx", "xxxxx", "xx"],
+    "an unbroken run is hard-cut rather than looping",
+  );
+});
+
+test("a long post becomes sequential messages, split where we chose", async () => {
+  const r = rig();
+  const long = `${"a".repeat(2000)}\n\n${"b".repeat(2000)}`;
+  await r.api.postMessage("C1", "1.1", long);
+  const posts = r.calls.filter((c) => c.method === "chat.postMessage");
+  assert.equal(posts.length, 2);
+  assert.equal(posts[0]!.args.text, "a".repeat(2000));
+  assert.equal(posts[1]!.args.text, "b".repeat(2000));
+});

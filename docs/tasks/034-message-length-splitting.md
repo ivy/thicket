@@ -1,7 +1,7 @@
 ---
 id: "034"
 title: Split long replies at boundaries the reader can live with
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["032"]
@@ -51,12 +51,23 @@ The facts, from Slack's docs (recorded in 000-overview):
 
 ## Acceptance criteria
 
-- [ ] A streamed answer longer than one Slack message's worth arrives as
+- [x] A streamed answer longer than one Slack message's worth arrives as
       multiple messages, each ending at a whitespace boundary, all
       streamed (no unformatted plain-text tail).
-- [ ] A single `postMessage` longer than the split threshold arrives as
+- [x] A single `postMessage` longer than the split threshold arrives as
       sequential messages split at paragraph or line boundaries.
-- [ ] Normal-length turns behave exactly as before.
+- [x] Normal-length turns behave exactly as before.
+
+## What live verification established (2026-08-27)
+
+A ~1,500-word DM answer arrived as four streamed messages of
+2,799/2,798/2,799/840 characters. Every boundary fell on a space between
+whole words (`…it depended on. These` → `structures were…`), all four
+rendered as rich text, and `msg_too_long` never fired — the rollover
+stays ahead of both Slack's stream cap and its ~4k auto-split.
+`postMessage` splitting at paragraph/line/space boundaries is covered by
+unit tests (it now backs every plain post: the streamless buffer,
+blocking finishes, error notices).
 
 ## Live verification
 

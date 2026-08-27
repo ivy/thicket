@@ -39,6 +39,8 @@ export interface EngineOptions {
    * declined in-thread rather than linked into the void.
    */
   fileBaseUrl?: string;
+  /** Test override for the per-stream text budget. */
+  streamTextBudget?: number;
 }
 
 /**
@@ -46,6 +48,15 @@ export interface EngineOptions {
  * hard stop before a long channel thread eats the whole turn.
  */
 const REPLAY_LIMIT = 50;
+
+/**
+ * Appended text per streamed message before rolling over to a fresh one.
+ * A streamed message was observed to hit msg_too_long around 3k chars of
+ * text plus its task cards, and Slack starts making its own arbitrary
+ * splits past 4k; staying under both keeps every break at a boundary we
+ * chose.
+ */
+const STREAM_TEXT_BUDGET = 2_800;
 
 const TERMINAL = new Set([
   TaskState.TASK_STATE_COMPLETED,
@@ -125,6 +136,9 @@ export class BridgeEngine {
   private readonly activityOff = new Set<string>();
   /** Answer text buffered for tasks whose stream Slack refused. */
   private readonly streamlessText = new Map<string, string>();
+  /** Text appended to each task's current stream, against the budget. */
+  private readonly streamedChars = new Map<string, number>();
+  private readonly streamTextBudget: number;
   /** Threads whose prose status line was abandoned after a rejection. */
   private readonly noteOff = new Set<string>();
   private readonly fileBaseUrl: string | undefined;
@@ -137,6 +151,7 @@ export class BridgeEngine {
     this.state = options.state;
     this.logger = options.logger ?? { info: () => {}, warn: () => {} };
     this.fileBaseUrl = options.fileBaseUrl?.replace(/\/+$/, "");
+    this.streamTextBudget = options.streamTextBudget ?? STREAM_TEXT_BUDGET;
   }
 
   /** Reattach to tasks recorded by a previous bridge process. */
@@ -595,12 +610,7 @@ export class BridgeEngine {
         // Slack refuses the stream, buffer the text and deliver it as a
         // plain message when the turn settles.
         try {
-          const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
-          await this.slack.appendStream(channel, streamTs, event.text);
-          if (event.lastChunk) {
-            await this.slack.stopStream(channel, streamTs);
-            this.state.setStreamTs(event.taskId, null);
-          }
+          await this.appendWithRollover(event, channel, threadTs);
         } catch (err) {
           if (!this.streamlessText.has(event.taskId)) {
             this.logger.warn("stream refused; will deliver as a message", {
@@ -671,6 +681,49 @@ export class BridgeEngine {
     }
   }
 
+  /**
+   * Appends a text chunk to the task's stream, rolling over to a fresh
+   * streamed message when the budget would be exceeded — split inside
+   * the chunk at a whitespace boundary, because SDK deltas break
+   * mid-word and Slack's own overflow behaviour is worse (observed: a
+   * word amputated across two messages). Each rolled-over message is
+   * closed cleanly before the next begins.
+   */
+  private async appendWithRollover(
+    event: { taskId: string; text: string; lastChunk: boolean },
+    channel: string,
+    threadTs: string,
+  ): Promise<void> {
+    let text = event.text;
+    while (text !== "") {
+      const used = this.streamedChars.get(event.taskId) ?? 0;
+      const left = this.streamTextBudget - used;
+      if (text.length <= left) {
+        const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
+        await this.slack.appendStream(channel, streamTs, text);
+        this.streamedChars.set(event.taskId, used + text.length);
+        break;
+      }
+      // Head that fits, ending at whitespace; nothing fits cleanly on a
+      // fresh stream only when one unbroken run exceeds the whole
+      // budget, and then a hard cut beats an infinite loop.
+      const window = text.slice(0, Math.max(left, 0));
+      let head = Math.max(window.lastIndexOf("\n"), window.lastIndexOf(" "));
+      if (head <= 0) {
+        head = used === 0 ? Math.max(left, 1) : 0;
+      }
+      if (head > 0) {
+        const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
+        await this.slack.appendStream(channel, streamTs, text.slice(0, head));
+      }
+      await this.closeStream(event.taskId, channel);
+      text = text.slice(head).replace(/^[ \n]+/, "");
+    }
+    if (event.lastChunk) {
+      await this.closeStream(event.taskId, channel);
+    }
+  }
+
   /** The task's Slack stream, opened on first use. */
   private async ensureStream(taskId: string, channel: string, threadTs: string): Promise<string> {
     const record = this.state.taskById(taskId);
@@ -696,6 +749,7 @@ export class BridgeEngine {
    * closed.
    */
   private async closeStream(taskId: string, channel: string): Promise<void> {
+    this.streamedChars.delete(taskId);
     const streamTs = this.state.taskById(taskId)?.streamTs;
     if (streamTs == null) {
       return;
