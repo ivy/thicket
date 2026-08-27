@@ -1,0 +1,30 @@
+# thicket agentd — the A2A daemon. Socket-activated, then resident: the
+# hot Claude Code session pool is the point of staying alive.
+[Unit]
+Description=thicket agentd (A2A server)
+Requires=thicket-agentd.socket
+After=thicket-agentd.socket
+
+[Service]
+ExecStart=%h/.local/bin/thicket-agentd
+Restart=on-failure
+RestartSec=5
+RestartSteps=5
+RestartMaxDelaySec=120
+# Let SIGTERM drain in-flight turns before systemd escalates.
+TimeoutStopSec=45
+KillMode=mixed
+
+# The agent's job is to work inside its own home; system directories stay
+# read-only. Claude Code sessions inherit only what agentd passes.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+StateDirectory=thicket
+RuntimeDirectory=thicket
+RuntimeDirectoryPreserve=yes
+ReadWritePaths=%h
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+# Deliberately no install section: this unit starts via
+# thicket-agentd.socket, never directly at boot.

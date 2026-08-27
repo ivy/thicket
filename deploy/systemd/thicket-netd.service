@@ -1,0 +1,31 @@
+# thicket netd — holds this account's tailnet identity and proxies to agentd.
+# Same file for every agent account: the unix user is the instance, so paths
+# use specifiers (%h home, %S state root, %t runtime root), never literals.
+[Unit]
+Description=thicket netd (tailnet transport shim)
+After=network-online.target thicket-agentd.socket
+Wants=network-online.target thicket-agentd.socket
+
+[Service]
+ExecStart=%h/.local/bin/thicket-netd
+Restart=on-failure
+RestartSec=5
+# systemd >= 254 backs off progressively; older versions ignore these two.
+RestartSteps=5
+RestartMaxDelaySec=120
+
+# Hardening. netd needs its tsnet state dir and the runtime dir for the
+# egress socket; everything else system-side stays read-only.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+StateDirectory=thicket
+RuntimeDirectory=thicket
+RuntimeDirectoryPreserve=yes
+ReadWritePaths=%S/thicket
+
+# Auth key delivery: TS_AUTHKEY wins over auth_key_file if set here.
+# Environment=TS_AUTHKEY=tskey-...   <- never commit a real key
+
+[Install]
+WantedBy=default.target

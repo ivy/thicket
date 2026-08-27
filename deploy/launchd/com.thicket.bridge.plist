@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- thicket bridge on macOS, for a laptop-hosted bridge (development).
+     Production bridges belong on the always-on host under systemd. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.thicket.bridge</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH" exec "$HOME/.local/bin/thicket-bridge" 2>>"$HOME/Library/Logs/thicket-bridge.log"</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

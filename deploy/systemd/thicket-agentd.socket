@@ -1,0 +1,14 @@
+# systemd owns agentd's unix socket: netd can start first, ordering is
+# solved, and agentd activates lazily on the first request. Mode 0600 —
+# agentd trusts the peer-tags header only because nothing but netd (same
+# account) can connect.
+[Unit]
+Description=thicket agentd socket
+
+[Socket]
+ListenStream=%t/thicket/agentd.sock
+SocketMode=0600
+DirectoryMode=0700
+
+[Install]
+WantedBy=sockets.target

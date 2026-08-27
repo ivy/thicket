@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- thicket netd on macOS. Installed to ~/Library/LaunchAgents; the shell
+     indirection keeps the plist free of hardcoded home directories so the
+     same file works in every account. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.thicket.netd</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>exec "$HOME/.local/bin/thicket-netd" 2>>"$HOME/Library/Logs/thicket-netd.log"</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

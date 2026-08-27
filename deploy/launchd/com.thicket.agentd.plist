@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- thicket agentd on macOS. No socket activation under launchd: agentd
+     creates its own 0600 socket at $XDG_RUNTIME_DIR/thicket (falling back
+     to a per-user tmp dir on macOS, where XDG_RUNTIME_DIR is unset). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.thicket.agentd</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH" exec "$HOME/.local/bin/thicket-agentd" 2>>"$HOME/Library/Logs/thicket-agentd.log"</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

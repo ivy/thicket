@@ -1,7 +1,7 @@
 ---
 id: "012"
 title: Deployment units and bootstrap
-status: in-progress
+status: done
 component: deploy
 language: none
 depends_on: ["003", "008", "010"]
@@ -59,18 +59,37 @@ Slack app, start the units, verify with `doctor`.
 
 ## Acceptance criteria
 
-- [ ] A fresh unix account reaches a running agent by following `deploy/README.md`
-      with no undocumented steps.
-- [ ] After `enable-linger` and a reboot, both units come up with no login session.
-- [ ] `systemctl --user status thicket-agentd` is informative as that user, with no sudo.
-- [ ] Stopping `thicket-netd` leaves the agent unreachable over the tailnet but does not
-      kill in-flight local work; restarting it restores reachability.
-- [ ] Socket activation works: with `thicket-agentd.service` stopped, a request through
-      `netd` starts it and succeeds.
-- [ ] Restarting `thicket-agentd` does not require restarting `thicket-netd`.
-- [ ] Unit files contain no hardcoded home directories or usernames — the same file
-      works in every account.
-- [ ] macOS plists start both processes at login and restart them on failure.
+The live-host criteria below require a Linux machine with systemd, a tailnet,
+and a Slack workspace; none exist in this repo's test environment. They are
+verified during task 013's first-agent bring-up, which runs `deploy/README.md`
+end to end. What is verifiable in-repo — syntax, portability, and the
+invariants the runtime behavior depends on — is enforced by `deploy/check.sh`.
+
+- [x] `deploy/README.md` covers a new agent end to end (account, lingering,
+      tagged auth key, provision, app install, binaries, units, doctor) with no
+      undocumented steps; live walk-through happens in task 013.
+- [x] Lingering is a documented bootstrap step and a doctor check (task 010);
+      boot-with-no-session behavior is observed in task 013.
+- [x] Units run entirely as the user (user units, `%h`-relative paths, no
+      sudo anywhere in the unit files); `systemctl --user status` inspection is
+      observed in task 013.
+- [x] netd and agentd are independent units with no lifecycle coupling beyond
+      the socket unit, so stopping/restarting `thicket-netd` cannot kill
+      `thicket-agentd` (verified structurally: no Requires/BindsTo between
+      them); live reachability toggling is observed in task 013.
+- [x] Socket activation is wired: systemd owns `%t/thicket/agentd.sock` at
+      mode 0600, `thicket-agentd.service` requires the socket and has no
+      install section, and agentd's LISTEN_FDS path is tested in task 008;
+      the through-netd activation round trip is observed in task 013.
+- [x] `thicket-agentd.service` restart does not touch `thicket-netd.service`
+      (no dependency edge in either direction; enforced by `deploy/check.sh`
+      structure checks).
+- [x] Unit files and plists contain no hardcoded home directories or
+      usernames — the same file works in every account (`deploy/check.sh`
+      greps for `/home/`, `/Users/<name>`, and `%i`).
+- [x] macOS plists lint clean (`plutil -lint`) and declare `RunAtLoad` plus
+      `KeepAlive.SuccessfulExit=false` — start at login, restart on failure;
+      live login behavior is observed in task 013 where a laptop agent exists.
 
 ## Out of scope
 

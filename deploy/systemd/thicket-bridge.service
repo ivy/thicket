@@ -1,0 +1,25 @@
+# thicket bridge — Slack Socket Mode <-> A2A. Runs in its own account on
+# the always-on host, alongside its own thicket-netd.service for egress.
+[Unit]
+Description=thicket bridge (Slack Socket Mode to A2A)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=%h/.local/bin/thicket-bridge
+Restart=on-failure
+RestartSec=5
+RestartSteps=5
+RestartMaxDelaySec=120
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+StateDirectory=thicket
+RuntimeDirectory=thicket
+RuntimeDirectoryPreserve=yes
+ReadWritePaths=%S/thicket
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+
+[Install]
+WantedBy=default.target
