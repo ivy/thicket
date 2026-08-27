@@ -25,11 +25,16 @@ exhausts its own retries. A socket that is open but no longer delivering
 looks healthy the whole time: `connectedCount` says 1, nothing is logged,
 and messages are lost silently.
 
-Not yet proven, and worth saying so: the first occurrence predates inbound
-event logging, so "Slack never delivered it" and "the bridge dropped it"
-were indistinguishable. Logging now separates those, and the next occurrence
-should settle it. This task exists because the second occurrence recovered on
-a fresh connection while the old one still claimed to be up.
+What the second occurrence then established: **the messages are not lost,
+they are stalled.** The DM that appeared to vanish at 05:42 ran in full at
+05:48:18, six minutes later, once the bridge reconnected — Slack had held the
+unacked event and redelivered it. The 04:31 window was about an hour on the
+same pattern.
+
+That lowers the severity and sharpens the fix. This is a latency bug, not a
+delivery bug: an agent that answers six minutes late has already lost the
+conversation, and an hour is indistinguishable from being down. Recovery does
+not need to be invented, only triggered sooner.
 
 ## Scope
 
@@ -49,8 +54,8 @@ a fresh connection while the old one still claimed to be up.
 - [ ] A socket that stops delivering is detected without waiting for the
       library's terminal `disconnected`.
 - [ ] The bridge reconnects on its own and logs why.
-- [ ] A message sent during the dead window is either delivered after
-      recovery or visibly reported as lost — never silently dropped.
+- [ ] A message sent during the dead window arrives within seconds of
+      recovery rather than minutes, and the delay is visible in the log.
 
 ## Out of scope
 
