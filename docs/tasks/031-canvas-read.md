@@ -1,7 +1,7 @@
 ---
 id: "031"
 title: Canvas read — the workspace's long-form memory, readable by agents
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["021"]
