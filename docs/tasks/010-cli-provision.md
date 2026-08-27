@@ -1,7 +1,7 @@
 ---
 id: "010"
 title: CLI — provision and doctor
-status: todo
+status: in-progress
 component: apps/cli
 language: typescript
 depends_on: ["002", "007"]
