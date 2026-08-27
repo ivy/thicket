@@ -33,11 +33,23 @@ first: searching messages, files, users and channels; posting; reading
 channels and threads; reactions; canvases; user info. It authenticates as the
 operator over OAuth.
 
-Install it with `/plugin install slack`, not by hand in `.mcp.json`. Slack's
-auth server uses a pre-registered OAuth client rather than RFC 7591 dynamic
-registration, so a hand-written entry fails with "Incompatible auth server:
-does not support dynamic client registration". The plugin carries the client
-id and callback port; a config entry cannot.
+Install it with `/plugin install slack`. Slack's auth server uses a
+pre-registered OAuth client rather than RFC 7591 dynamic registration, so a
+plain `.mcp.json` entry fails with "Incompatible auth server: does not
+support dynamic client registration" — there is nowhere in one to put a
+client id. The plugin carries Slack's.
+
+If the plugin is ever unavailable, the same thing can be done by hand, since
+Slack publishes both values (client id `1601185624273.8899143856786`,
+callback port `3118`):
+
+```sh
+claude mcp add --transport http -s project \
+  --client-id 1601185624273.8899143856786 --callback-port 3118 \
+  slack https://mcp.slack.com/mcp
+```
+
+Either route still ends at a browser consent flow.
 
 **`slack-test`** — three tools this repo adds, and only because Slack's server
 lacks them:
