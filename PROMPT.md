@@ -23,7 +23,7 @@ In this order:
    start another.
 2. Otherwise take the lowest-numbered task with `status: todo` whose every entry in
    `depends_on` has `status: done`.
-3. If neither exists, go to **§6 Completion**.
+3. If neither exists, go to **§8 Completion**.
 
 Never work two tasks in one iteration.
 
@@ -92,7 +92,23 @@ not a blocker.** Try properly first.
   unblock it and what you already tried.
 - Commit, then stop. The next iteration moves to another task.
 
-## 7. Completion
+## 7. Backlog expansion
+
+You may create new tasks. When implementation surfaces follow-on work, a blocker that
+deserves its own work item, or a spec assumption that turns out wrong in practice:
+
+- Add `docs/tasks/NNN-<name>.md` using the next unused number, with full frontmatter
+  (`status: todo`, real `depends_on`, `component`) and Scope / Acceptance criteria /
+  Out of scope sections in the style of the existing tasks.
+- Update the dependency table and waves in `000-overview.md` to include it.
+- Commit it (alone, or with the work that surfaced it) and explain in the body why the
+  backlog grew.
+
+Expanding the backlog when reality disagrees with the plan is welcome; silently building
+unplanned scope inside an unrelated task is not. New tasks are picked up by the normal
+selection rule in §2.
+
+## 8. Completion
 
 When no task has `status: todo` or `status: in-progress`:
 
