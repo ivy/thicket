@@ -28,6 +28,9 @@ export interface TranslatorOptions {
 
 interface OpenTurn {
   send: PendingSend;
+  /** Registration sequence at the moment the turn opened: sends
+   * registered after this cannot have been coalesced into it. */
+  openSeq: number;
   /** Text already emitted as artifact chunks (concatenated). */
   emittedText: string;
   /** Held-back chunk, flushed by the next chunk or the result. */
@@ -58,6 +61,8 @@ export class TurnTranslator {
   private readonly onWarning: (message: string) => void;
 
   private pending: PendingSend[] = [];
+  private seqCounter = 0;
+  private readonly seqOf = new Map<string, number>();
   private turn: OpenTurn | null = null;
   private caps: string[] | undefined;
   private readonly waiters = new Map<string, SendWaiter>();
@@ -86,6 +91,7 @@ export class TurnTranslator {
       throw new Error("stream already ended");
     }
     this.pending.push(send);
+    this.seqOf.set(send.uuid, ++this.seqCounter);
     let resolve!: () => void;
     const promise = new Promise<void>((r) => {
       resolve = r;
@@ -296,16 +302,25 @@ export class TurnTranslator {
   }
 
   /**
-   * Which sends this turn consumed. The result's queued_turn_count says how
-   * many sends are still waiting, so everything registered beyond that
-   * count was coalesced into this turn. The primary is always included.
+   * Which sends this turn consumed. queued_turn_count is a snapshot of the
+   * CLI's queue at result time, but a send can be in flight — written to
+   * stdin, not yet enqueued — and invisible to it (observed live: a rapid
+   * second DM was mis-folded and its whole turn dropped). Two guards make
+   * the inference sound: only sends registered before the turn opened are
+   * fold-eligible (the CLI folds at dequeue time), and the queue census is
+   * first discounted by the ineligible sends it necessarily includes.
+   * The primary is always included.
    */
   private takeFolded(primary: PendingSend, queuedTurnCount: number): PendingSend[] {
+    const openSeq = this.turn?.openSeq ?? this.seqCounter;
     const rest = this.pending.filter((send) => send.uuid !== primary.uuid);
-    const foldedExtra = Math.max(0, rest.length - queuedTurnCount);
-    const folded = [primary, ...rest.slice(0, foldedExtra)];
-    this.pending = rest.slice(foldedExtra);
-    return folded;
+    const eligible = rest.filter((send) => (this.seqOf.get(send.uuid) ?? Infinity) <= openSeq);
+    const ineligibleCount = rest.length - eligible.length;
+    const queuedEligible = Math.max(0, queuedTurnCount - ineligibleCount);
+    const foldedExtra = Math.max(0, eligible.length - queuedEligible);
+    const foldedSet = new Set(eligible.slice(0, foldedExtra).map((send) => send.uuid));
+    this.pending = rest.filter((send) => !foldedSet.has(send.uuid));
+    return [primary, ...eligible.slice(0, foldedExtra)];
   }
 
   private openTurn(userMessageUuid: string | undefined): void {
@@ -327,6 +342,7 @@ export class TurnTranslator {
     }
     this.turn = {
       send,
+      openSeq: this.seqCounter,
       emittedText: "",
       pendingChunk: null,
       chunksEmitted: 0,
@@ -442,5 +458,6 @@ export class TurnTranslator {
   private resolveWaiter(uuid: string): void {
     this.waiters.get(uuid)?.resolve();
     this.waiters.delete(uuid);
+    this.seqOf.delete(uuid);
   }
 }

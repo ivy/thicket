@@ -234,3 +234,40 @@ test("capabilities are read from system/init", () => {
     "interrupt_cancel_queued_v1",
   ]);
 });
+
+test("a send racing the queue census is not mis-folded; its turn still answers", () => {
+  // Live-observed race: send B is written to stdin while turn A runs, but
+  // turn A's result snapshots queued_turn_count=0 before B enters the
+  // CLI's queue. B must NOT be folded into A — its own turn follows.
+  const h = harness();
+  h.translator.registerSend(send("send-a", 1));
+
+  const [init, assistantA, resultA] = loadFixture("plain-turn");
+  h.translator.handleFrame(init!);
+  h.translator.handleFrame(assistantA!); // turn A opens here
+  // B arrives mid-turn: registered after turn A opened.
+  h.translator.registerSend(send("send-b", 2));
+  h.translator.handleFrame(resultA!); // queued_turn_count: 0 — stale census
+
+  const foldedAcks = h.events.filter(
+    (e) => e.kind === "task" && e.data.metadata?.[META_FOLDED_INTO] !== undefined,
+  );
+  assert.equal(foldedAcks.length, 0, "B must not be acked as folded");
+
+  // The CLI then runs B's turn for real; it must bind and emit.
+  const frames = loadFixture("plain-turn").map((frame) =>
+    "user_message_uuid" in frame && frame.user_message_uuid !== undefined
+      ? { ...frame, user_message_uuid: "send-b" }
+      : frame,
+  ) as typeof init[];
+  h.translator.handleFrame(frames[1]!);
+  h.translator.handleFrame(frames[2]!);
+
+  const tasksB = h.events.filter((e) => e.kind === "task" && e.data.id === "task-2");
+  assert.equal(tasksB.length, 1, "turn B announced its task");
+  const terminals = h.events.filter(
+    (e) => e.kind === "statusUpdate" && e.data.taskId === "task-2",
+  );
+  assert.equal(terminals.length, 1, "turn B reached terminal");
+  assert.deepEqual(h.warnings, [], "no dropped frames");
+});
