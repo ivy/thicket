@@ -1,7 +1,7 @@
 ---
 id: "025"
 title: Turn journal — what happened, what it cost
-status: in-progress
+status: done
 component: apps/agentd
 language: typescript
 depends_on: ["008"]
@@ -53,10 +53,32 @@ mechanisms would not.
 
 ## Acceptance criteria
 
-- [ ] Every turn leaves a record, including ones that produced no output.
-- [ ] Cost is answerable per agent and per time window from the CLI.
-- [ ] A routine's history is inspectable without reading raw logs.
-- [ ] The journal is bounded without operator intervention.
+- [x] Every turn leaves a record, including ones that produced no output.
+- [x] Cost is answerable per agent and per time window from the CLI.
+- [x] A routine's history is inspectable without reading raw logs.
+- [x] The journal is bounded without operator intervention.
+
+## What was built, and what verification established (2026-08-27)
+
+The accounting seam lives in the translator (`onTurnResult`), because that
+is the only place that sees both the result frame and which send the turn
+answered. One subtlety mattered: the SDK's `total_cost_usd` and `usage`
+are **running totals per subprocess generation**, so the translator
+baselines them on every `system/init` frame and journals per-turn deltas.
+Turns that die without a result frame — crash, closed pipe, sends that
+never got a turn — journal as failed rows with zeros, covered by tests.
+
+`agentd` writes rows (metadata only) to `journal.db` beside the task
+store, prunes at 90 days on the existing maintenance interval, and
+`thicket journal` queries it locally: recent turns, `--cost` per agent
+over `--days`, `--failures`, `--trigger routine`.
+
+Live on the rig: a DM turn journaled at $0.0491 / 1.6s and appeared in
+both the listing and the per-agent cost rollup; an A2A message stamped
+`thicket.trigger: routine` (the metadata key routines will use) journaled
+as `routine` and came back alone under `--trigger routine`. The open
+question resolved toward no second store: the CLI reads the account-local
+journal file, and a fleet is queried per account.
 
 ## Live verification
 
