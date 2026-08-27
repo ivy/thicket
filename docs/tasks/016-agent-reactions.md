@@ -4,7 +4,7 @@ title: Agent-initiated Slack reactions
 status: icebox
 component: apps/bridge
 language: typescript
-depends_on: ["009"]
+depends_on: ["017"]
 blocks: []
 parallel_safe: true
 ---
@@ -20,35 +20,40 @@ reply. A reaction is a cheaper signal — 👀 on the message it picked up, ✅ 
 it finished, 🤔 when it is stuck — and it lands on the *user's* message rather
 than adding noise to the thread.
 
-The credential boundary is the whole problem. The bridge holds the Slack bot
-token; agents run as unprivileged unix users on other machines and must never
-see it. So the agent side can only ever hold a capability that names a
-reaction, and something bridge-side has to redeem it.
+The credential boundary was the open question: the bridge holds the Slack bot
+token, agents run as unprivileged unix users on other machines and must never
+see it, so the agent side can only ever name a reaction and something
+bridge-side has to redeem it.
+
+Task 017 answered the mechanism question by building the surface: the bridge
+serves an authenticated HTTP API over a unix socket behind its own netd, with
+authorization a peer-tag read plus a lookup in bridge state. Reactions become
+a second route on it, and the Claude Agent SDK's in-process MCP servers
+(`createSdkMcpServer`) mean exposing it to the model costs a JS object rather
+than a subprocess.
+
+That splits the remaining question in two: what the bridge's API allows, and
+which parts of it the *model* gets to invoke. Attachments never needed the
+model in the loop; reactions do.
 
 ## Scope
 
-- Decide the mechanism. Two candidates:
-  - An MCP server exposed to the agent's Claude session (`react(message_ts,
-    emoji)`) that calls a small bridge-side API over the same transport the
-    bridge already dials, authenticated by the peer tag netd already
-    verifies. Agents keep no Slack credential.
-  - An A2A-native path: the agent emits a structured artifact the bridge
-    interprets (the shape task 015 introduced for activity), so no new
-    inbound surface exists at all. Cheaper, but one-way and only during a
-    turn.
-- Whichever wins, the agent must be able to name only messages in the thread
-  it is currently answering — the bridge resolves `message_ts` against its own
-  record of the thread, never trusting an arbitrary channel/ts pair.
+- A write route on the bridge's file surface: `react(message_ts, emoji)`
+  backed by `reactions.add`.
+- The agent may name only messages in the thread it is currently answering —
+  the bridge resolves `message_ts` against its own record of the thread,
+  never trusting an arbitrary channel/ts pair. A write route widens the
+  trust-graph edge 017 opened, so this constraint is the whole design.
+- An in-process MCP server in agentd exposing it to the session.
 - Rate limiting: `reactions.add` is Tier 3; a chatty agent must not burn the
   workspace's budget.
 
 ## Acceptance criteria
 
-- [ ] A decision (build / don't build) with the credential-boundary question
-      answered in writing.
-- [ ] If built: an agent can react to the message it is answering, and cannot
-      react to anything else.
-- [ ] If built: reaction failures never fail the turn.
+- [ ] An agent can react to the message it is answering, and cannot react to
+      anything else — including messages in another thread of its own.
+- [ ] Reaction failures never fail the turn.
+- [ ] The agent holds no Slack credential.
 
 ## Out of scope
 
