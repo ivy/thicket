@@ -133,3 +133,26 @@ test("unparseable YAML is a RosterValidationError", () => {
     (err: unknown) => err instanceof RosterValidationError,
   );
 });
+
+test("permissionMode defaults to auto and rejects bypassPermissions", () => {
+  const roster = parseRoster(fixture);
+  assert.equal(roster.agents.hearth?.harness.permissionMode, "auto");
+  assert.throws(
+    () =>
+      parseRoster(
+        JSON.stringify({
+          agents: {
+            hearth: {
+              ...minimalAgent,
+              harness: { ...minimalAgent.harness, permissionMode: "bypassPermissions" },
+            },
+          },
+        }),
+      ),
+    (err: unknown) => {
+      assert.ok(err instanceof RosterValidationError);
+      assert.match(err.message, /agents\.hearth\.harness\.permissionMode/);
+      return true;
+    },
+  );
+});

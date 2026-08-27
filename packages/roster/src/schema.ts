@@ -14,6 +14,13 @@ const harnessSchema = z.object({
   cwd: z.string().min(1),
   model: z.string().min(1),
   sessionTtlSeconds: z.number().int().positive().default(300),
+  // Headless sessions have no permission prompt surface, so an 'ask'
+  // decision is a terminal denial. 'auto' routes prompts through the
+  // model classifier, letting agents handle administrative work;
+  // 'bypassPermissions' is deliberately not offered.
+  permissionMode: z
+    .enum(["default", "acceptEdits", "plan", "dontAsk", "auto"])
+    .default("auto"),
 });
 
 const agentEntrySchema = z.object({

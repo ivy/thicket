@@ -26,6 +26,8 @@ export interface SessionManagerOptions {
     cwd: string;
     model: string;
     sessionTtlSeconds: number;
+    /** Claude Code permission mode for the session (roster default: auto). */
+    permissionMode?: "default" | "acceptEdits" | "plan" | "dontAsk" | "auto";
   };
   /** Hot pool cap; least-recently-used idle sessions are evicted beyond it. */
   maxSessions?: number;
@@ -300,6 +302,9 @@ export class SessionManager implements SessionProvider {
       env: this.env,
       includePartialMessages: true,
       abortController: abort,
+      ...(this.harness.permissionMode !== undefined
+        ? { permissionMode: this.harness.permissionMode }
+        : {}),
       ...(exists ? { resume: session.id } : { sessionId: session.id }),
     };
     const q = this.queryFn({ prompt: input, options });

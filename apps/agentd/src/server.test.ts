@@ -35,6 +35,7 @@ const entry: AgentEntry = {
     cwd: "/tmp",
     model: "claude-opus-5",
     sessionTtlSeconds: 300,
+    permissionMode: "auto",
   },
   context: "native",
   queueing: "harness",

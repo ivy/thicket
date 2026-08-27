@@ -383,3 +383,16 @@ test("a crash mid-turn injects a failure result and the session recovers", async
   assert.equal(cli.processes.length, 2);
   await manager.shutdown();
 });
+
+test("harness permissionMode reaches the query options", async () => {
+  const cli = makeFakeCli();
+  const manager = makeManager(cli, {
+    harness: { cwd: "/home/hearth", model: "claude-opus-5", sessionTtlSeconds: TTL_S, permissionMode: "auto" },
+  });
+  const session = manager.sessionFor("ctx-perm");
+  collect(session);
+  await session.send(userMessage("hi", "u1"));
+  await until(() => cli.processes.length === 1, "spawned");
+  assert.equal(cli.processes[0]?.options.permissionMode, "auto");
+  await manager.shutdown();
+});
