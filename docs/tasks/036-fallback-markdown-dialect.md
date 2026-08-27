@@ -1,7 +1,7 @@
 ---
 id: "036"
 title: Fallback posts speak markdown, like the stream they stand in for
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["032"]
@@ -45,10 +45,20 @@ its own verified decision.
 
 ## Acceptance criteria
 
-- [ ] A fallback-path post containing `##` headings and `**bold**`
+- [x] A fallback-path post containing `##` headings and `**bold**`
       renders them as formatting, not literal characters.
-- [ ] The message-body privacy rule holds: logs still record lengths,
+- [x] The message-body privacy rule holds: logs still record lengths,
       never content.
+
+## What verification established (2026-08-27)
+
+`WebSlackApi.postMessage` now sends `markdown_text`. Driven live against
+the same thread the report came from: a post containing `## Dialect
+check` and `**bold**` came back as `header` + `rich_text` blocks — the
+heading a real header, the bold real bold — identical to how the
+streamed message above it renders. The privacy rule holds by unit test:
+the log line carries the method and a character count, and the content
+string never appears in the log.
 
 ## Out of scope
 

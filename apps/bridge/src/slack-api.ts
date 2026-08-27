@@ -102,10 +102,16 @@ export class WebSlackApi implements SlackApi {
   }
 
   async postMessage(channel: string, threadTs: string, text: string): Promise<void> {
-    // Sequential, so the pieces read in order.
+    // markdown_text, not text: the model writes markdown, and `text` is
+    // parsed as mrkdwn — a different dialect that renders `##` and `**`
+    // literally (observed live on a fallback post). Sequential, so the
+    // pieces read in order.
     for (const piece of splitText(text)) {
-      this.log("chat.postMessage", { channel, thread_ts: threadTs, text: piece });
-      await this.web.chat.postMessage({ channel, thread_ts: threadTs, text: piece });
+      await this.call("chat.postMessage", {
+        channel,
+        thread_ts: threadTs,
+        markdown_text: piece,
+      });
     }
   }
 

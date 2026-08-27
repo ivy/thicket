@@ -179,6 +179,19 @@ test("a long post becomes sequential messages, split where we chose", async () =
   await r.api.postMessage("C1", "1.1", long);
   const posts = r.calls.filter((c) => c.method === "chat.postMessage");
   assert.equal(posts.length, 2);
-  assert.equal(posts[0]!.args.text, "a".repeat(2000));
-  assert.equal(posts[1]!.args.text, "b".repeat(2000));
+  assert.equal(posts[0]!.args.markdown_text, "a".repeat(2000));
+  assert.equal(posts[1]!.args.markdown_text, "b".repeat(2000));
+});
+
+test("posts carry markdown_text, never mrkdwn text, and logs keep only lengths", async () => {
+  const r = rig();
+  await r.api.postMessage("C1", "1.1", "## Heading\n\n**bold** secret-word");
+  const post = r.calls.find((c) => c.method === "chat.postMessage");
+  assert.ok(post);
+  assert.equal("text" in post.args, false, "text would be parsed as the wrong dialect");
+  assert.equal(post.args.markdown_text, "## Heading\n\n**bold** secret-word");
+  const logged = r.logged.map((f) => f.slack as Record<string, unknown>).find((f) => f.method === "chat.postMessage");
+  assert.ok(logged);
+  assert.equal(logged.chars, ("## Heading\n\n**bold** secret-word").length);
+  assert.ok(!JSON.stringify(r.logged).includes("secret-word"), "content never reaches the log");
 });
