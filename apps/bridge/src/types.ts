@@ -77,6 +77,8 @@ export interface SlackApi {
     status: SlackSessionStatus,
     options?: { title?: string },
   ): Promise<void>;
+  /** The line of prose under the app's name; "" clears it. */
+  setThreadStatus(channel: string, threadTs: string, status: string): Promise<void>;
   postMessage(channel: string, threadTs: string, text: string): Promise<void>;
   /** chat.startStream → stream ts used for appends. */
   startStream(channel: string, threadTs: string): Promise<string>;

@@ -275,6 +275,7 @@ export type SlackCall =
       status: SlackSessionStatus;
       title?: string;
     }
+  | { type: "note"; channel: string; threadTs: string; status: string }
   | { type: "post"; channel: string; threadTs: string; text: string }
   | { type: "startStream"; channel: string; threadTs: string; ts: string }
   | { type: "append"; channel: string; ts: string; text: string }
@@ -292,6 +293,9 @@ export class MockSlack implements SlackApi {
     options?: { title?: string },
   ) {
     this.calls.push({ type: "setStatus", channel, threadTs, status, title: options?.title });
+  }
+  async setThreadStatus(channel: string, threadTs: string, status: string) {
+    this.calls.push({ type: "note", channel, threadTs, status });
   }
   async postMessage(channel: string, threadTs: string, text: string) {
     this.calls.push({ type: "post", channel, threadTs, text });

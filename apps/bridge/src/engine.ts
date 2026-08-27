@@ -90,6 +90,8 @@ export class BridgeEngine {
   private readonly pendingRelease = new Map<string, SlackSessionStatus>();
   /** Tasks whose activity cards were abandoned after a Slack rejection. */
   private readonly activityOff = new Set<string>();
+  /** Threads whose prose status line was abandoned after a rejection. */
+  private readonly noteOff = new Set<string>();
   constructor(options: EngineOptions) {
     this.agent = options.agent;
     this.queueing = options.queueing;
@@ -181,6 +183,8 @@ export class BridgeEngine {
       "processing",
       opening ? { title: sessionTitle(text) } : undefined,
     );
+    // Something to read during the seconds before the first tool call.
+    await this.note(channel, threadTs, "is thinking…");
 
     let card: { streaming: boolean };
     try {
@@ -365,6 +369,11 @@ export class BridgeEngine {
           const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
           for (const activity of event.activities) {
             await this.slack.appendActivity(channel, streamTs, activity);
+            if (activity.status === "running") {
+              // The card timeline is the record; the status line is the
+              // glance. Only the opening of a step is worth announcing.
+              await this.note(channel, threadTs, `${activity.title}…`);
+            }
           }
         } catch (err) {
           this.activityOff.add(event.taskId);
@@ -386,6 +395,23 @@ export class BridgeEngine {
         );
         return;
       }
+    }
+  }
+
+  /**
+   * The prose status line. Purely informational, so a rejection retires it
+   * for the thread rather than costing the answer.
+   */
+  private async note(channel: string, threadTs: string, status: string): Promise<void> {
+    const key = `${channel}:${threadTs}`;
+    if (this.noteOff.has(key)) {
+      return;
+    }
+    try {
+      await this.slack.setThreadStatus(channel, threadTs, status);
+    } catch (err) {
+      this.noteOff.add(key);
+      this.logger.warn("thread status abandoned", { channel, threadTs, err: String(err) });
     }
   }
 
@@ -451,6 +477,9 @@ export class BridgeEngine {
     const key = `${channel}:${threadTs}`;
     if (TERMINAL.has(state)) {
       await this.closeStream(taskId, channel);
+      // A turn that ends without posting anything — a cancel — would
+      // otherwise leave its last step on screen until Slack's timeout.
+      await this.note(channel, threadTs, "");
       this.activityOff.delete(taskId);
       this.state.removeTask(taskId);
       const queuedTurns = Number(metadata?.[META_QUEUED_TURN_COUNT] ?? 0);

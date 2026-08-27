@@ -14,11 +14,11 @@ const CARD_STATUS = {
 } as const;
 
 /**
- * SlackApi over @slack/web-api. Uses agents.sessions.* — the session
- * lifecycle surface that raises the loading indicator and the stop button —
- * rather than the free-text assistant.threads.* variant Slack documents as
- * headed for deprecation. Progressive output goes through the chat
- * streaming trio.
+ * SlackApi over @slack/web-api. The two status methods are complementary,
+ * not alternatives: agents.sessions.setStatus drives the session lifecycle
+ * (loading indicator, stop button) and assistant.threads.setStatus writes
+ * the line of prose shown under the app's name. Progressive output goes
+ * through the chat streaming trio.
  */
 export class WebSlackApi implements SlackApi {
   constructor(
@@ -40,6 +40,14 @@ export class WebSlackApi implements SlackApi {
     });
   }
 
+  async setThreadStatus(channel: string, threadTs: string, status: string): Promise<void> {
+    await this.call("assistant.threads.setStatus", {
+      channel_id: channel,
+      thread_ts: threadTs,
+      status,
+    });
+  }
+
   async postMessage(channel: string, threadTs: string, text: string): Promise<void> {
     this.log("chat.postMessage", { channel, thread_ts: threadTs, text });
     await this.web.chat.postMessage({ channel, thread_ts: threadTs, text });
@@ -57,8 +65,17 @@ export class WebSlackApi implements SlackApi {
     return res.ts;
   }
 
+  /**
+   * Text goes through `chunks` like everything else: a stream that has
+   * carried a chunk rejects the top-level markdown_text form with
+   * streaming_mode_mismatch (observed live).
+   */
   async appendStream(channel: string, streamTs: string, text: string): Promise<void> {
-    await this.call("chat.appendStream", { channel, ts: streamTs, markdown_text: text });
+    await this.call("chat.appendStream", {
+      channel,
+      ts: streamTs,
+      chunks: [{ type: "markdown_text", text }],
+    });
   }
 
   async appendActivity(
@@ -91,25 +108,29 @@ export class WebSlackApi implements SlackApi {
   }
 
   /**
-   * One line per Slack side effect. Message bodies are reduced to a length
-   * so a turn stays reconstructible from the log without copying its
-   * content there.
+   * One line per Slack side effect, nested under `slack` so an argument
+   * named `ts` cannot shadow the log record's own timestamp. Message bodies
+   * are reduced to a length: a turn stays reconstructible without its
+   * content being copied into the log.
    */
   private log(method: string, args: Record<string, unknown>): void {
     const fields: Record<string, unknown> = { method };
     for (const [key, value] of Object.entries(args)) {
-      if (key === "markdown_text" || key === "text") {
+      if (key === "text" || key === "markdown_text") {
         fields.chars = String(value).length;
       } else if (key === "title") {
         fields.titled = true;
       } else if (key === "chunks") {
-        fields.chunks = (value as { type: string; id?: string; status?: string }[]).map((chunk) =>
-          chunk.id === undefined ? chunk.type : `${chunk.id}:${chunk.status}`,
+        fields.chunks = (value as { type: string; id?: string; status?: string; text?: string }[]).map(
+          (chunk) =>
+            chunk.id !== undefined
+              ? `${chunk.id}:${chunk.status}`
+              : `${chunk.type}:${String(chunk.text ?? "").length}`,
         );
       } else {
         fields[key] = value;
       }
     }
-    this.logger.info("slack call", fields);
+    this.logger.info("slack call", { slack: fields });
   }
 }

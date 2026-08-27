@@ -75,34 +75,51 @@ test("an activity becomes one task_update chunk", async () => {
   assert.equal("details" in chunk, false);
 });
 
-test("every call is logged, and message bodies are reduced to a length", async () => {
+test("text appends go through chunks, like every other append", async () => {
+  const r = rig();
+  await r.api.appendStream("C1", "1.2", "the tide comes in");
+  assert.deepEqual(r.calls[0], {
+    method: "chat.appendStream",
+    args: {
+      channel: "C1",
+      ts: "1.2",
+      chunks: [{ type: "markdown_text", text: "the tide comes in" }],
+    },
+  });
+});
+
+test("every call is logged, nested so no argument shadows the record", async () => {
   const r = rig();
   await r.api.startStream("C1", "1.1");
   await r.api.appendStream("C1", "1.2", "the tide comes in");
   await r.api.postMessage("C1", "1.1", "secret-ish reply");
   await r.api.appendActivity("C1", "1.2", { id: "toolu_1", title: "t", status: "done" });
+  await r.api.setThreadStatus("C1", "1.1", "is thinking…");
   await r.api.stopStream("C1", "1.2");
 
+  const slack = r.logged.map((f) => f.slack as Record<string, unknown>);
   assert.deepEqual(
-    r.logged.map((f) => f.method),
+    slack.map((f) => f.method),
     [
       "chat.startStream",
       "chat.appendStream",
       "chat.postMessage",
       "chat.appendStream",
+      "assistant.threads.setStatus",
       "chat.stopStream",
     ],
   );
-  const bodies = r.logged.filter((f) => f.chars !== undefined);
-  assert.deepEqual(
-    bodies.map((f) => f.chars),
-    ["the tide comes in".length, "secret-ish reply".length],
+  assert.ok(
+    r.logged.every((f) => Object.keys(f).length === 1 && "slack" in f),
+    "arguments cannot collide with the log record's own fields",
   );
+  assert.deepEqual(slack[1]?.chunks, [`markdown_text:${"the tide comes in".length}`]);
+  assert.equal(slack[2]?.chars, "secret-ish reply".length);
+  assert.deepEqual(slack[3]?.chunks, ["toolu_1:complete"]);
   assert.ok(
     r.logged.every((f) => !JSON.stringify(f).includes("secret-ish")),
     "no message body reaches the log",
   );
-  assert.deepEqual(r.logged[3]?.chunks, ["toolu_1:complete"]);
 });
 
 test("a stream that comes back without a ts is an error, not a silent no-op", async () => {

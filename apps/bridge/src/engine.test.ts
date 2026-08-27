@@ -28,6 +28,7 @@ type SlackCall =
       status: SlackSessionStatus;
       title?: string;
     }
+  | { type: "note"; channel: string; threadTs: string; status: string }
   | { type: "post"; channel: string; threadTs: string; text: string }
   | { type: "startStream"; channel: string; threadTs: string; ts: string }
   | { type: "append"; channel: string; ts: string; text: string }
@@ -47,6 +48,9 @@ class FakeSlack implements SlackApi {
     options?: { title?: string },
   ) {
     this.calls.push({ type: "setStatus", channel, threadTs, status, title: options?.title });
+  }
+  async setThreadStatus(channel: string, threadTs: string, status: string) {
+    this.calls.push({ type: "note", channel, threadTs, status });
   }
   async postMessage(channel: string, threadTs: string, text: string) {
     this.calls.push({ type: "post", channel, threadTs, text });
@@ -387,14 +391,21 @@ test("activity opens the stream before any text and updates the card in place", 
   const kinds = r.slack.calls.map((c) => c.type);
   assert.deepEqual(kinds, [
     "setStatus", // processing, on the way out
+    "note", // is thinking…
     "setStatus", // processing, from the task's working state
     "startStream",
-    "activity",
-    "activity",
+    "activity", // card opens
+    "note", // and the prose line follows it
+    "activity", // card closes; no second note
     "append",
     "stop",
+    "note", // cleared
     "setStatus", // active
   ]);
+  assert.deepEqual(
+    r.slack.calls.filter((c) => c.type === "note").map((c) => c.status),
+    ["is thinking…", "Checking memory pressure…", ""],
+  );
   const cards = r.slack.calls.filter((c) => c.type === "activity");
   assert.deepEqual(
     cards.map((c) => [c.activity.id, c.activity.status]),
