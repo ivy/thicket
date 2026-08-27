@@ -99,6 +99,10 @@ test("the toolbelt is an in-process SDK server exposing exactly the allowed tool
     "mcp__thicket__search_messages",
     "mcp__thicket__list_channels",
     "mcp__thicket__list_users",
+    "mcp__thicket__routine_create",
+    "mcp__thicket__routine_list",
+    "mcp__thicket__routine_update",
+    "mcp__thicket__routine_delete",
   ]);
 });
 

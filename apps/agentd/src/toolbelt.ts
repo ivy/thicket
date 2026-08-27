@@ -4,6 +4,9 @@ import { basename, isAbsolute, resolve } from "node:path";
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 
+import { parseCron } from "./cron.js";
+import type { RoutineStore } from "./store/routines.js";
+
 /**
  * Uploads are buffered through the bridge, so the cap protects two heaps.
  * It matches the bridge's own request limit; Slack's per-file cap is 1 GB.
@@ -17,6 +20,8 @@ export interface ToolbeltOptions {
   fetchImpl: typeof fetch;
   /** Session working directory; relative upload paths resolve here. */
   cwd: string;
+  /** When present, the routine CRUD tools are offered (task 022). */
+  routines?: RoutineStore;
 }
 
 /**
@@ -135,6 +140,112 @@ export function toToolResult(outcome: ToolOutcome): {
         `same channel; tell the user what you needed.`
       : `Failed: ${outcome.error}. This may be transient.`;
   return { isError: true, content: [{ type: "text", text }] };
+}
+
+function ok(detail: Record<string, unknown>): { content: { type: "text"; text: string }[] } {
+  return { content: [{ type: "text", text: JSON.stringify({ ok: true, ...detail }) }] };
+}
+
+function toolError(text: string): {
+  isError: true;
+  content: { type: "text"; text: string }[];
+} {
+  return { isError: true, content: [{ type: "text", text }] };
+}
+
+/**
+ * Routine CRUD, so the agent manages its own standing work
+ * conversationally. Schedules are five-field cron evaluated in this
+ * host's local time zone; minutes that pass while the machine is asleep
+ * are skipped, not replayed.
+ */
+function routineTools(store: RoutineStore) {
+  const validateCron = (cron: string): string | undefined =>
+    parseCron(cron) === undefined
+      ? `not a valid cron expression: "${cron}". Five fields — minute hour ` +
+        `day-of-month month day-of-week — with *, numbers, ranges, lists, ` +
+        `and steps (e.g. "0 9 * * 1-5" for weekday mornings at 09:00 local time).`
+      : undefined;
+  return [
+    tool(
+      "routine_create",
+      "Create a scheduled routine: a prompt this agent runs on a cron " +
+        "schedule (host local time), in its own persistent conversation. A " +
+        "routine run talks to no one — anything worth saying must go through " +
+        "post_message, and saying nothing is the normal outcome. Five " +
+        "consecutive failing runs disable the routine automatically.",
+      {
+        name: z.string().min(1).describe("short human name, e.g. changelog-watch"),
+        cron: z.string().min(1).describe("five-field cron, e.g. '0 9 * * *' for 09:00 daily"),
+        prompt: z.string().min(1).describe("what to do each run, including where to post"),
+      },
+      async (args) => {
+        const invalid = validateCron(args.cron);
+        if (invalid !== undefined) {
+          return toolError(invalid);
+        }
+        const routine = store.create(args);
+        return ok({ routine: { id: routine.id, name: routine.name, cron: routine.cron } });
+      },
+    ),
+    tool(
+      "routine_list",
+      "List this agent's routines: id, name, schedule, enabled, failure " +
+        "count, and the last run's outcome.",
+      {},
+      async () =>
+        ok({
+          routines: store.list().map((routine) => ({
+            id: routine.id,
+            name: routine.name,
+            cron: routine.cron,
+            enabled: routine.enabled,
+            consecutive_failures: routine.consecutiveFailures,
+            last_run: routine.lastRunMs === null ? null : new Date(routine.lastRunMs).toISOString(),
+            last_outcome: routine.lastOutcome,
+          })),
+        }),
+    ),
+    tool(
+      "routine_update",
+      "Update a routine's name, schedule, prompt, or enabled flag. " +
+        "Re-enabling a disabled routine resets its failure count.",
+      {
+        id: z.string().min(1).describe("routine id, from routine_list"),
+        name: z.string().min(1).optional(),
+        cron: z.string().min(1).optional(),
+        prompt: z.string().min(1).optional(),
+        enabled: z.boolean().optional(),
+      },
+      async (args) => {
+        if (args.cron !== undefined) {
+          const invalid = validateCron(args.cron);
+          if (invalid !== undefined) {
+            return toolError(invalid);
+          }
+        }
+        const { id, ...patch } = args;
+        if (!store.update(id, patch)) {
+          return toolError(`no routine with id ${id}; routine_list shows what exists`);
+        }
+        return ok({ id });
+      },
+    ),
+    tool(
+      "routine_delete",
+      "Delete a routine permanently. To pause one instead, routine_update " +
+        "with enabled: false.",
+      {
+        id: z.string().min(1).describe("routine id, from routine_list"),
+      },
+      async (args) => {
+        if (!store.remove(args.id)) {
+          return toolError(`no routine with id ${args.id}; routine_list shows what exists`);
+        }
+        return ok({ deleted: args.id });
+      },
+    ),
+  ];
 }
 
 /**
@@ -259,6 +370,7 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
         },
         async (args) => toToolResult(await readBridge(options, "/api/users", args)),
       ),
+      ...(options.routines === undefined ? [] : routineTools(options.routines)),
     ],
   });
 }
@@ -273,4 +385,8 @@ export const TOOLBELT_ALLOWED_TOOLS = [
   "mcp__thicket__search_messages",
   "mcp__thicket__list_channels",
   "mcp__thicket__list_users",
+  "mcp__thicket__routine_create",
+  "mcp__thicket__routine_list",
+  "mcp__thicket__routine_update",
+  "mcp__thicket__routine_delete",
 ];

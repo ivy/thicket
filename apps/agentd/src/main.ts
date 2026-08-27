@@ -1,11 +1,20 @@
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 
-import { DefaultRequestHandler } from "@a2a-js/sdk/server";
+import { Role, TaskState } from "@a2a-js/sdk";
+import type { Message, Task } from "@a2a-js/sdk";
+import { DefaultRequestHandler, ServerCallContext } from "@a2a-js/sdk/server";
 
 import { parseRoster, toAgentCard } from "@thicket/roster";
-import { AttachmentStore, ClaudeAgentExecutor, SessionManager } from "@thicket/executor";
+import {
+  AttachmentStore,
+  ClaudeAgentExecutor,
+  deriveSessionId,
+  META_TRIGGER,
+  SessionManager,
+} from "@thicket/executor";
 
 import { defaultConfigPath, loadConfig, sessionEnv, type AgentdConfig } from "./config.js";
 import { egressFetch } from "./egress.js";
@@ -16,6 +25,8 @@ import { createLogger, type Logger } from "./logger.js";
 import { buildServer } from "./server.js";
 import { SqliteTaskStore } from "./store/sqlite-task-store.js";
 import { JournalStore } from "./store/journal.js";
+import { RoutineStore } from "./store/routines.js";
+import { RoutineRunner, type RoutineTurnResult } from "./routines.js";
 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 const ATTACHMENT_PRUNE_INTERVAL_MS = 6 * 60 * 60_000;
@@ -47,7 +58,12 @@ export async function run(
   // The Slack toolbelt exists only when the bridge is addressable — like
   // attachments, absence of configuration means absence of capability. A
   // factory, because an MCP server instance serves exactly one session.
+  // Routines ride the same condition: standing work that cannot post is
+  // standing work that cannot report, which is worse than none.
   const bridgeBaseUrl = config.bridgeBaseUrl;
+  const routines = bridgeBaseUrl === undefined ? undefined : new RoutineStore(
+    join(dirname(config.dbPath), "routines.db"),
+  );
   const toolbeltFactory =
     bridgeBaseUrl === undefined
       ? undefined
@@ -56,6 +72,7 @@ export async function run(
             bridgeBaseUrl,
             fetchImpl: egressFetch(config.egressSocket),
             cwd: entry.harness.cwd,
+            ...(routines === undefined ? {} : { routines }),
           }),
         });
   if (toolbeltFactory === undefined) {
@@ -112,6 +129,66 @@ export async function run(
   });
   const handler = new DefaultRequestHandler(card, store, executor);
 
+  // Routine turns enter through the same request handler as everything
+  // else — agentd is its own A2A requester — so the task store, the
+  // journal (trigger: routine), and the translator all just apply. The
+  // reply text streams back here and is discarded: a routine that has
+  // something to say says it through the toolbelt.
+  const routineContext = new ServerCallContext({
+    user: { isAuthenticated: true, userName: "routine" },
+  });
+  const runRoutineTurn = async (routineId: string, prompt: string): Promise<RoutineTurnResult> => {
+    const message: Message = {
+      messageId: `routine-${routineId}-${randomUUID()}`,
+      // One stable context per routine: consecutive runs share a session,
+      // which is how "what did I already report?" answers itself.
+      contextId: deriveSessionId("routine", routineId),
+      taskId: "",
+      role: Role.ROLE_USER,
+      parts: [
+        {
+          content: { $case: "text", value: prompt },
+          mediaType: "text/plain",
+          filename: "",
+          metadata: {},
+        },
+      ],
+      metadata: { [META_TRIGGER]: "routine" },
+      extensions: [],
+      referenceTaskIds: [],
+    };
+    const result = await handler.sendMessage(
+      { tenant: "", message, configuration: undefined, metadata: undefined },
+      routineContext,
+    );
+    if (!("status" in result)) {
+      return { state: "completed" }; // a bare Message reply is an answer
+    }
+    const task = result as Task;
+    const taskState = task.status?.state;
+    const errorText = (task.status?.message?.parts ?? [])
+      .map((part) => (part.content?.$case === "text" ? part.content.value : ""))
+      .join("");
+    switch (taskState) {
+      case TaskState.TASK_STATE_COMPLETED:
+        return { state: "completed" };
+      case TaskState.TASK_STATE_INPUT_REQUIRED:
+        return { state: "input-required" };
+      case TaskState.TASK_STATE_CANCELED:
+        return { state: "canceled", ...(errorText === "" ? {} : { error: errorText }) };
+      default:
+        return { state: "failed", ...(errorText === "" ? {} : { error: errorText }) };
+    }
+  };
+  const runner =
+    routines === undefined
+      ? undefined
+      : new RoutineRunner({ store: routines, runTurn: runRoutineTurn, logger });
+  runner?.start();
+  if (runner !== undefined) {
+    logger.info("routine scheduler running", { routines: routines?.list().length ?? 0 });
+  }
+
   const app = buildServer({
     handler,
     allowedPeerTags: config.allowedPeerTags,
@@ -154,10 +231,12 @@ export async function run(
       process.exit(1);
     }, SHUTDOWN_TIMEOUT_MS);
     deadline.unref();
+    runner?.stop();
     server.close(() => {
       void sessions.shutdown().then(() => {
         store.close();
         journal.close();
+        routines?.close();
         logger.info("shutdown complete");
         process.exit(0);
       });
