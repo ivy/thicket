@@ -16,16 +16,26 @@ function usage(): never {
     "usage: thicket provision [--dry-run] [--agent NAME]\n" +
       "       thicket doctor\n" +
       "       thicket fleet\n" +
-      "       thicket mcp\n",
+      "       thicket mcp\n" +
+      "       thicket slack-test-mcp   (development: drives Slack as you)\n",
   );
   process.exit(2);
 }
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
-  const rosterPath = process.env.THICKET_AGENTS_FILE ?? join(configDir(), "agents.yaml");
-  const rosterYaml = readFileSync(rosterPath, "utf8");
-  const roster = parseRoster(rosterYaml);
+
+  // Read lazily: the Slack test harness talks only to Slack, and failing
+  // for want of a fleet roster it never consults would be a poor error.
+  let cachedYaml: string | undefined;
+  const loadYaml = (): string => {
+    cachedYaml ??= readFileSync(
+      process.env.THICKET_AGENTS_FILE ?? join(configDir(), "agents.yaml"),
+      "utf8",
+    );
+    return cachedYaml;
+  };
+  const loadRoster = () => parseRoster(loadYaml());
 
   if (command === "provision") {
     const dryRun = rest.includes("--dry-run");
@@ -39,6 +49,7 @@ async function main(): Promise<void> {
 
     const manifests = new Map<string, SlackManifest>();
     const warnings: string[] = [];
+    const roster = loadRoster();
     for (const [name, entry] of Object.entries(roster.agents)) {
       const rendered = toSlackManifest(toAgentCard(name, entry), { testHarness });
       manifests.set(name, rendered.manifest);
@@ -53,7 +64,7 @@ async function main(): Promise<void> {
     await provisioner.run({ manifests, warnings, dryRun, only });
 
     if (!dryRun) {
-      const written = renderAccountConfigs(roster, rosterYaml, {
+      const written = renderAccountConfigs(roster, loadYaml(), {
         outDir: join(configDir(), "rendered"),
         allowedPeerTags: [
           "tag:thicket-bridge",
@@ -70,7 +81,7 @@ async function main(): Promise<void> {
     const { fleetHealth, formatFleet } = await import("./fleet.js");
     const { egressHttp } = await import("./mcp/http.js");
     const { socketPath } = await import("@thicket/roster");
-    const results = await fleetHealth(roster, {
+    const results = await fleetHealth(loadRoster(), {
       http: egressHttp(process.env.THICKET_EGRESS_SOCKET ?? socketPath("netd-egress")),
       tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
       endpointOverrides:
@@ -93,7 +104,7 @@ async function main(): Promise<void> {
     const { socketPath } = await import("@thicket/roster");
     const egressSocket = process.env.THICKET_EGRESS_SOCKET ?? socketPath("netd-egress");
     const server = buildMcpServer({
-      roster,
+      roster: loadRoster(),
       http: egressHttp(egressSocket),
       tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
       endpointOverrides:
@@ -105,10 +116,32 @@ async function main(): Promise<void> {
     return; // serves until stdio closes
   }
 
+  if (command === "slack-test-mcp") {
+    const { StdioServerTransport } = await import(
+      "@modelcontextprotocol/sdk/server/stdio.js"
+    );
+    const { buildSlackTestServer } = await import("./slack-test/server.js");
+    const { SlackTestClient } = await import("./slack-test/client.js");
+    const store = new FileStore(configDir());
+    const creds = store.read<{ user_token?: string }>("slack-test-harness.json");
+    const token = process.env.THICKET_SLACK_USER_TOKEN ?? creds?.user_token;
+    if (token === undefined || token === "") {
+      process.stderr.write(
+        "no user token: write {\"user_token\": \"xoxp-…\"} to " +
+          `${store.path("slack-test-harness.json")} (mode 0600), ` +
+          "or set THICKET_SLACK_USER_TOKEN.\n",
+      );
+      process.exit(2);
+    }
+    const server = buildSlackTestServer({ client: new SlackTestClient({ token }) });
+    await server.connect(new StdioServerTransport());
+    return; // serves until stdio closes
+  }
+
   if (command === "doctor") {
     // Probes run real commands/network; wired here, logic lives in doctor.ts.
     const { realProbes } = await import("./doctor-probes.js");
-    const results = await runDoctor(roster, realProbes());
+    const results = await runDoctor(loadRoster(), realProbes());
     for (const line of formatResults(results)) {
       process.stdout.write(line + "\n");
     }

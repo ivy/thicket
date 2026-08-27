@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "slack-test": {
+      "command": "mise",
+      "args": ["exec", "--", "node", "apps/cli/dist/bin.js", "slack-test-mcp"],
+      "env": {}
+    }
+  }
+}
