@@ -1,7 +1,7 @@
 ---
 id: "019"
 title: Detect a Socket Mode connection that stops delivering
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["009"]
