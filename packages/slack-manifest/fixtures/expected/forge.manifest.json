@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "forge",
-    "description": "Keeps the CI fleet green: watches builds, investigates red pipelines, bisects regressions, and proposes fixes as reviewable patches rather…",
+    "description": "Keeps the CI fleet green: watches builds, investigates red pipelines, bisects regressions, and proposes fixes as…",
     "long_description": "Keeps the CI fleet green: watches builds, investigates red pipelines, bisects regressions, and proposes fixes as reviewable patches rather than pushing anything itself.\n\nSkills:\n• CI triage: Investigates failing builds and finds the breaking change."
   },
   "features": {
@@ -30,7 +30,10 @@
         }
       ],
       "actions": [
-        "CI triage"
+        {
+          "name": "CI triage",
+          "description": "Investigates failing builds and finds the breaking change."
+        }
       ]
     }
   },

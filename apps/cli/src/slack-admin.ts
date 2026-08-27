@@ -10,31 +10,44 @@ interface SlackResponse {
 }
 
 /**
- * SlackAdminApi over api.slack.com. Token values travel only in request
- * bodies; errors are surfaced by Slack's error code, never echoing the
- * token.
+ * SlackAdminApi over api.slack.com. The token travels in the
+ * Authorization header — Slack ignores a token field inside a JSON body
+ * (observed: not_authed) — and parameters go form-encoded, the Web API's
+ * native dialect. Errors surface Slack's error code, never the token.
  */
 export class HttpSlackAdminApi implements SlackAdminApi {
   constructor(private readonly fetchImpl: typeof fetch = fetch) {}
 
-  private async call(method: string, body: Record<string, unknown>): Promise<SlackResponse> {
+  private async call(
+    method: string,
+    params: Record<string, string>,
+    token?: string,
+  ): Promise<SlackResponse> {
     const response = await this.fetchImpl(`https://slack.com/api/${method}`, {
       method: "POST",
-      headers: { "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify(body),
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        ...(token !== undefined ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: new URLSearchParams(params).toString(),
     });
     const payload = (await response.json()) as SlackResponse;
     if (!payload.ok) {
-      throw new Error(`${method} failed: ${payload.error ?? "unknown_error"}`);
+      // Manifest validation failures carry a detailed errors array; an
+      // actionable message beats a bare error code.
+      const detail =
+        payload.errors !== undefined ? ` — ${JSON.stringify(payload.errors)}` : "";
+      throw new Error(`${method} failed: ${payload.error ?? "unknown_error"}${detail}`);
     }
     return payload;
   }
 
   async createApp(token: string, manifest: SlackManifest) {
-    const res = await this.call("apps.manifest.create", {
+    const res = await this.call(
+      "apps.manifest.create",
+      { manifest: JSON.stringify(manifest) },
       token,
-      manifest: JSON.stringify(manifest),
-    });
+    );
     const appId = String(res.app_id ?? "");
     if (appId === "") {
       throw new Error("apps.manifest.create returned no app_id");
@@ -47,16 +60,16 @@ export class HttpSlackAdminApi implements SlackAdminApi {
   }
 
   async updateApp(token: string, appId: string, manifest: SlackManifest): Promise<void> {
-    await this.call("apps.manifest.update", {
+    await this.call(
+      "apps.manifest.update",
+      { app_id: appId, manifest: JSON.stringify(manifest) },
       token,
-      app_id: appId,
-      manifest: JSON.stringify(manifest),
-    });
+    );
   }
 
   async exportManifest(token: string, appId: string): Promise<SlackManifest | undefined> {
     try {
-      const res = await this.call("apps.manifest.export", { token, app_id: appId });
+      const res = await this.call("apps.manifest.export", { app_id: appId }, token);
       return res.manifest as SlackManifest | undefined;
     } catch {
       return undefined;

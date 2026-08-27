@@ -115,8 +115,8 @@ test("field mapping: names, descriptions, prompts, actions", () => {
   assert.equal(manifest.display_information.name, "hearth");
   assert.equal(manifest.features.bot_user.display_name, "hearth");
   assert.deepEqual(manifest.features.agent_view.actions, [
-    "Email triage",
-    "Calendar management",
+    { name: "Email triage", description: "Reads and sorts the inbox, drafts replies for review." },
+    { name: "Calendar management", description: "Schedules, reschedules, and flags conflicts before they bite." },
   ]);
   assert.deepEqual(manifest.features.agent_view.suggested_prompts[0], {
     title: "Email triage",

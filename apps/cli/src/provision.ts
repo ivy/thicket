@@ -45,6 +45,38 @@ export interface ProvisionDeps {
 const DEFAULT_MUTATION_INTERVAL_MS = 61_000;
 const DEFAULT_ROTATE_MARGIN_MS = 10 * 60 * 1000;
 
+/**
+ * Projects Slack's stored manifest onto the shape of the desired one:
+ * keys we do not manage (server-added defaults like pkce_enabled or
+ * is_mcp_enabled) are dropped, so they never register as drift, while
+ * managed keys that changed or vanished still do. Arrays of differing
+ * length pass through untouched so added/removed entries stay visible.
+ */
+export function projectOnto(stored: unknown, desired: unknown): unknown {
+  if (Array.isArray(stored) && Array.isArray(desired)) {
+    if (stored.length !== desired.length) {
+      return stored;
+    }
+    return stored.map((item, i) => projectOnto(item, desired[i]));
+  }
+  if (
+    typeof stored === "object" && stored !== null && !Array.isArray(stored) &&
+    typeof desired === "object" && desired !== null && !Array.isArray(desired)
+  ) {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(desired)) {
+      if (key in (stored as Record<string, unknown>)) {
+        out[key] = projectOnto(
+          (stored as Record<string, unknown>)[key],
+          (desired as Record<string, unknown>)[key],
+        );
+      }
+    }
+    return out;
+  }
+  return stored;
+}
+
 /** Dotted paths at which two JSON-ish values differ. */
 export function diffPaths(a: unknown, b: unknown, prefix = ""): string[] {
   if (typeof a !== typeof b || (typeof a !== "object" && a !== b) || a === null !== (b === null)) {
@@ -114,7 +146,7 @@ export class Provisioner {
       }
 
       const current = await this.deps.api.exportManifest(await this.freshToken(), known.appId);
-      const drift = diffPaths(current ?? {}, manifest);
+      const drift = diffPaths(projectOnto(current ?? {}, manifest), manifest);
       if (drift.length === 0) {
         this.deps.report(`${agent}: up to date`);
         continue;

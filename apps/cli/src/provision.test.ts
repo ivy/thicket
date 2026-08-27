@@ -89,7 +89,23 @@ class FakeSlackAdmin implements SlackAdminApi {
 
   async exportManifest(token: string, appId: string) {
     this.checkToken(token);
-    return this.apps.get(appId);
+    const stored = this.apps.get(appId);
+    if (stored === undefined) {
+      return undefined;
+    }
+    // The real apps.manifest.export returns the manifest as Slack stores
+    // it, including keys the caller never sent (observed live:
+    // pkce_enabled, is_mcp_enabled, interactivity). Mimic that so the
+    // idempotency tests exercise the projection.
+    return {
+      ...stored,
+      oauth_config: { ...stored.oauth_config, pkce_enabled: false },
+      settings: {
+        ...stored.settings,
+        is_mcp_enabled: false,
+        interactivity: { is_enabled: false },
+      },
+    } as unknown as SlackManifest;
   }
 
   async rotateToken(refreshToken: string): Promise<ConfigTokenPair> {

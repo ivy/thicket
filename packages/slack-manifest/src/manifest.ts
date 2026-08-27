@@ -4,7 +4,10 @@ import type { AgentCard } from "@a2a-js/sdk";
 // fails apps.manifest.create at provision time, so the renderer enforces
 // them at render time instead.
 export const NAME_MAX = 35;
-export const DESCRIPTION_MAX = 140;
+// Slack documents 140 for display_information.description, but the live
+// validator rejects 140 ("desc_too_long") and accepts 120 (observed
+// 2026-08 against apps.manifest.validate). 120 is the enforced cap here.
+export const DESCRIPTION_MAX = 120;
 export const LONG_DESCRIPTION_MIN = 174;
 export const AGENT_DESCRIPTION_MAX = 300;
 export const SUGGESTED_PROMPTS_MAX = 4;
@@ -35,6 +38,16 @@ export interface SlackSuggestedPrompt {
   message: string;
 }
 
+/**
+ * agent_view actions are objects, not bare names — the live validator
+ * requires name and description (observed: "must provide an object",
+ * then "missing required field: description").
+ */
+export interface SlackAgentAction {
+  name: string;
+  description: string;
+}
+
 /** The v2 manifest subset thicket emits. */
 export interface SlackManifest {
   display_information: {
@@ -51,7 +64,7 @@ export interface SlackManifest {
     agent_view: {
       agent_description: string;
       suggested_prompts: SlackSuggestedPrompt[];
-      actions: string[];
+      actions: SlackAgentAction[];
     };
   };
   oauth_config: {
@@ -178,7 +191,10 @@ export function toSlackManifest(card: AgentCard, options: RenderOptions = {}): R
       agent_view: {
         agent_description: truncateAtWord(card.description, AGENT_DESCRIPTION_MAX),
         suggested_prompts: prompts,
-        actions: card.skills.map((skill) => skill.name),
+        actions: card.skills.map((skill) => ({
+          name: skill.name,
+          description: skill.description,
+        })),
       },
     },
     oauth_config: {

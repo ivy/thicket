@@ -14,5 +14,6 @@ export {
   type RenderOptions,
   type RenderResult,
   type SlackManifest,
+  type SlackAgentAction,
   type SlackSuggestedPrompt,
 } from "./manifest.js";
