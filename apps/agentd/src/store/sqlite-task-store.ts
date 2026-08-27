@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { Task, TaskState } from "@a2a-js/sdk";
+import { Role, Task, TaskState } from "@a2a-js/sdk";
 import type { ListTasksRequest, ListTasksResponse } from "@a2a-js/sdk";
 import type { OwnerResolver, ServerCallContext, TaskStore } from "@a2a-js/sdk/server";
 import { resolveUserScope } from "@a2a-js/sdk/server";
@@ -181,6 +181,71 @@ export class SqliteTaskStore implements TaskStore {
       .prepare(`SELECT task_json FROM tasks WHERE state IN (${placeholders}) ORDER BY rowid`)
       .all(...states) as unknown as TaskRow[];
     return rows.map((row) => Task.fromJSON(JSON.parse(row.task_json)));
+  }
+
+  /**
+   * Startup reconciliation: tasks left in submitted/working by a previous
+   * process are unrecoverable — their subprocess is gone. Fail them with
+   * an explanatory message so clients are not left polling forever.
+   * Returns the number of tasks transitioned.
+   */
+  failUnfinished(reason: string): number {
+    const now = new Date().toISOString();
+    const rows = this.db
+      .prepare(
+        `SELECT tenant, owner, id, task_json FROM tasks WHERE state IN (?, ?)`,
+      )
+      .all(TaskState.TASK_STATE_SUBMITTED, TaskState.TASK_STATE_WORKING) as unknown as {
+      tenant: string;
+      owner: string;
+      id: string;
+      task_json: string;
+    }[];
+    const update = this.db.prepare(
+      `UPDATE tasks SET state = ?, status_timestamp = ?, status_time_ms = ?, task_json = ?
+       WHERE tenant = ? AND owner = ? AND id = ?`,
+    );
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      for (const row of rows) {
+        const task = Task.fromJSON(JSON.parse(row.task_json));
+        task.status = {
+          state: TaskState.TASK_STATE_FAILED,
+          message: {
+            messageId: `${row.id}-reconciled`,
+            contextId: task.contextId,
+            taskId: row.id,
+            role: Role.ROLE_AGENT,
+            parts: [
+              {
+                content: { $case: "text", value: reason },
+                mediaType: "text/plain",
+                filename: "",
+                metadata: {},
+              },
+            ],
+            metadata: {},
+            extensions: [],
+            referenceTaskIds: [],
+          },
+          timestamp: now,
+        };
+        update.run(
+          TaskState.TASK_STATE_FAILED,
+          now,
+          Date.parse(now),
+          JSON.stringify(Task.toJSON(task)),
+          row.tenant,
+          row.owner,
+          row.id,
+        );
+      }
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    return rows.length;
   }
 
   /**

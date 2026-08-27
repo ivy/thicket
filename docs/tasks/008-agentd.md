@@ -1,7 +1,7 @@
 ---
 id: "008"
 title: agentd — A2A server daemon
-status: in-progress
+status: done
 component: apps/agentd
 language: typescript
 depends_on: ["002", "004", "005", "006"]
@@ -50,21 +50,21 @@ in-flight turns settle within a timeout, terminate pooled subprocesses, exit.
 
 ## Acceptance criteria
 
-- [ ] `curl --unix-socket <path> http://local/.well-known/agent-card.json` returns the
+- [x] `curl --unix-socket <path> http://local/.well-known/agent-card.json` returns the
       agent's card with an `ETag`; a conditional request returns 304.
-- [ ] A full `SendMessage` round trip over the socket produces a task that reaches a
+- [x] A full `SendMessage` round trip over the socket produces a task that reaches a
       terminal state and is retrievable via `GetTask` afterwards.
-- [ ] `SendStreamingMessage` yields incremental artifact events before the terminal
+- [x] `SendStreamingMessage` yields incremental artifact events before the terminal
       status event.
-- [ ] A request whose peer tag is absent, or not in the allow-list, is rejected — and
+- [x] A request whose peer tag is absent, or not in the allow-list, is rejected — and
       the rejection is an A2A error object, not an unhandled 500.
-- [ ] A client-supplied `contextId` is honored and appears on the resulting task.
-- [ ] Restarting the daemon with a task in `working` leaves that task `failed`, never
+- [x] A client-supplied `contextId` is honored and appears on the resulting task.
+- [x] Restarting the daemon with a task in `working` leaves that task `failed`, never
       `working`.
-- [ ] Socket activation path and self-created-socket path both work; the self-created
+- [x] Socket activation path and self-created-socket path both work; the self-created
       socket is mode 0600.
-- [ ] `CancelTask` interrupts a running turn and the task reaches `canceled`.
-- [ ] SIGTERM leaves no orphaned `claude` subprocesses.
+- [x] `CancelTask` interrupts a running turn and the task reaches `canceled`.
+- [x] SIGTERM leaves no orphaned `claude` subprocesses.
 
 ## Out of scope
 

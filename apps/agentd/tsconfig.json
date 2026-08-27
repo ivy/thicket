@@ -4,6 +4,15 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["src"],
-  "references": [{ "path": "../../packages/roster" }]
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/roster"
+    },
+    {
+      "path": "../../packages/executor"
+    }
+  ]
 }
