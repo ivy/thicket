@@ -1,7 +1,7 @@
 ---
 id: "021"
 title: Slack workspace knowledge — search, history, and directory tools
-status: icebox
+status: todo
 component: apps/bridge
 language: typescript
 depends_on: ["020"]
@@ -35,8 +35,12 @@ which is the same route these tools need.
 - Read routes on the bridge API, peer-tag authorized like the rest:
   channel history (`conversations.replies`, `conversations.history`), search,
   user and channel directory, canvases.
-- Slack's realtime search is hybrid retrieval and is the interesting one:
-  the workspace's own index, no embedding pipeline to own.
+- Search runs on **`search:read.public`**, a legal bot scope. Plain
+  `search:read` is user-token only — Slack rejects it in a bot manifest with
+  `illegal_bot_scopes` — and a user token acts as the operator everywhere
+  they can reach, which is a wider credential than anything in thicket and
+  would land on the bridge every agent can now dial. Decided against; public
+  channels are enough, and history covers any channel the app is in.
 - Scope every read to what the agent's app can already see. An agent must not
   be able to read a private channel it was never invited to, and the bridge
   enforces that rather than trusting the tool argument.
@@ -45,9 +49,6 @@ which is the same route these tools need.
 
 ## Open questions
 
-- Which search API is actually available on this workspace's plan, and
-  whether it needs a user token rather than a bot token — a user token would
-  be a materially wider credential and deserves its own decision.
 - Volume: a channel's full history can be very large. Reads need paging and a
   budget, or a routine will spend its whole turn scrolling.
 
@@ -57,6 +58,13 @@ which is the same route these tools need.
       the operator pasting it.
 - [ ] A read the agent's app is not entitled to is refused by the bridge.
 - [ ] `context: replay` drives a real turn for a harness that keeps no state.
+
+## Live verification
+
+See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+tools. Post a known message with `slack_post`,
+then ask the agent what was said in that channel. `context: replay` is
+checkable by pointing a replay-configured agent at a thread with history.
 
 ## Out of scope
 

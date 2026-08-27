@@ -69,9 +69,26 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 4 | 008, 010 | 2 |
 | 5 | 012, 014 | 2 |
 | 6 | 013 | 1 |
+| 7 | 015, 017 | 2 |
+| 8 | 018 | 1 |
+| 9 | 019, 025, 026 | 3 |
+| 10 | 020 | 1 |
+| 11 | 016, 021 | 2 |
+| 12 | 022 | 1 |
 
 `005` and `006` are the hard ones and sit in the widest wave — start them first.
 `003` is Go and shares no files with anything else.
+
+Waves 9–12 are the current front. Take `019` first: it is the only known
+defect, and a routine that fires into a quietly dead socket is worse than a
+reply that arrives late. `026` and `025` are small and independent; `020` is
+the substrate the rest of the Slack work stands on.
+
+Everything in these waves is verifiable live — see
+[LIVE-TESTING.md](LIVE-TESTING.md). Tasks still at `icebox` (023, 024, 027,
+028) are parked for reasons written in each: a research task whose output
+needs arguing with, a feature whose acceptance needs a human tapping a
+button, and two that need a second host.
 
 
 ## Shared components

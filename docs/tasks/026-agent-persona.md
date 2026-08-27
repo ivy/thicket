@@ -1,7 +1,7 @@
 ---
 id: "026"
 title: Agent persona — an appended system prompt per agent
-status: icebox
+status: todo
 component: packages/roster
 language: typescript
 depends_on: ["002"]
@@ -34,9 +34,10 @@ the one thicket can own directly — see task 027 for the larger one.
 
 ## Scope
 
-- A per-agent prompt appendix in `agents.yaml`, threaded through to the
-  session's options. Appended, never replacing: the harness's own prompt is
-  what makes Claude Code work.
+- A per-agent prompt appendix **inline in `agents.yaml`** as a block scalar,
+  threaded through to the session's options. Appended, never replacing: the
+  harness's own prompt is what makes Claude Code work. Inline keeps one source
+  of truth; move it to a file only if it outgrows a paragraph or two.
 - Long enough to be useful, short enough to stay in `agents.yaml` — a
   paragraph or two, not a document. Anything larger belongs in `CLAUDE.md`
   (task 027).
@@ -46,10 +47,6 @@ the one thicket can own directly — see task 027 for the larger one.
 
 ## Open questions
 
-- Whether this belongs in `agents.yaml` at all, or as a file path alongside
-  it. Inline keeps one source of truth; a path keeps YAML readable and lets
-  the prompt be diffed properly. A path is probably right the moment anyone
-  writes more than three lines.
 - Interaction with `CLAUDE.md` in the account, which the agent also reads.
   Two places to say the same thing is two places for them to disagree.
 
@@ -58,6 +55,12 @@ the one thicket can own directly — see task 027 for the larger one.
 - [ ] An agent's persona reaches its session's system prompt, appended.
 - [ ] Changing it takes effect on the next session without redeploying.
 - [ ] A roster with no persona behaves exactly as today.
+
+## Live verification
+
+See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+tools. `slack_dm_agent` then `slack_await_reply`: a
+persona instructing a recognisable habit should show up in the answer.
 
 ## Out of scope
 

@@ -1,7 +1,7 @@
 ---
 id: "025"
 title: Turn journal — what happened, what it cost
-status: icebox
+status: todo
 component: apps/agentd
 language: typescript
 depends_on: ["008"]
@@ -35,6 +35,10 @@ mechanisms would not.
 - A row per turn: agent, context, thread, what triggered it (human, routine,
   delegation), tools used, tokens, cost, duration, terminal state, permission
   denials, error.
+- **Metadata only — no prompt or reply text.** Decided: capturing them would
+  turn the journal into a plaintext record of everything every agent has ever
+  been told, sitting on disk forever, to buy debugging convenience that the
+  Claude Code session transcript already provides. Do not add a flag for it.
 - Durable and local, alongside the task store — same lifecycle, same account,
   no service to run.
 - Queryable from the CLI: cost by agent over a window, recent failures,
@@ -44,10 +48,6 @@ mechanisms would not.
 
 ## Open questions
 
-- **Prompt and reply text: in or out?** Including them makes debugging vastly
-  easier and turns the journal into a transcript of everything every agent has
-  ever been told, on disk, in plaintext. Metadata-only is the safer default,
-  with the full transcript behind an explicit per-agent opt-in.
 - Whether the bridge needs its own view, or the CLI reading each agent's
   journal over A2A is enough. The latter avoids a second store.
 
@@ -57,6 +57,12 @@ mechanisms would not.
 - [ ] Cost is answerable per agent and per time window from the CLI.
 - [ ] A routine's history is inspectable without reading raw logs.
 - [ ] The journal is bounded without operator intervention.
+
+## Live verification
+
+See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+tools. Run a turn through Slack, then query the journal
+from the CLI and confirm the turn is there with a cost attached.
 
 ## Out of scope
 

@@ -1,7 +1,7 @@
 ---
 id: "020"
 title: Agent Slack toolbelt — an MCP surface over the bridge API
-status: icebox
+status: todo
 component: apps/agentd
 language: typescript
 depends_on: ["017"]
@@ -35,6 +35,10 @@ substrate around: an agent that can **post** where it was not spoken to
 - Bridge routes behind the existing peer-tag authorization, each answering
   the authorization question from bridge state rather than from the request.
 - First tools: `post_message(channel, text)` and `upload_file(path, ...)`.
+- Files go out **as a tool call, not as an A2A artifact**. Decided: Claude
+  Code can only produce an artifact by calling a tool anyway, so the artifact
+  path would add a second mechanism with no second capability. Revisit when a
+  harness without MCP joins the fleet.
 - Every tool call is authorized against what the agent may address. An agent
   must not be able to post into a channel its app is not in, and the bridge —
   not the agent — decides that.
@@ -43,10 +47,6 @@ substrate around: an agent that can **post** where it was not spoken to
 
 ## Open questions
 
-- **Files: tool or artifact?** A `upload_file` tool is direct, but A2A
-  artifacts are the protocol-native way for an agent to return a file and
-  would work for a harness that has no MCP. The artifact path also survives
-  the "any harness" principle better. Possibly both, with the tool as sugar.
 - **Rate limits.** `chat.postMessage` is Tier 3 and shared with the bridge's
   own traffic. A chatty agent must not starve the conversation it is in.
 - **Loop safety.** An agent posting into a channel it also watches can
@@ -61,6 +61,14 @@ substrate around: an agent that can **post** where it was not spoken to
 - [ ] An agent cannot address a channel it has no business in, and the
       refusal is the bridge's decision.
 - [ ] A tool failure reaches the model as a usable error, not as a dead turn.
+
+## Live verification
+
+See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+tools. Ask the agent to post into `#thicket-test`
+and read it back with `slack_history`; ask it to hand back a file and check
+the attachment with `slack_thread`. The refusal path matters as much: ask it
+to post somewhere it has no business and confirm the bridge declines.
 
 ## Out of scope
 

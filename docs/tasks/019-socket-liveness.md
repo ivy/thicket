@@ -57,6 +57,14 @@ not need to be invented, only triggered sooner.
 - [ ] A message sent during the dead window arrives within seconds of
       recovery rather than minutes, and the delay is visible in the log.
 
+## Live verification
+
+See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+tools. Reproducing a dead socket on demand is the hard
+part: prefer driving the supervisor and a fake connection over waiting for
+Slack to misbehave. A live check that a healthy socket is *not* falsely
+reported down is worth more than trying to stage the failure.
+
 ## Out of scope
 
 Replacing Socket Mode. Slack's Events API over HTTP needs a public request

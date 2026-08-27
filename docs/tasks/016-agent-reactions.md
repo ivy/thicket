@@ -1,7 +1,7 @@
 ---
 id: "016"
 title: Agent-initiated Slack reactions
-status: icebox
+status: todo
 component: apps/bridge
 language: typescript
 depends_on: ["020", "026"]
@@ -61,6 +61,14 @@ model in the loop; reactions do.
       anything else — including messages in another thread of its own.
 - [ ] Reaction failures never fail the turn.
 - [ ] The agent holds no Slack credential.
+
+## Live verification
+
+See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+tools. `slack_dm_agent`, then `slack_reactions` on the
+message you sent — 👀 should appear from the bridge without the agent doing
+anything. Whether the agent's own later reactions are *well chosen* is a
+judgement call; leave that box for the operator.
 
 ## Out of scope
 

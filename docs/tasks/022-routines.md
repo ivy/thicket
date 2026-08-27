@@ -1,7 +1,7 @@
 ---
 id: "022"
 title: Routines — agent-scheduled recurring prompts
-status: icebox
+status: todo
 component: apps/agentd
 language: typescript
 depends_on: ["020", "021", "026"]
@@ -57,25 +57,19 @@ what fired, what it decided, what it posted, what it cost, and why it failed
 broken for a week is indistinguishable from a routine with nothing to report —
 which is precisely the ambiguity the silence rule creates.
 
-**Where the schedule lives.** Two candidates, and the choice matters:
-- *Bridge-side*: the bridge fires an ordinary A2A message on a schedule.
-  Everything downstream already works — status, cards, streaming — because it
-  is indistinguishable from a human typing. Cheap, but the agent cannot
-  schedule its own follow-ups.
-- *Agent-side*: the Agent SDK already has cron (`SessionCronSummary`:
-  expression, prompt, recurring or one-shot). Lets an agent say "remind me in
-  an hour", but an agent-originated turn has no A2A requester and must push
-  its output to the bridge instead.
+**The schedule lives agent-side.** Decided: the agent owns its routines and
+manages them by being asked to, which a bridge-side scheduler cannot offer.
+The Agent SDK already has cron (`SessionCronSummary`: expression, prompt,
+recurring or one-shot). The cost is that an agent-originated turn has no A2A
+requester, so its output must reach Slack through the toolbelt (task 020)
+rather than through a reply — which is the real work here.
 
-The agent-side version is what the operator asked for and is the better end
-state; bridge-side is the cheaper first step and does not have to be thrown
-away.
+**Fail closed.** Five consecutive failing runs disables a routine and reports
+once. An autonomous agent looping unattended spends real money, and a routine
+designed to be silent is the worst possible place for a silent failure.
 
 ## Open questions
 
-- **Runaway cost.** An autonomous agent in a loop spends money unattended. A
-  per-agent daily budget, or a cap on consecutive failing runs, probably
-  belongs here rather than in its own task.
 - **Missed fires.** A machine asleep at 09:00 — does the routine run late, or
   skip? Skipping is usually right for "every morning" and wrong for "every
   hour", so it may need to be per-routine.
@@ -91,6 +85,14 @@ away.
 - [ ] Every run leaves a record explaining what happened, including the ones
       that decided to stay quiet.
 - [ ] Routines survive an agentd restart.
+
+## Live verification
+
+See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+tools. The whole point is the changelog example. Create a
+routine through conversation, force it to fire, and confirm: it posts when
+there is something new, and posts *nothing at all* when there is not — verify
+the silence with `slack_history`, since an absent message is the assertion.
 
 ## Out of scope
 
