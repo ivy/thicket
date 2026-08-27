@@ -1,7 +1,7 @@
 ---
 id: "022"
 title: Routines — agent-scheduled recurring prompts
-status: todo
+status: in-progress
 component: apps/agentd
 language: typescript
 depends_on: ["020", "021", "026"]
