@@ -10,6 +10,13 @@ export {
   messageText,
   type ClaudeAgentExecutorOptions,
 } from "./executor.js";
+export { deriveSessionId, uuidv5, THICKET_NAMESPACE } from "./session-id.js";
+export { PushQueue } from "./push-queue.js";
+export {
+  SessionManager,
+  type QueryFn,
+  type SessionManagerOptions,
+} from "./session-manager.js";
 export {
   META_CANCELLED,
   META_FOLDED_MESSAGE_IDS,

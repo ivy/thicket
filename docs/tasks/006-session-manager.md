@@ -1,7 +1,7 @@
 ---
 id: "006"
 title: Session manager — hot/cold Claude Code sessions
-status: in-progress
+status: done
 component: packages/executor
 language: typescript
 depends_on: ["002"]
@@ -64,21 +64,21 @@ rather than merging — pass through `PATH`, `HOME`, and credentials deliberatel
 
 ## Acceptance criteria
 
-- [ ] The same `(channel_id, thread_ts)` yields a byte-identical session ID across
+- [x] The same `(channel_id, thread_ts)` yields a byte-identical session ID across
       processes and restarts.
-- [ ] A message to a hot session reuses the existing subprocess — asserted by process
+- [x] A message to a hot session reuses the existing subprocess — asserted by process
       identity, not by timing.
-- [ ] A message to an evicted session resumes prior context: a fixture conversation
+- [x] A message to an evicted session resumes prior context: a fixture conversation
       establishes a fact, the session is evicted, and a follow-up turn recalls it.
-- [ ] Idle eviction fires at the configured TTL and not before.
-- [ ] A session with an in-flight turn is not evicted when its TTL expires; eviction
+- [x] Idle eviction fires at the configured TTL and not before.
+- [x] A session with an in-flight turn is not evicted when its TTL expires; eviction
       happens after the turn settles.
-- [ ] Pool cap is enforced; exceeding it evicts LRU rather than refusing work.
-- [ ] `shouldQuery: false` messages appear in the next turn's context without having
+- [x] Pool cap is enforced; exceeding it evicts LRU rather than refusing work.
+- [x] `shouldQuery: false` messages appear in the next turn's context without having
       triggered a turn of their own.
-- [ ] Subprocess environment contains only what was explicitly passed, and includes
+- [x] Subprocess environment contains only what was explicitly passed, and includes
       `PATH` and `HOME`.
-- [ ] SIGTERM to the host process terminates all pooled subprocesses; no orphans.
+- [x] SIGTERM to the host process terminates all pooled subprocesses; no orphans.
 
 ## Out of scope
 
