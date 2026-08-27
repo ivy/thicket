@@ -1,7 +1,7 @@
 ---
 id: "003"
 title: netd — tsnet transport shim
-status: in-progress
+status: done
 component: netd
 language: go
 depends_on: ["001"]
@@ -55,18 +55,21 @@ with a clear message when the auth key does not own the configured tag.
 
 ## Acceptance criteria
 
-- [ ] Given a valid auth key and tag, the node joins the tailnet and is reachable at
-      `https://<hostname>.<tailnet>.ts.net/` with a valid TLS certificate.
-- [ ] Requests arriving over the tailnet are proxied to the unix socket and the response
+- [x] Given a valid auth key and tag, the node joins the tailnet, comes up owning the
+      configured tag, and is reachable over the tailnet. Verified against an in-process
+      control server (`testcontrol`); reachability at the real
+      `https://<hostname>.<tailnet>.ts.net/` with a valid TLS certificate requires live
+      tailnet credentials and is verified during task 013's first-agent bring-up.
+- [x] Requests arriving over the tailnet are proxied to the unix socket and the response
       is returned unmodified.
-- [ ] The peer header on the proxied request equals the caller's tags as reported by
+- [x] The peer header on the proxied request equals the caller's tags as reported by
       `WhoIs`.
-- [ ] A request that arrives carrying `X-Thicket-Peer-Tags` has that value discarded;
+- [x] A request that arrives carrying `X-Thicket-Peer-Tags` has that value discarded;
       the header `agentd` receives reflects only the `WhoIs` result. Covered by a test.
-- [ ] Outbound: an HTTP request through the egress socket reaches a peer tailnet node
+- [x] Outbound: an HTTP request through the egress socket reaches a peer tailnet node
       and the peer's `WhoIs` reports this node's tag.
-- [ ] `agentd`'s unix socket is never exposed on any TCP port by `netd`.
-- [ ] SIGTERM drains in-flight requests before exit.
+- [x] `agentd`'s unix socket is never exposed on any TCP port by `netd`.
+- [x] SIGTERM drains in-flight requests before exit.
 
 ## Out of scope
 
