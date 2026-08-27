@@ -62,6 +62,8 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [034 Split long replies at boundaries the reader can live with](034-message-length-splitting.md) | 032 | `apps/bridge` | typescript |
 | [035 Task cards carry an icon that says what kind of step this is](035-task-card-icons.md) | 015 | `packages/executor` | typescript |
 | [036 Fallback posts speak markdown, like the stream they stand in for](036-fallback-markdown-dialect.md) | 032 | `apps/bridge` | typescript |
+| [037 Agent questions render as Slack UI, and a tap answers them](037-agent-questions-ui.md) | 014, 015 | `apps/bridge` | typescript |
+| [038 One-shot scheduled prompts](038-one-shot-schedule.md) | 022 | `apps/agentd` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -83,7 +85,7 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 10 | 020 | 1 |
 | 11 | 016, 021 | 2 |
 | 12 | 022, 031 | 2 |
-| 13 | 034, 035, 036 | 3 |
+| 13 | 034, 035, 036, 037, 038 | 5 |
 
 `005` and `006` are the hard ones and sit in the widest wave — start them first.
 `003` is Go and shares no files with anything else.
@@ -166,4 +168,5 @@ Verified against upstream; re-check before assuming any of it drifted.
 | `chat.postMessage` truncates text past 40,000 chars; guidance is ≤4,000 per message, and Slack may split longer ones itself at arbitrary points (observed: 4,692 chars became 3,610+1,081). A streamed message hits `msg_too_long` around ~3k chars of text plus cards | https://docs.slack.dev/reference/methods/chat.postMessage, rate-limits guide, observed live |
 | Task-card icons are not emoji: the `icon` field takes `{"type":"icon","name":…}` from a fixed ~52-name set (code, globe, refine, file, edit, gear, bot, …) | https://docs.slack.dev/reference/block-kit/composition-objects/slack-icon-object |
 | `chat.postMessage` `text` is parsed as mrkdwn (bold `*x*`, no `#` headings); real markdown goes in the separate `markdown_text` argument (12k cap, exclusive with `text`/`blocks`) — the dialect `chat.appendStream` chunks already use | https://docs.slack.dev/reference/methods/chat.postMessage, observed live |
+| AskUserQuestion without a dialog callback defers: the result frame's `deferred_tool_use.input` carries the full structured questions/options, and the session's next send is the answer. With `canUseTool`/`onUserDialog` registered it instead parks the running turn awaiting a structured answer (`dialogExpiry` ~5m default) | `@anthropic-ai/claude-agent-sdk` 0.3.247 sdk.d.ts |
 | `tailcfg.Node.Tags []string` carries peer tags | `tailcfg/tailcfg.go` |
