@@ -49,6 +49,11 @@ class FakeSlack implements SlackApi {
   ) {
     this.calls.push({ type: "setStatus", channel, threadTs, status, title: options?.title });
   }
+  /** Ids the fake should call bots; everything else is a person. */
+  bots = new Set<string>();
+  async isBotUser(userId: string) {
+    return this.bots.has(userId);
+  }
   async setThreadStatus(channel: string, threadTs: string, status: string) {
     this.calls.push({ type: "note", channel, threadTs, status });
   }
@@ -236,11 +241,21 @@ function rig(
   return { engine, slack, client, state, warnings };
 }
 
+const HUMAN = "U-human";
 const CH = "C123";
 const TH = "1724650000.000100";
 
 function dm(text: string, ts = "1724650001.000001") {
-  return { kind: "dm" as const, channel: CH, threadTs: TH, text, messageTs: ts, files: [] };
+  return {
+    kind: "dm" as const,
+    channel: CH,
+    threadTs: TH,
+    text,
+    messageTs: ts,
+    files: [],
+    authorId: HUMAN,
+    viaApp: false,
+  };
 }
 
 // ---------------------------------------------------------------- status map
@@ -504,6 +519,53 @@ test("session titles are flattened and clipped to Slack's limit", () => {
   assert.ok(long.endsWith("…"));
 });
 
+// -------------------------------------------------------------- loop guard
+
+test("an agent's own post is ignored; a human's via an app is not", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  const BOT = "U-hearth-bot";
+  r.slack.bots.add(BOT);
+
+  // The agent's own reply: carries a bot_id *and* its bot user as author.
+  await r.engine.handleEvent({ ...dm("my own reply"), authorId: BOT, viaApp: true });
+  assert.equal(r.client.streamStarts, 0, "an agent must never answer itself");
+
+  // A human through an MCP tool: same bot_id stamp, human author.
+  await r.engine.handleEvent({ ...dm("from a test harness"), viaApp: true });
+  assert.equal(r.client.streamStarts, 1, "a person posting through an app is still a person");
+  r.state.close();
+});
+
+test("an unresolvable author fails closed", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  r.slack.isBotUser = async () => {
+    throw new Error("ratelimited");
+  };
+  await r.engine.handleEvent({ ...dm("who sent this?"), viaApp: true });
+  assert.equal(r.client.streamStarts, 0, "silence beats an agent talking to itself");
+  assert.equal(r.warnings.length, 1);
+  r.state.close();
+});
+
+test("a plain human message costs no lookup at all", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  let asked = 0;
+  r.slack.isBotUser = async () => {
+    asked += 1;
+    return false;
+  };
+  await r.engine.handleEvent(dm("hello"));
+  assert.equal(asked, 0, "no bot_id, no question to ask");
+  assert.equal(r.client.streamStarts, 1);
+  r.state.close();
+});
+
 // ------------------------------------------------------------- attachments
 
 const UPLOAD = {
@@ -599,6 +661,8 @@ test("a context-only message carries its attachments too", async () => {
     text: "and here's the log",
     messageTs: "1724650005.000001",
     files: [{ ...UPLOAD, id: "F2" }],
+    authorId: HUMAN,
+    viaApp: false,
   });
 
   const parts = r.client.sent[0]?.parts ?? [];
@@ -634,6 +698,8 @@ test("non-mention message in an engaged thread: shouldQuery false, no turn", asy
     text: "fyi the deploy window is Friday",
     messageTs: "1724650002.000001",
     files: [],
+    authorId: HUMAN,
+    viaApp: false,
   });
 
   assert.equal(r.client.sent.length, 1, "delivered via blocking send");
@@ -652,6 +718,8 @@ test("thread message in a non-engaged thread is ignored", async () => {
     text: "unrelated chatter",
     messageTs: "9999.0002",
     files: [],
+    authorId: HUMAN,
+    viaApp: false,
   });
   assert.equal(r.client.sent.length, 0);
   assert.equal(r.slack.calls.length, 0);

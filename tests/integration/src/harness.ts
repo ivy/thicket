@@ -295,6 +295,11 @@ export class MockSlack implements SlackApi {
   ) {
     this.calls.push({ type: "setStatus", channel, threadTs, status, title: options?.title });
   }
+  /** Ids the fake should call bots; everything else is a person. */
+  bots = new Set<string>();
+  async isBotUser(userId: string) {
+    return this.bots.has(userId);
+  }
   async setThreadStatus(channel: string, threadTs: string, status: string) {
     this.calls.push({ type: "note", channel, threadTs, status });
   }

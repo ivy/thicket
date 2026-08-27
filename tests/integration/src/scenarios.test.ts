@@ -21,7 +21,16 @@ const CH = "C42";
 const TH = "1724650000.000100";
 
 function dm(text: string, ts: string) {
-  return { kind: "dm" as const, channel: CH, threadTs: TH, text, messageTs: ts, files: [] };
+  return {
+    kind: "dm" as const,
+    channel: CH,
+    threadTs: TH,
+    text,
+    messageTs: ts,
+    files: [],
+    authorId: "U-human",
+    viaApp: false,
+  };
 }
 
 // Scenario 1: DM the agent; get a response; status processing -> active.

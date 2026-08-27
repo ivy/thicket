@@ -52,15 +52,22 @@ export function translateSlackEvent(event: Record<string, unknown>): InboundEven
       text: String(event.text ?? ""),
       messageTs: ts,
       files: parseFiles(event.files),
+      authorId: typeof event.user === "string" ? event.user : "",
+      viaApp: event.bot_id !== undefined,
     };
   }
   if (type === "message") {
     // A message carrying an upload is subtyped file_share; every other
     // subtype is a bot echo, a join, or an edit.
-    if (event.bot_id !== undefined) {
+    if (event.subtype !== undefined && event.subtype !== "file_share") {
       return undefined;
     }
-    if (event.subtype !== undefined && event.subtype !== "file_share") {
+    // A classic bot post has no author at all. A message that *does* have
+    // one may still carry bot_id — posting through any app's user token
+    // stamps it (observed: a human message via MCP arrived with hearth's
+    // own bot_id) — so bot_id alone cannot mean "a bot said this". Who the
+    // author is decides that, and only the caller can resolve it.
+    if (typeof event.user !== "string" || event.user === "") {
       return undefined;
     }
     const channel = String(event.channel ?? "");
@@ -72,6 +79,9 @@ export function translateSlackEvent(event: Record<string, unknown>): InboundEven
       text: String(event.text ?? ""),
       messageTs: ts,
       files: parseFiles(event.files),
+      authorId: event.user,
+      /** Posted through an app, by a human or a bot — which, is unresolved here. */
+      viaApp: event.bot_id !== undefined,
     };
     if (event.channel_type === "im") {
       return { kind: "dm", ...common };

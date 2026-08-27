@@ -21,6 +21,8 @@ const CARD_STATUS = {
  * through the chat streaming trio.
  */
 export class WebSlackApi implements SlackApi {
+  private readonly botUsers = new Map<string, boolean>();
+
   constructor(
     private readonly web: WebClient,
     private readonly logger: SlackApiLogger = { info: () => {} },
@@ -38,6 +40,23 @@ export class WebSlackApi implements SlackApi {
       status,
       ...(options?.title === undefined ? {} : { title: options.title }),
     });
+  }
+
+  /**
+   * Cached because the answer never changes for a given id, and the guard
+   * asks on every app-stamped message.
+   */
+  async isBotUser(userId: string): Promise<boolean> {
+    const cached = this.botUsers.get(userId);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const res = (await this.call("users.info", { user: userId })) as {
+      user?: { is_bot?: boolean };
+    };
+    const isBot = res.user?.is_bot === true;
+    this.botUsers.set(userId, isBot);
+    return isBot;
   }
 
   async setThreadStatus(channel: string, threadTs: string, status: string): Promise<void> {

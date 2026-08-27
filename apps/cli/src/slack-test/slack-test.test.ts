@@ -56,7 +56,7 @@ test("a Slack error surfaces its code rather than an empty result", async () => 
 test("the token travels in the header, never in the body", async () => {
   const { fetchImpl, calls } = fakeSlack({
     "users.list": { ok: true, members: [{ id: "B7", name: "hearth", is_bot: true }] },
-    "conversations.open": { ok: true, channel: { id: "D42" } },
+    "conversations.list": { ok: true, channels: [{ id: "D42", user: "B7" }] },
   });
   let sawAuthHeader = "";
   const spying = (async (url: string | URL, init?: RequestInit) => {
@@ -80,10 +80,24 @@ test("an agent's DM is resolved from its bot user, not hardcoded", async () => {
         { id: "B7", name: "hearth", is_bot: true },
       ],
     },
-    "conversations.open": { ok: true, channel: { id: "D42" } },
+    "conversations.list": {
+      ok: true,
+      channels: [
+        { id: "D01", user: "U9" },
+        { id: "D42", user: "B7" },
+      ],
+    },
   });
   assert.equal(await r.client.dmChannelFor("hearth"), "D42");
-  assert.equal(r.calls.at(-1)?.params.users, "B7");
+  assert.equal(r.calls.at(-1)?.params.types, "im", "listed, not opened — no im:write held");
+});
+
+test("an agent never DM'd says how to fix it rather than failing blankly", async () => {
+  const r = client({
+    "users.list": { ok: true, members: [{ id: "B7", name: "hearth", is_bot: true }] },
+    "conversations.list": { ok: true, channels: [] },
+  });
+  await assert.rejects(() => r.client.dmChannelFor("hearth"), /Send it one message by hand/);
 });
 
 test("a missing bot user says what to check", async () => {

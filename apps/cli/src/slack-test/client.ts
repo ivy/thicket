@@ -62,8 +62,42 @@ export class SlackTestClient {
   }
 
 
-  /** The DM channel with an agent's bot user, opening it if needed. */
+  /**
+   * The DM channel with an agent's bot user.
+   *
+   * Found by listing rather than opening: `conversations.open` needs
+   * `im:write`, and the harness deliberately holds only read scopes plus
+   * `chat:write`. An agent worth testing has been spoken to at least once,
+   * so its DM exists.
+   */
   async dmChannelFor(agent: string): Promise<string> {
+    const botId = await this.botUserId(agent);
+    let cursor = "";
+    for (;;) {
+      const res = await this.call("conversations.list", {
+        types: "im",
+        limit: "200",
+        ...(cursor === "" ? {} : { cursor }),
+      });
+      const ims = (res.channels ?? []) as { id: string; user?: string }[];
+      const hit = ims.find((im) => im.user === botId);
+      if (hit !== undefined) {
+        return hit.id;
+      }
+      cursor = String(
+        (res.response_metadata as { next_cursor?: string } | undefined)?.next_cursor ?? "",
+      );
+      if (cursor === "") {
+        throw new Error(
+          `no open DM with ${agent} (bot user ${botId}). Send it one message by ` +
+            `hand, or open the conversation with Slack's own MCP server, which ` +
+            `holds im:write; this harness does not.`,
+        );
+      }
+    }
+  }
+
+  private async botUserId(agent: string): Promise<string> {
     const users = await this.call("users.list", { limit: "500" });
     const members = (users.members ?? []) as {
       id: string;
@@ -80,12 +114,9 @@ export class SlackTestClient {
           .some((value) => value.toLowerCase() === wanted),
     );
     if (bot === undefined) {
-      throw new Error(
-        `no bot user named ${agent} in this workspace; is the app installed?`,
-      );
+      throw new Error(`no bot user named ${agent} in this workspace; is the app installed?`);
     }
-    const opened = await this.call("conversations.open", { users: bot.id });
-    return String((opened.channel as { id?: string } | undefined)?.id ?? "");
+    return bot.id;
   }
 
   async channelIdFor(name: string): Promise<string> {

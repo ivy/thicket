@@ -19,6 +19,10 @@ interface MessageEvent {
   text: string;
   messageTs: string;
   files: SlackFile[];
+  /** Slack user id of the author. */
+  authorId: string;
+  /** Carried a bot_id: posted through an app, by a human or a bot. */
+  viaApp: boolean;
 }
 
 /** Slack events the bridge acts on, already unwrapped from envelopes. */
@@ -81,6 +85,8 @@ export interface SlackApi {
   ): Promise<void>;
   /** The line of prose under the app's name; "" clears it. */
   setThreadStatus(channel: string, threadTs: string, status: string): Promise<void>;
+  /** Whether a user id belongs to a bot. Cached; asked only when ambiguous. */
+  isBotUser(userId: string): Promise<boolean>;
   postMessage(channel: string, threadTs: string, text: string): Promise<void>;
   /** chat.startStream → stream ts used for appends. */
   startStream(channel: string, threadTs: string): Promise<string>;

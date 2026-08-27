@@ -9,6 +9,7 @@ const DM = {
   channel_type: "im",
   ts: "1.1",
   text: "hello",
+  user: "U-human",
 };
 
 test("a DM becomes a dm event rooted at its own ts", () => {
@@ -19,6 +20,8 @@ test("a DM becomes a dm event rooted at its own ts", () => {
     text: "hello",
     messageTs: "1.1",
     files: [],
+    authorId: "U-human",
+    viaApp: false,
   });
 });
 
@@ -33,15 +36,21 @@ test("a DM carrying an upload is delivered, not dropped as a subtype", () => {
   assert.equal(event?.kind === "dm" ? event.text : "", "what's wrong here?");
 });
 
-test("bot echoes and other subtypes stay dropped", () => {
-  assert.equal(translateSlackEvent({ ...DM, bot_id: "B1" }), undefined);
+test("authorless posts and uninteresting subtypes stay dropped", () => {
+  // A classic bot post has no author at all.
+  assert.equal(translateSlackEvent({ ...DM, user: undefined, bot_id: "B1" }), undefined);
   assert.equal(translateSlackEvent({ ...DM, subtype: "message_changed" }), undefined);
   assert.equal(translateSlackEvent({ ...DM, subtype: "channel_join" }), undefined);
-  // bot_id wins even on an upload: our own file posts must not loop.
-  assert.equal(
-    translateSlackEvent({ ...DM, subtype: "file_share", bot_id: "B1" }),
-    undefined,
-  );
+});
+
+test("bot_id is reported, not obeyed", () => {
+  // Posting through any app's user token stamps the app's bot_id onto a
+  // human's message, so this layer records the fact and leaves the
+  // judgement to whoever can resolve the author.
+  const event = translateSlackEvent({ ...DM, bot_id: "B1" });
+  assert.equal(event?.kind, "dm");
+  assert.equal(event?.kind === "dm" ? event.viaApp : undefined, true);
+  assert.equal(event?.kind === "dm" ? event.authorId : undefined, "U-human");
 });
 
 test("a mention threads under the message it replies to", () => {
@@ -60,13 +69,21 @@ test("a mention threads under the message it replies to", () => {
       text: "<@U1> look",
       messageTs: "2.2",
       files: [],
+      authorId: "",
+      viaApp: false,
     },
   );
 });
 
 test("channel chatter counts only inside a thread", () => {
   assert.equal(
-    translateSlackEvent({ type: "message", channel: "C1", ts: "3.1", text: "chatter" }),
+    translateSlackEvent({
+      type: "message",
+      channel: "C1",
+      ts: "3.1",
+      text: "chatter",
+      user: "U-human",
+    }),
     undefined,
   );
   assert.equal(
@@ -76,6 +93,7 @@ test("channel chatter counts only inside a thread", () => {
       ts: "3.2",
       thread_ts: "3.0",
       text: "chatter",
+      user: "U-human",
     })?.kind,
     "thread_message",
   );

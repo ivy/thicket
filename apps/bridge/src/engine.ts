@@ -141,6 +141,9 @@ export class BridgeEngine {
   }
 
   async handleEvent(event: InboundEvent): Promise<void> {
+    if (event.kind !== "session_stopped" && (await this.authoredByBot(event))) {
+      return;
+    }
     switch (event.kind) {
       case "session_stopped": {
         for (const task of this.state.tasksForThread(event.channel, event.threadTs)) {
@@ -174,6 +177,37 @@ export class BridgeEngine {
         );
         return;
       }
+    }
+  }
+
+  /**
+   * The loop guard. An agent answering its own posts is the failure this
+   * prevents, and `bot_id` alone does not identify one: a human posting
+   * through any app's user token gets the app's bot_id stamped on their
+   * message, while an agent's own reply carries its bot user as the author.
+   * So the author decides, and only a lookup can say — asked only when a
+   * bot_id was present at all, and cached by the Slack layer.
+   */
+  private async authoredByBot(event: {
+    authorId: string;
+    viaApp: boolean;
+  }): Promise<boolean> {
+    if (!event.viaApp) {
+      return false; // no app involved: a person typed it
+    }
+    try {
+      const isBot = await this.slack.isBotUser(event.authorId);
+      if (isBot) {
+        this.logger.info("ignoring a bot-authored message", { author: event.authorId });
+      }
+      return isBot;
+    } catch (err) {
+      // Fail closed: an unanswered message beats an agent talking to itself.
+      this.logger.warn("could not resolve message author; ignoring", {
+        author: event.authorId,
+        err: String(err),
+      });
+      return true;
     }
   }
 
