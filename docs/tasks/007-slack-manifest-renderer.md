@@ -1,7 +1,7 @@
 ---
 id: "007"
 title: Slack app manifest renderer
-status: todo
+status: in-progress
 component: packages/slack-manifest
 language: typescript
 depends_on: ["002"]
