@@ -26,6 +26,9 @@ importers:
 
   apps/agentd:
     dependencies:
+      '@a2a-js/sdk':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@thicket/roster':
         specifier: workspace:*
         version: link:../../packages/roster

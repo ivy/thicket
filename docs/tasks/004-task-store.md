@@ -1,7 +1,7 @@
 ---
 id: "004"
 title: Durable A2A TaskStore
-status: in-progress
+status: done
 component: apps/agentd
 language: typescript
 depends_on: ["001"]
@@ -37,17 +37,17 @@ This task implements a SQLite-backed `TaskStore`. It is isolated from the rest o
 
 ## Acceptance criteria
 
-- [ ] Passes a conformance suite exercising every `TaskStore` method, written so it can
+- [x] Passes a conformance suite exercising every `TaskStore` method, written so it can
       also be run against `InMemoryTaskStore` to prove the suite is testing the
       interface and not the implementation.
-- [ ] A task written, then read after reopening the database, is deeply equal to the
+- [x] A task written, then read after reopening the database, is deeply equal to the
       original — including artifacts and history.
-- [ ] Tasks in `submitted` or `working` at startup are enumerable, so `agentd` can
+- [x] Tasks in `submitted` or `working` at startup are enumerable, so `agentd` can
       reconcile them (task 008 decides what to do with them).
-- [ ] Concurrent writes from two connections do not corrupt state; WAL mode enabled.
-- [ ] Migration runner takes an empty file to current schema, and is idempotent when
+- [x] Concurrent writes from two connections do not corrupt state; WAL mode enabled.
+- [x] Migration runner takes an empty file to current schema, and is idempotent when
       run twice.
-- [ ] Pruning removes only tasks in terminal states (`completed`, `failed`, `canceled`,
+- [x] Pruning removes only tasks in terminal states (`completed`, `failed`, `canceled`,
       `rejected`) — never `input-required` or `auth-required`, which are interrupted,
       not terminal.
 

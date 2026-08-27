@@ -13,6 +13,7 @@
     "test": "node --test \"dist/**/*.test.js\""
   },
   "dependencies": {
+    "@a2a-js/sdk": "^1.1.0",
     "@thicket/roster": "workspace:*"
   },
   "devDependencies": {
