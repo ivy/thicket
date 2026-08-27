@@ -1,7 +1,7 @@
 ---
 id: "020"
 title: Agent Slack toolbelt — an MCP surface over the bridge API
-status: todo
+status: in-progress
 component: apps/agentd
 language: typescript
 depends_on: ["017"]
