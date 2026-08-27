@@ -1,4 +1,5 @@
 import type { Message, StreamResponse, Task } from "@a2a-js/sdk";
+import { ACTIVITY_ARTIFACT_ID, parseAgentActivity, type AgentActivity } from "@thicket/executor";
 import {
   AgentCardResolver,
   ClientFactory,
@@ -41,6 +42,17 @@ export function toA2AEvent(response: StreamResponse): A2AEvent | undefined {
     }
     case "artifactUpdate": {
       const artifact = payload.value.artifact;
+      if (artifact?.artifactId === ACTIVITY_ARTIFACT_ID) {
+        return {
+          kind: "activity",
+          taskId: payload.value.taskId,
+          activities: artifact.parts
+            .map((part) =>
+              part.content?.$case === "data" ? parseAgentActivity(part.content.value) : undefined,
+            )
+            .filter((a): a is AgentActivity => a !== undefined),
+        };
+      }
       return {
         kind: "artifact",
         taskId: payload.value.taskId,

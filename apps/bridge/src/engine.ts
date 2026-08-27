@@ -34,6 +34,18 @@ const TERMINAL = new Set([
   TaskState.TASK_STATE_REJECTED,
 ]);
 
+/** Slack caps session titles at 200 characters. */
+const TITLE_MAX = 200;
+
+/** A thread's session name, taken from the message that opened it. */
+export function sessionTitle(text: string): string | undefined {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat === "") {
+    return undefined;
+  }
+  return flat.length <= TITLE_MAX ? flat : `${flat.slice(0, TITLE_MAX - 1)}…`;
+}
+
 function textPart(text: string) {
   return {
     content: { $case: "text" as const, value: text },
@@ -76,6 +88,8 @@ export class BridgeEngine {
   private readonly turnsOpen = new Map<string, number>();
   /** Deferred session-status release, applied when turnsOpen drains to 0. */
   private readonly pendingRelease = new Map<string, SlackSessionStatus>();
+  /** Tasks whose activity cards were abandoned after a Slack rejection. */
+  private readonly activityOff = new Set<string>();
   constructor(options: EngineOptions) {
     this.agent = options.agent;
     this.queueing = options.queueing;
@@ -157,8 +171,16 @@ export class BridgeEngine {
     messageTs: string,
   ): Promise<void> {
     const contextId = this.contextIdFor(channel, threadTs);
+    // Slack takes a session title only when the session is created, so the
+    // thread's first message is the only chance to name it.
+    const opening = !this.state.isEngaged(channel, threadTs);
     this.state.saveContext(channel, threadTs, contextId);
-    await this.slack.setStatus(channel, threadTs, "processing");
+    await this.slack.setStatus(
+      channel,
+      threadTs,
+      "processing",
+      opening ? { title: sessionTitle(text) } : undefined,
+    );
 
     let card: { streaming: boolean };
     try {
@@ -325,15 +347,31 @@ export class BridgeEngine {
         return;
       }
       case "artifact": {
-        const record = this.state.taskById(event.taskId);
-        let streamTs = record?.streamTs ?? null;
-        if (streamTs === null) {
-          streamTs = await this.slack.startStream(channel, threadTs);
-          this.state.setStreamTs(event.taskId, streamTs);
-        }
+        const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
         await this.slack.appendStream(channel, streamTs, event.text);
         if (event.lastChunk) {
           await this.slack.stopStream(channel, streamTs);
+          this.state.setStreamTs(event.taskId, null);
+        }
+        return;
+      }
+      case "activity": {
+        // Progress display is never worth a failed turn: if Slack rejects a
+        // card, drop cards for the rest of this task and keep going.
+        if (this.activityOff.has(event.taskId)) {
+          return;
+        }
+        try {
+          const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
+          for (const activity of event.activities) {
+            await this.slack.appendActivity(channel, streamTs, activity);
+          }
+        } catch (err) {
+          this.activityOff.add(event.taskId);
+          this.logger.warn("activity cards abandoned for this task", {
+            taskId: event.taskId,
+            err: String(err),
+          });
         }
         return;
       }
@@ -349,6 +387,35 @@ export class BridgeEngine {
         return;
       }
     }
+  }
+
+  /** The task's Slack stream, opened on first use. */
+  private async ensureStream(taskId: string, channel: string, threadTs: string): Promise<string> {
+    const record = this.state.taskById(taskId);
+    if (record?.streamTs != null) {
+      return record.streamTs;
+    }
+    const streamTs = await this.slack.startStream(channel, threadTs);
+    if (record === undefined) {
+      this.state.recordTask({ taskId, agent: this.agent, channel, threadTs, streamTs });
+    } else {
+      this.state.setStreamTs(taskId, streamTs);
+    }
+    return streamTs;
+  }
+
+  /**
+   * A turn whose last act is a tool call never emits a final text chunk, so
+   * the terminal state — not lastChunk — is what guarantees the stream is
+   * closed.
+   */
+  private async closeStream(taskId: string, channel: string): Promise<void> {
+    const streamTs = this.state.taskById(taskId)?.streamTs;
+    if (streamTs == null) {
+      return;
+    }
+    this.state.setStreamTs(taskId, null);
+    await this.slack.stopStream(channel, streamTs);
   }
 
   private async applyStatus(
@@ -383,6 +450,8 @@ export class BridgeEngine {
 
     const key = `${channel}:${threadTs}`;
     if (TERMINAL.has(state)) {
+      await this.closeStream(taskId, channel);
+      this.activityOff.delete(taskId);
       this.state.removeTask(taskId);
       const queuedTurns = Number(metadata?.[META_QUEUED_TURN_COUNT] ?? 0);
       if (queuedTurns > 0) {

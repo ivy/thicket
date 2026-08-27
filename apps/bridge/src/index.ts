@@ -1,6 +1,6 @@
 export const packageName = "@thicket/bridge";
 
-export { BridgeEngine, slackStatusFor, type EngineOptions } from "./engine.js";
+export { BridgeEngine, sessionTitle, slackStatusFor, type EngineOptions } from "./engine.js";
 export { BridgeState, type InFlightTask, type QueuedRequest } from "./state.js";
 export { ConnectionSupervisor, type Connection, type ConnectionFactory } from "./supervisor.js";
 export { translateSlackEvent } from "./translate.js";
@@ -11,6 +11,7 @@ export {
   META_QUEUED_TURN_COUNT,
   META_SHOULD_QUERY,
   type A2AEvent,
+  type AgentActivity,
   type AgentClient,
   type InboundEvent,
   type SlackApi,

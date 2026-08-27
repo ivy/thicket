@@ -8,6 +8,11 @@ import type { AgentExecutionEvent } from "@a2a-js/sdk/server";
 
 import { TurnTranslator, ASSISTANT_TEXT_ARTIFACT_ID } from "./translator.js";
 import {
+  ACTIVITY_ARTIFACT_ID,
+  parseAgentActivity,
+  type AgentActivity,
+} from "./activity.js";
+import {
   META_FOLDED_INTO,
   META_FOLDED_MESSAGE_IDS,
   META_QUEUED_TURN_COUNT,
@@ -69,6 +74,15 @@ function artifactText(events: AgentExecutionEvent[]): string {
     .join("");
 }
 
+function activities(events: AgentExecutionEvent[]): AgentActivity[] {
+  return events
+    .filter((e) => e.kind === "artifactUpdate")
+    .filter((e) => e.data.artifact?.artifactId === ACTIVITY_ARTIFACT_ID)
+    .flatMap((e) => e.data.artifact?.parts ?? [])
+    .map((part) => (part.content?.$case === "data" ? parseAgentActivity(part.content.value) : undefined))
+    .filter((a): a is AgentActivity => a !== undefined);
+}
+
 function terminalStatus(events: AgentExecutionEvent[]) {
   const updates = events.filter((e) => e.kind === "statusUpdate");
   const last = updates[updates.length - 1];
@@ -104,11 +118,85 @@ test("tool-use turn: later frames without user_message_uuid still bind", () => {
   run(h, loadFixture("tool-use-turn"));
 
   // One task; both assistant text pieces flow into one artifact stream.
-  assert.deepEqual(kinds(h.events), ["task", "artifactUpdate", "artifactUpdate", "statusUpdate"]);
+  assert.deepEqual(kinds(h.events), [
+    "task",
+    "artifactUpdate",
+    "artifactUpdate",
+    "artifactUpdate",
+    "artifactUpdate",
+    "statusUpdate",
+  ]);
   assert.equal(artifactText(h.events), "Checking the date. Today is Tuesday, August 26th.");
   const status = terminalStatus(h.events);
   assert.equal(status.status?.state, TaskState.TASK_STATE_COMPLETED);
   assert.equal(status.taskId, "task-1");
+});
+
+test("tool-use turn: the tool_use opens a card and its tool_result closes it", () => {
+  const h = harness();
+  h.translator.registerSend(send("send-tool", 1));
+  run(h, loadFixture("tool-use-turn"));
+
+  const cards = activities(h.events);
+  assert.deepEqual(cards, [
+    { id: "toolu_1", title: "Running a command", status: "running", details: "date" },
+    { id: "toolu_1", title: "Running a command", status: "done" },
+  ]);
+  const updates = h.events.filter((e) => e.kind === "artifactUpdate");
+  const cardEvents = updates.filter(
+    (e) => e.data.artifact?.artifactId === ACTIVITY_ARTIFACT_ID,
+  );
+  assert.equal(cardEvents[0]?.data.append, false, "first card opens the stream");
+  assert.equal(cardEvents[1]?.data.append, true, "later cards append");
+  assert.ok(
+    cardEvents.every((e) => e.data.lastChunk === false),
+    "the activity stream is never closed by a chunk flag",
+  );
+});
+
+test("the card appears after the text it follows, not before", () => {
+  const h = harness();
+  h.translator.registerSend(send("send-tool", 1));
+  run(h, loadFixture("tool-use-turn"));
+
+  const ids = h.events
+    .filter((e) => e.kind === "artifactUpdate")
+    .map((e) => e.data.artifact?.artifactId);
+  assert.deepEqual(ids, [
+    ASSISTANT_TEXT_ARTIFACT_ID,
+    ACTIVITY_ARTIFACT_ID,
+    ACTIVITY_ARTIFACT_ID,
+    ASSISTANT_TEXT_ARTIFACT_ID,
+  ]);
+});
+
+test("a tool whose result never arrives is settled by the turn's outcome", () => {
+  const h = harness();
+  h.translator.registerSend(send("send-tool", 1));
+  const frames = loadFixture("tool-use-turn");
+  // Drop the tool_result frame: the card would otherwise spin forever.
+  run(
+    h,
+    frames.filter((frame) => frame.type !== "user"),
+  );
+
+  assert.deepEqual(
+    activities(h.events).map((a) => a.status),
+    ["running", "done"],
+  );
+});
+
+test("subagent tool traffic produces no cards", () => {
+  const h = harness();
+  h.translator.registerSend(send("send-tool", 1));
+  const frames = loadFixture("tool-use-turn").map((frame) =>
+    frame.type === "assistant" || frame.type === "user"
+      ? { ...frame, parent_tool_use_id: "toolu_parent" }
+      : frame,
+  ) as SDKMessage[];
+  run(h, frames);
+
+  assert.deepEqual(activities(h.events), []);
 });
 
 test("streaming turn: chunks reconstruct the text; lastChunk on final chunk only", () => {

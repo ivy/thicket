@@ -1,4 +1,5 @@
 import type { Message, Task, TaskState } from "@a2a-js/sdk";
+import type { AgentActivity } from "@thicket/executor";
 
 /** Slack events the bridge acts on, already unwrapped from envelopes. */
 export type InboundEvent =
@@ -46,7 +47,8 @@ export type A2AEvent =
       text: string;
       append: boolean;
       lastChunk: boolean;
-    };
+    }
+  | { kind: "activity"; taskId: string; activities: AgentActivity[] };
 
 /**
  * The slice of an A2A agent the bridge uses. Implemented over the SDK
@@ -69,14 +71,22 @@ export type SlackSessionStatus = "processing" | "active" | "suspended";
 
 /** The Slack surface the bridge writes to. Stubbed in tests. */
 export interface SlackApi {
-  setStatus(channel: string, threadTs: string, status: SlackSessionStatus): Promise<void>;
+  setStatus(
+    channel: string,
+    threadTs: string,
+    status: SlackSessionStatus,
+    options?: { title?: string },
+  ): Promise<void>;
   postMessage(channel: string, threadTs: string, text: string): Promise<void>;
   /** chat.startStream → stream ts used for appends. */
   startStream(channel: string, threadTs: string): Promise<string>;
   appendStream(channel: string, streamTs: string, text: string): Promise<void>;
+  /** A step the agent took, rendered as a card on the open stream. */
+  appendActivity(channel: string, streamTs: string, activity: AgentActivity): Promise<void>;
   stopStream(channel: string, streamTs: string): Promise<void>;
 }
 
-// Metadata keys are thicket's A2A extension; the executor package owns
-// their definitions so the two ends cannot drift.
+// Metadata keys and the activity shape are thicket's A2A extension; the
+// executor package owns their definitions so the two ends cannot drift.
 export { META_QUEUED_TURN_COUNT, META_SHOULD_QUERY } from "@thicket/executor";
+export type { AgentActivity } from "@thicket/executor";

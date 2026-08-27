@@ -8,30 +8,45 @@ import { TaskState } from "@a2a-js/sdk";
 import type { Message, Task } from "@a2a-js/sdk";
 import { deriveSessionId } from "@thicket/executor";
 
-import { BridgeEngine } from "./engine.js";
+import { BridgeEngine, sessionTitle } from "./engine.js";
 import { BridgeState } from "./state.js";
 import {
   META_QUEUED_TURN_COUNT,
   META_SHOULD_QUERY,
   type A2AEvent,
+  type AgentActivity,
   type AgentClient,
   type SlackApi,
   type SlackSessionStatus,
 } from "./types.js";
 
 type SlackCall =
-  | { type: "setStatus"; channel: string; threadTs: string; status: SlackSessionStatus }
+  | {
+      type: "setStatus";
+      channel: string;
+      threadTs: string;
+      status: SlackSessionStatus;
+      title?: string;
+    }
   | { type: "post"; channel: string; threadTs: string; text: string }
   | { type: "startStream"; channel: string; threadTs: string; ts: string }
   | { type: "append"; channel: string; ts: string; text: string }
+  | { type: "activity"; channel: string; ts: string; activity: AgentActivity }
   | { type: "stop"; channel: string; ts: string };
 
 class FakeSlack implements SlackApi {
   calls: SlackCall[] = [];
+  /** When set, appendActivity rejects with it. */
+  activityError: Error | undefined;
   private streamCounter = 0;
 
-  async setStatus(channel: string, threadTs: string, status: SlackSessionStatus) {
-    this.calls.push({ type: "setStatus", channel, threadTs, status });
+  async setStatus(
+    channel: string,
+    threadTs: string,
+    status: SlackSessionStatus,
+    options?: { title?: string },
+  ) {
+    this.calls.push({ type: "setStatus", channel, threadTs, status, title: options?.title });
   }
   async postMessage(channel: string, threadTs: string, text: string) {
     this.calls.push({ type: "post", channel, threadTs, text });
@@ -43,6 +58,12 @@ class FakeSlack implements SlackApi {
   }
   async appendStream(channel: string, ts: string, text: string) {
     this.calls.push({ type: "append", channel, ts, text });
+  }
+  async appendActivity(channel: string, ts: string, activity: AgentActivity) {
+    if (this.activityError !== undefined) {
+      throw this.activityError;
+    }
+    this.calls.push({ type: "activity", channel, ts, activity });
   }
   async stopStream(channel: string, ts: string) {
     this.calls.push({ type: "stop", channel, ts });
@@ -179,25 +200,32 @@ function artifactEvent(taskId: string, text: string, append: boolean, lastChunk:
   return { kind: "artifact", taskId, text, append, lastChunk };
 }
 
+function activityEvent(taskId: string, ...activities: AgentActivity[]): A2AEvent {
+  return { kind: "activity", taskId, activities };
+}
+
 interface Rig {
   engine: BridgeEngine;
   slack: FakeSlack;
   client: StubClient;
   state: BridgeState;
+  warnings: string[];
 }
 
 function rig(behavior: StubBehavior, options: { queueing?: "harness" | "bridge"; dbPath?: string } = {}): Rig {
   const slack = new FakeSlack();
   const client = new StubClient(behavior);
   const state = new BridgeState(options.dbPath ?? ":memory:");
+  const warnings: string[] = [];
   const engine = new BridgeEngine({
     agent: "hearth",
     queueing: options.queueing ?? "harness",
     client,
     slack,
     state,
+    logger: { info: () => {}, warn: (msg) => warnings.push(msg) },
   });
-  return { engine, slack, client, state };
+  return { engine, slack, client, state, warnings };
 }
 
 const CH = "C123";
@@ -332,6 +360,133 @@ test("non-streaming agent: one postMessage, no stream calls", async () => {
   assert.equal(r.slack.calls.filter((c) => c.type === "append").length, 0);
   assert.equal(r.slack.calls.filter((c) => c.type === "stop").length, 0);
   r.state.close();
+});
+
+// ---------------------------------------------------------------- activity
+
+const CARD_RUNNING: AgentActivity = {
+  id: "toolu_1",
+  title: "Checking memory pressure",
+  status: "running",
+  details: "vm_stat",
+};
+const CARD_DONE: AgentActivity = { ...CARD_RUNNING, status: "done", details: undefined };
+
+test("activity opens the stream before any text and updates the card in place", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      activityEvent("t1", CARD_RUNNING),
+      activityEvent("t1", CARD_DONE),
+      artifactEvent("t1", "Memory looks fine.", false, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  await r.engine.handleEvent(dm("how's memory?"));
+
+  const kinds = r.slack.calls.map((c) => c.type);
+  assert.deepEqual(kinds, [
+    "setStatus", // processing, on the way out
+    "setStatus", // processing, from the task's working state
+    "startStream",
+    "activity",
+    "activity",
+    "append",
+    "stop",
+    "setStatus", // active
+  ]);
+  const cards = r.slack.calls.filter((c) => c.type === "activity");
+  assert.deepEqual(
+    cards.map((c) => [c.activity.id, c.activity.status]),
+    [
+      ["toolu_1", "running"],
+      ["toolu_1", "done"],
+    ],
+  );
+  const started = r.slack.calls.find((c) => c.type === "startStream")!;
+  assert.ok(
+    cards.every((c) => c.ts === started.ts),
+    "cards land on the thread's stream",
+  );
+  r.state.close();
+});
+
+test("a rejected card is abandoned for the task; the reply still lands", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      activityEvent("t1", CARD_RUNNING),
+      activityEvent("t1", CARD_DONE),
+      artifactEvent("t1", "Memory looks fine.", false, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  r.slack.activityError = new Error("invalid_chunk");
+  await r.engine.handleEvent(dm("how's memory?"));
+
+  assert.equal(r.slack.calls.filter((c) => c.type === "activity").length, 0);
+  assert.equal(
+    r.slack.calls.filter((c) => c.type === "append").map((c) => c.text).join(""),
+    "Memory looks fine.",
+  );
+  assert.equal(r.slack.lastStatus(), "active");
+  assert.equal(r.warnings.length, 1, "one warning, not one per card");
+  r.state.close();
+});
+
+test("a turn ending on a tool call still closes its stream", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      activityEvent("t1", CARD_RUNNING, CARD_DONE),
+      // No text artifact at all: nothing ever reports lastChunk.
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  await r.engine.handleEvent(dm("just run it"));
+
+  assert.equal(r.slack.calls.filter((c) => c.type === "startStream").length, 1);
+  assert.equal(r.slack.calls.filter((c) => c.type === "stop").length, 1);
+  assert.equal(r.slack.lastStatus(), "active");
+  r.state.close();
+});
+
+test("a stream closed by lastChunk is not closed twice", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "done", false, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  await r.engine.handleEvent(dm("hello"));
+  assert.equal(r.slack.calls.filter((c) => c.type === "stop").length, 1);
+  r.state.close();
+});
+
+// ------------------------------------------------------------ session title
+
+test("the thread's first message titles the session; later turns do not", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  await r.engine.handleEvent(dm("how is this machine doing?"));
+  await r.engine.handleEvent(dm("and the disk?", "1724650009.000001"));
+
+  const titles = r.slack.calls
+    .filter((c) => c.type === "setStatus")
+    .map((c) => c.title)
+    .filter((t) => t !== undefined);
+  assert.deepEqual(titles, ["how is this machine doing?"]);
+  r.state.close();
+});
+
+test("session titles are flattened and clipped to Slack's limit", () => {
+  assert.equal(sessionTitle("  hello\n  there  "), "hello there");
+  assert.equal(sessionTitle("   "), undefined);
+  const long = sessionTitle("x".repeat(500))!;
+  assert.equal(long.length, 200);
+  assert.ok(long.endsWith("…"));
 });
 
 // ------------------------------------------------------------- stop button

@@ -10,6 +10,15 @@ export {
   messageText,
   type ClaudeAgentExecutorOptions,
 } from "./executor.js";
+export {
+  ACTIVITY_ARTIFACT_ID,
+  ACTIVITY_MEDIA_TYPE,
+  activity,
+  describeToolUse,
+  parseAgentActivity,
+  type AgentActivity,
+  type AgentActivityStatus,
+} from "./activity.js";
 export { deriveSessionId, uuidv5, THICKET_NAMESPACE } from "./session-id.js";
 export { PushQueue } from "./push-queue.js";
 export {

@@ -67,7 +67,7 @@ export async function run(
         endpointOverrides[name] ??
           agentUrl(entry, { tailnetDomain: config.tailnet_domain }).replace(/\/a2a\/v1$/, ""),
       ),
-      slack: new WebSlackApi(new WebClient(agentConfig.bot_token)),
+      slack: new WebSlackApi(new WebClient(agentConfig.bot_token), logger),
       state,
       logger,
     });

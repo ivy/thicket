@@ -75,7 +75,8 @@ export class BridgeState {
       .run(task.taskId, task.agent, task.channel, task.threadTs, task.streamTs, Date.now());
   }
 
-  setStreamTs(taskId: string, streamTs: string): void {
+  /** null once the stream has been stopped, so it is not stopped twice. */
+  setStreamTs(taskId: string, streamTs: string | null): void {
     this.db.prepare("UPDATE tasks SET stream_ts = ? WHERE task_id = ?").run(streamTs, taskId);
   }
 

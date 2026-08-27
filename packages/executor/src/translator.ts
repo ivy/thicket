@@ -10,6 +10,14 @@ import { AgentEvent } from "@a2a-js/sdk/server";
 import type { AgentExecutionEvent } from "@a2a-js/sdk/server";
 
 import {
+  ACTIVITY_ARTIFACT_ID,
+  ACTIVITY_MEDIA_TYPE,
+  activity,
+  describeToolUse,
+  type AgentActivity,
+  type AgentActivityStatus,
+} from "./activity.js";
+import {
   META_FOLDED_INTO,
   META_FOLDED_MESSAGE_IDS,
   META_QUEUED_TURN_COUNT,
@@ -17,6 +25,12 @@ import {
 } from "./types.js";
 
 export const ASSISTANT_TEXT_ARTIFACT_ID = "assistant-text";
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
 
 export interface TranslatorOptions {
   publish: (event: AgentExecutionEvent) => void;
@@ -38,6 +52,9 @@ interface OpenTurn {
   chunksEmitted: number;
   /** Set when stream deltas carried text, so complete-message frames are not double-counted. */
   sawStreamText: boolean;
+  /** Open tool cards: tool_use_id -> title, awaiting their tool_result. */
+  openTools: Map<string, string>;
+  activityEmitted: number;
   interrupted: boolean;
   terminalEmitted: boolean;
 }
@@ -132,6 +149,9 @@ export class TurnTranslator {
       case "assistant":
         this.handleAssistant(frame);
         return;
+      case "user":
+        this.handleUser(frame);
+        return;
       case "result":
         this.handleResult(frame);
         return;
@@ -153,6 +173,7 @@ export class TurnTranslator {
     }
     this.ended = true;
     if (this.turn !== null && !this.turn.terminalEmitted) {
+      this.closeOpenActivities(this.turn, "failed");
       this.flushText(this.turn, true);
       this.emitStatus(this.turn.send, TaskState.TASK_STATE_FAILED, {
         message: this.agentMessage(this.turn.send, reason),
@@ -200,25 +221,116 @@ export class TurnTranslator {
     if (this.turn === null) {
       return;
     }
+    const turn = this.turn;
     if (frame.aborted === true) {
-      this.turn.interrupted = true;
-    }
-    if (this.turn.sawStreamText) {
-      return; // streamed deltas already carried this text
+      turn.interrupted = true;
     }
     const content = frame.message.content;
-    if (Array.isArray(content)) {
-      for (const block of content) {
-        if (
-          typeof block === "object" &&
-          block !== null &&
-          (block as { type?: string }).type === "text" &&
-          typeof (block as { text?: string }).text === "string"
-        ) {
-          this.pushText(this.turn, (block as { text: string }).text);
-        }
+    if (!Array.isArray(content)) {
+      return;
+    }
+    for (const block of content) {
+      const record = asRecord(block);
+      if (record === undefined) {
+        continue;
+      }
+      if (record.type === "tool_use") {
+        this.openActivity(turn, record);
+      } else if (
+        record.type === "text" &&
+        typeof record.text === "string" &&
+        // Streamed deltas already carried this text.
+        !turn.sawStreamText
+      ) {
+        this.pushText(turn, record.text);
       }
     }
+  }
+
+  /**
+   * The CLI answers its own tool_use blocks with user-role tool_result
+   * frames; they are what closes a tool card.
+   */
+  private handleUser(frame: Extract<SDKMessage, { type: "user" }>): void {
+    if (frame.parent_tool_use_id !== null) {
+      return; // subagent traffic
+    }
+    const turn = this.turn;
+    if (turn === null) {
+      return; // a tool result never opens a turn
+    }
+    const content = frame.message.content;
+    if (!Array.isArray(content)) {
+      return;
+    }
+    for (const block of content) {
+      const record = asRecord(block);
+      if (record === undefined || record.type !== "tool_result") {
+        continue;
+      }
+      const id = record.tool_use_id;
+      if (typeof id !== "string") {
+        continue;
+      }
+      const title = turn.openTools.get(id);
+      if (title === undefined) {
+        continue; // not a card this turn opened
+      }
+      turn.openTools.delete(id);
+      this.flushText(turn, false);
+      this.emitActivity(turn, activity(id, record.is_error === true ? "failed" : "done", { title }));
+    }
+  }
+
+  private openActivity(turn: OpenTurn, block: Record<string, unknown>): void {
+    const { id, name } = block;
+    if (typeof id !== "string" || typeof name !== "string" || turn.openTools.has(id)) {
+      return;
+    }
+    const described = describeToolUse(name, block.input);
+    const card = activity(id, "running", described);
+    turn.openTools.set(id, card.title);
+    // Text already buffered belongs ahead of the card it precedes.
+    this.flushText(turn, false);
+    this.emitActivity(turn, card);
+  }
+
+  /** Settle cards whose tool_result never arrived (interrupt, crash). */
+  private closeOpenActivities(turn: OpenTurn, status: AgentActivityStatus): void {
+    for (const [id, title] of turn.openTools) {
+      this.emitActivity(turn, activity(id, status, { title }));
+    }
+    turn.openTools.clear();
+  }
+
+  private emitActivity(turn: OpenTurn, card: AgentActivity): void {
+    this.publish(
+      AgentEvent.artifactUpdate({
+        taskId: turn.send.taskId,
+        contextId: turn.send.contextId,
+        artifact: {
+          artifactId: ACTIVITY_ARTIFACT_ID,
+          name: "agent-activity",
+          description: "",
+          parts: [
+            {
+              content: { $case: "data", value: card },
+              mediaType: ACTIVITY_MEDIA_TYPE,
+              filename: "",
+              metadata: {},
+            },
+          ],
+          metadata: {},
+          extensions: [],
+        },
+        append: turn.activityEmitted > 0,
+        // The activity stream has no natural end: the turn's terminal
+        // status is what tells a consumer no more cards are coming.
+        lastChunk: false,
+        metadata: {},
+      }),
+    );
+    turn.activityEmitted += 1;
   }
 
   private handleResult(frame: SDKResultMessage): void {
@@ -235,10 +347,11 @@ export class TurnTranslator {
 
     const queued = frame.queued_turn_count ?? 0;
     const folded = this.takeFolded(turn.send, queued);
+    const { state, message } = this.terminalStateFor(frame, turn);
+    this.closeOpenActivities(turn, state === TaskState.TASK_STATE_COMPLETED ? "done" : "failed");
     this.flushText(turn, true);
 
     if (!turn.terminalEmitted) {
-      const { state, message } = this.terminalStateFor(frame, turn);
       const metadata: Record<string, unknown> = {
         [META_QUEUED_TURN_COUNT]: queued,
         [META_FOLDED_MESSAGE_IDS]: folded.map((send) => send.messageId),
@@ -347,6 +460,8 @@ export class TurnTranslator {
       pendingChunk: null,
       chunksEmitted: 0,
       sawStreamText: false,
+      openTools: new Map(),
+      activityEmitted: 0,
       interrupted: this.cancelRequested.has(send.taskId),
       terminalEmitted: false,
     };

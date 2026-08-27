@@ -15,6 +15,7 @@ import {
   BridgeEngine,
   BridgeState,
   RemoteAgentClient,
+  type AgentActivity,
   type SlackApi,
   type SlackSessionStatus,
 } from "@thicket/bridge";
@@ -267,18 +268,30 @@ export function netdFetch(tag: string = BRIDGE_TAG): typeof fetch {
 }
 
 export type SlackCall =
-  | { type: "setStatus"; channel: string; threadTs: string; status: SlackSessionStatus }
+  | {
+      type: "setStatus";
+      channel: string;
+      threadTs: string;
+      status: SlackSessionStatus;
+      title?: string;
+    }
   | { type: "post"; channel: string; threadTs: string; text: string }
   | { type: "startStream"; channel: string; threadTs: string; ts: string }
   | { type: "append"; channel: string; ts: string; text: string }
+  | { type: "activity"; channel: string; ts: string; activity: AgentActivity }
   | { type: "stop"; channel: string; ts: string };
 
 export class MockSlack implements SlackApi {
   calls: SlackCall[] = [];
   private streamCounter = 0;
 
-  async setStatus(channel: string, threadTs: string, status: SlackSessionStatus) {
-    this.calls.push({ type: "setStatus", channel, threadTs, status });
+  async setStatus(
+    channel: string,
+    threadTs: string,
+    status: SlackSessionStatus,
+    options?: { title?: string },
+  ) {
+    this.calls.push({ type: "setStatus", channel, threadTs, status, title: options?.title });
   }
   async postMessage(channel: string, threadTs: string, text: string) {
     this.calls.push({ type: "post", channel, threadTs, text });
@@ -291,8 +304,14 @@ export class MockSlack implements SlackApi {
   async appendStream(channel: string, ts: string, text: string) {
     this.calls.push({ type: "append", channel, ts, text });
   }
+  async appendActivity(channel: string, ts: string, activity: AgentActivity) {
+    this.calls.push({ type: "activity", channel, ts, activity });
+  }
   async stopStream(channel: string, ts: string) {
     this.calls.push({ type: "stop", channel, ts });
+  }
+  activities(): AgentActivity[] {
+    return this.calls.filter((c) => c.type === "activity").map((c) => c.activity);
   }
   statuses(): SlackSessionStatus[] {
     return this.calls.filter((c) => c.type === "setStatus").map((c) => c.status);
