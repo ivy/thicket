@@ -119,7 +119,9 @@ Verified against upstream; re-check before assuming any of it drifted.
 | Agents use `contextId` to manage LLM context | same |
 | `@a2a-js/sdk` v1.0.1 provides server, client, `TaskStore`, `AgentExecutor`, push notifications | npm |
 | Slack agent sessions are app-scoped and keyed by `channel_id` + `thread_ts` | https://docs.slack.dev/ai/agent-sessions |
-| `agents.sessions.setStatus` supersedes `assistant.threads.setStatus` | https://docs.slack.dev/ai/developing-agents |
+| `agents.sessions.setStatus` and `assistant.threads.setStatus` are complementary, not successive: the first drives the session lifecycle (`active`/`processing`/`suspended`/`closed`, the loading indicator and stop button), the second writes the prose line under the app's name. Only the latter's accepted *scope* is narrowing. | https://docs.slack.dev/reference/methods/agents.sessions.setStatus, https://docs.slack.dev/reference/methods/assistant.threads.setStatus |
+| A message carrying an upload arrives subtyped `file_share`; `url_private_download` needs `files:read` and the bot token | https://docs.slack.dev/reference/methods/files.info |
+| `chat.appendStream` takes either `markdown_text` or `chunks`, never both, and a stream that has carried a chunk rejects the top-level form | https://docs.slack.dev/reference/methods/chat.appendStream |
 | Socket Mode removes the need for a public request URL | https://docs.slack.dev/apis/events-api/using-socket-mode |
 | Free Slack plan caps installs at 10 apps | https://slack.com/help/articles/115002422943 |
 | `tsnet.Server` exposes `AdvertiseTags`, `Dial`, `LocalClient().WhoIs` | https://pkg.go.dev/tailscale.com/tsnet |
