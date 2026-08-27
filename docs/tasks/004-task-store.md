@@ -1,7 +1,7 @@
 ---
 id: "004"
 title: Durable A2A TaskStore
-status: todo
+status: in-progress
 component: apps/agentd
 language: typescript
 depends_on: ["001"]
