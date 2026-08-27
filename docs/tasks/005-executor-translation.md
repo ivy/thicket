@@ -1,7 +1,7 @@
 ---
 id: "005"
 title: Executor — Agent SDK stream to A2A task events
-status: todo
+status: in-progress
 component: packages/executor
 language: typescript
 depends_on: ["002"]
