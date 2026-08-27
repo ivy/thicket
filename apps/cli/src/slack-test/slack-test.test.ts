@@ -45,8 +45,8 @@ function client(responses: Record<string, unknown | (() => unknown)>) {
 // ------------------------------------------------------------------ client
 
 test("a Slack error surfaces its code rather than an empty result", async () => {
-  const r = client({ "auth.test": { ok: false, error: "invalid_auth" } });
-  await assert.rejects(() => r.client.whoami(), (err: unknown) => {
+  const r = client({ "users.list": { ok: false, error: "invalid_auth" } });
+  await assert.rejects(() => r.client.dmChannelFor("hearth"), (err: unknown) => {
     assert.ok(err instanceof SlackApiError);
     assert.equal(err.code, "invalid_auth");
     return true;
@@ -54,13 +54,16 @@ test("a Slack error surfaces its code rather than an empty result", async () => 
 });
 
 test("the token travels in the header, never in the body", async () => {
-  const { fetchImpl, calls } = fakeSlack({ "auth.test": { ok: true, user_id: "U1", team: "T1" } });
+  const { fetchImpl, calls } = fakeSlack({
+    "users.list": { ok: true, members: [{ id: "B7", name: "hearth", is_bot: true }] },
+    "conversations.open": { ok: true, channel: { id: "D42" } },
+  });
   let sawAuthHeader = "";
   const spying = (async (url: string | URL, init?: RequestInit) => {
     sawAuthHeader = new Headers(init?.headers).get("authorization") ?? "";
     return fetchImpl(url as string, init);
   }) as unknown as typeof fetch;
-  await new SlackTestClient({ token: "xoxp-secret", fetchImpl: spying }).whoami();
+  await new SlackTestClient({ token: "xoxp-secret", fetchImpl: spying }).dmChannelFor("hearth");
   assert.equal(sawAuthHeader, "Bearer xoxp-secret");
   assert.ok(
     calls.every((call) => !Object.values(call.params).includes("xoxp-secret")),
@@ -160,16 +163,8 @@ test("the harness exposes the tools a live test needs", async (t) => {
   const tools = await mcp.listTools();
   assert.deepEqual(
     tools.tools.map((tool) => tool.name).sort(),
-    [
-      "slack_await_reply",
-      "slack_dm_agent",
-      "slack_history",
-      "slack_post",
-      "slack_reactions",
-      "slack_thread",
-      "slack_upload",
-      "slack_whoami",
-    ],
+    ["slack_await_reply", "slack_dm_agent", "slack_upload"],
+    "only the gaps in Slack's own MCP server; everything else comes from there",
   );
 });
 
@@ -225,9 +220,9 @@ test("await_reply ignores the operator's own message", async () => {
 });
 
 test("a tool failure is reported to the model, not thrown", async () => {
-  const r = client({ "auth.test": { ok: false, error: "token_revoked" } });
+  const r = client({ "users.list": { ok: false, error: "token_revoked" } });
   const mcp = await connect({ client: r.client });
-  const out = await mcp.call("slack_whoami", {});
+  const out = await mcp.call("slack_dm_agent", { agent: "hearth", text: "hi" });
   await mcp.close();
   assert.equal(out.isError, true);
   assert.match(textOf(out), /token_revoked/);

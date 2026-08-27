@@ -61,11 +61,6 @@ export class SlackTestClient {
     return payload;
   }
 
-  /** Who this token acts as. The harness's own sanity check. */
-  async whoami(): Promise<{ userId: string; team: string }> {
-    const res = await this.call("auth.test");
-    return { userId: String(res.user_id ?? ""), team: String(res.team ?? "") };
-  }
 
   /** The DM channel with an agent's bot user, opening it if needed. */
   async dmChannelFor(agent: string): Promise<string> {
@@ -135,16 +130,7 @@ export class SlackTestClient {
     return ((res.messages ?? []) as Record<string, unknown>[]).map(toMessage);
   }
 
-  async history(channel: string, limit = 20): Promise<SlackMessage[]> {
-    const res = await this.call("conversations.history", { channel, limit: String(limit) });
-    return ((res.messages ?? []) as Record<string, unknown>[]).map(toMessage);
-  }
 
-  async reactions(channel: string, ts: string): Promise<string[]> {
-    const res = await this.call("reactions.get", { channel, timestamp: ts });
-    const message = res.message as { reactions?: { name: string }[] } | undefined;
-    return (message?.reactions ?? []).map((reaction) => reaction.name);
-  }
 
   /**
    * Upload via the external flow (getUploadURLExternal → POST →

@@ -45,12 +45,19 @@ function describe(message: SlackMessage): string {
 }
 
 /**
- * Slack as a test instrument.
+ * The gaps in Slack's own MCP server, for driving live tests.
  *
- * This exists so an unattended build loop can do what only a human could
- * before: say something to an agent and check what actually came back —
- * reply text, task cards, thread title, reactions, uploaded files. It acts
- * as the operator, and it is a development tool, not part of the fleet.
+ * Slack hosts an MCP server that searches, posts, reads threads, reacts,
+ * and handles canvases — use that for all of it. Three things it does not
+ * do are needed here, and only those three live in this file: uploading a
+ * file (absent upstream, and attachment ingest has no live regression test
+ * without it), blocking until an agent answers (a turn is asynchronous, and
+ * otherwise every test writes its own poll loop against a rate-limited
+ * read), and resolving a thicket agent name to its bot user's DM.
+ *
+ * A development tool, not part of the fleet. It acts as the operator
+ * because nothing else can: the bridge ignores bot_id messages so agents
+ * cannot answer themselves, which also means no bot token can start a turn.
  */
 export function buildSlackTestServer(deps: SlackTestDeps): McpServer {
   const { client } = deps;
@@ -58,18 +65,6 @@ export function buildSlackTestServer(deps: SlackTestDeps): McpServer {
   const now = deps.now ?? (() => Date.now());
   const server = new McpServer({ name: "thicket-slack-test", version: "0.1.0" });
 
-  server.registerTool(
-    "slack_whoami",
-    { description: "Which Slack user this harness acts as. Start here.", inputSchema: {} },
-    async () => {
-      try {
-        const me = await client.whoami();
-        return text(`user_id=${me.userId} team=${me.team}`);
-      } catch (err) {
-        return failure(err);
-      }
-    },
-  );
 
   server.registerTool(
     "slack_dm_agent",
@@ -95,28 +90,6 @@ export function buildSlackTestServer(deps: SlackTestDeps): McpServer {
     },
   );
 
-  server.registerTool(
-    "slack_post",
-    {
-      description: "Post to a channel by name or id, as the operator.",
-      inputSchema: {
-        channel: z.string().describe("#name or channel id"),
-        text: z.string(),
-        thread_ts: z.string().optional(),
-      },
-    },
-    async ({ channel, text: body, thread_ts }) => {
-      try {
-        const id = channel.startsWith("C") || channel.startsWith("D")
-          ? channel
-          : await client.channelIdFor(channel);
-        const ts = await client.post(id, body, thread_ts);
-        return text(`channel=${id} ts=${ts}`);
-      } catch (err) {
-        return failure(err);
-      }
-    },
-  );
 
   server.registerTool(
     "slack_upload",
@@ -201,58 +174,8 @@ export function buildSlackTestServer(deps: SlackTestDeps): McpServer {
     },
   );
 
-  server.registerTool(
-    "slack_thread",
-    {
-      description:
-        "Every message in a thread, with block structure and files. Use to " +
-        "assert on task cards, streamed output, and attachments.",
-      inputSchema: { channel: z.string(), thread_ts: z.string() },
-    },
-    async ({ channel, thread_ts }) => {
-      try {
-        const messages = await client.replies(channel, thread_ts);
-        return text(messages.map(describe).join("\n---\n"));
-      } catch (err) {
-        return failure(err);
-      }
-    },
-  );
 
-  server.registerTool(
-    "slack_history",
-    {
-      description: "Recent messages in a channel, newest first.",
-      inputSchema: { channel: z.string(), limit: z.number().optional() },
-    },
-    async ({ channel, limit }) => {
-      try {
-        const id = channel.startsWith("C") || channel.startsWith("D")
-          ? channel
-          : await client.channelIdFor(channel);
-        const messages = await client.history(id, limit ?? 20);
-        return text(messages.map(describe).join("\n---\n"));
-      } catch (err) {
-        return failure(err);
-      }
-    },
-  );
 
-  server.registerTool(
-    "slack_reactions",
-    {
-      description: "Emoji reactions on one message, for verifying agent reactions.",
-      inputSchema: { channel: z.string(), ts: z.string() },
-    },
-    async ({ channel, ts }) => {
-      try {
-        const names = await client.reactions(channel, ts);
-        return text(names.length === 0 ? "(none)" : names.join(", "));
-      } catch (err) {
-        return failure(err);
-      }
-    },
-  );
 
   return server;
 }

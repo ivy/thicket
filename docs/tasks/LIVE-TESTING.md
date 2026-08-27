@@ -26,20 +26,28 @@ running one holds the old code.
 
 ## Driving Slack
 
-The `slack-test` MCP server (`thicket slack-test-mcp`, configured in
-`.mcp.json`) acts as the operator, because nothing else can: the bridge
-ignores `bot_id` messages so agents cannot answer themselves, which also
-means no bot token can start a turn.
+Two MCP servers, and the split matters.
 
-- `slack_dm_agent` — say something to an agent; returns the channel and the
-  thread root.
+**`slack`** — Slack's own, hosted at `https://mcp.slack.com/mcp`. Reach for it
+first: searching messages, files, users and channels; posting; reading
+channels and threads; reactions; canvases; user info. It authenticates as the
+operator over OAuth.
+
+**`slack-test`** — three tools this repo adds, and only because Slack's server
+lacks them:
+
+- `slack_dm_agent` — say something to an agent. Resolves the agent name to
+  its bot user's DM, which is thicket-specific knowledge. Returns the channel
+  and the thread root.
 - `slack_await_reply` — block until the agent answers, then report the reply
-  with its Block Kit structure. This is the assertion most checks reduce to.
-- `slack_thread`, `slack_history` — what is in a thread or channel, with
-  block types and attached files, for asserting on task cards and streams.
-- `slack_upload` — send a file, to exercise attachment handling end to end.
-- `slack_reactions` — what an agent reacted with.
-- `slack_post` — post into a channel, for routines and channel-scoped work.
+  with its Block Kit structure. A turn is asynchronous; without this every
+  test writes its own poll loop against a rate-limited read. This is the
+  assertion most checks reduce to.
+- `slack_upload` — send a file. Absent upstream, and attachment ingest has no
+  live regression test without it.
+
+Anything else — reading the thread back, checking reactions, searching —
+comes from `slack`. Do not add tools here that duplicate it.
 
 Confine live traffic to `#thicket-test` where a channel is needed. It is a
 development workspace, so noise is cheap, but a wall of test messages in a

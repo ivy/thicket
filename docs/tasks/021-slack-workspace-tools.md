@@ -59,6 +59,12 @@ which is the same route these tools need.
 - [ ] A read the agent's app is not entitled to is refused by the bridge.
 - [ ] `context: replay` drives a real turn for a harness that keeps no state.
 
+Note the asymmetry with Slack's own MCP server: that gives *this repo's
+tooling* search, over the operator's OAuth grant. This task is about giving
+*agents* search, over the bot token, through the bridge — a different
+credential reaching a different consumer. One does not substitute for the
+other.
+
 ## Live verification
 
 See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
