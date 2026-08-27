@@ -1,7 +1,7 @@
 ---
 id: "029"
 title: thicket doctor must survive a failing probe
-status: todo
+status: in-progress
 component: apps/cli
 language: typescript
 depends_on: ["010"]
