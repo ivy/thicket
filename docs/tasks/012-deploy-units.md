@@ -1,7 +1,7 @@
 ---
 id: "012"
 title: Deployment units and bootstrap
-status: todo
+status: in-progress
 component: deploy
 language: none
 depends_on: ["003", "008", "010"]
