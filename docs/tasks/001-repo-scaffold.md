@@ -1,7 +1,7 @@
 ---
 id: "001"
 title: Repository scaffold and toolchain
-status: todo
+status: in-progress
 component: .
 language: none
 depends_on: []
