@@ -14,7 +14,7 @@ status and dependencies. Work any task whose dependencies are all `done`.
 ```yaml
 id: "005"                      # zero-padded, matches filename
 title: Short imperative title
-status: todo                   # todo | in-progress | blocked | done
+status: todo                   # todo | in-progress | blocked | done | icebox (parked; not picked up by the loop)
 component: packages/executor   # path this task owns
 language: typescript           # typescript | go | none
 depends_on: ["002"]            # must be done before starting
@@ -40,6 +40,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [012 Deployment units and bootstrap](012-deploy-units.md) | 003, 008, 010 | `deploy` | none |
 | [013 End-to-end integration and first agent](013-integration.md) | 008, 009, 011, 012, 014 | `.` | typescript |
 | [014 Honor shouldQuery metadata end to end](014-shouldquery-metadata.md) | 005, 008, 009 | `packages/executor` | typescript |
+| [015 Slack status fidelity and agent reactions](015-slack-status-fidelity.md) | 009, 013 | `apps/bridge` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
