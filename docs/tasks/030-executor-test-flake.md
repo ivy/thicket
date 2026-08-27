@@ -1,7 +1,7 @@
 ---
 id: "030"
 title: Executor attachment tests flake under the workspace test run
-status: todo
+status: in-progress
 component: packages/executor
 language: typescript
 depends_on: ["018"]
