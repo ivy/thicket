@@ -190,3 +190,40 @@ test("permissionMode defaults to auto and rejects bypassPermissions", () => {
     },
   );
 });
+
+test("persona is optional, carried verbatim, and must not be empty", () => {
+  const roster = parseRoster(fixture);
+  assert.equal(roster.agents.hearth?.persona, undefined, "fixture sets no persona");
+
+  const withPersona = parseRoster(`
+agents:
+  hearth:
+    host: home
+    user: hearth
+    description: A test agent with a persona block that is long enough to satisfy Slack copy.
+    tag: tag:thicket-hearth
+    persona: |-
+      You are warm and terse.
+      Silence is a valid outcome.
+    harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
+`);
+  assert.equal(
+    withPersona.agents.hearth?.persona,
+    "You are warm and terse.\nSilence is a valid outcome.",
+  );
+
+  assert.throws(
+    () =>
+      parseRoster(`
+agents:
+  hearth:
+    host: home
+    user: hearth
+    description: A test agent whose persona is empty, which must be rejected loudly.
+    tag: tag:thicket-hearth
+    persona: ""
+    harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
+`),
+    RosterValidationError,
+  );
+});

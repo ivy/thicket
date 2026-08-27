@@ -61,10 +61,23 @@ export async function run(
   if (toolbeltFactory === undefined) {
     logger.info("slack toolbelt disabled: no bridge_base_url configured");
   }
+  // Re-read at each session spawn so a persona edit in agents.yaml takes
+  // effect on the next session, no restart needed. A file that has gone
+  // unreadable or invalid falls back to the persona loaded at startup —
+  // a stale persona beats a session that cannot spawn.
+  const personaPrompt = (): string | undefined => {
+    try {
+      return parseRoster(readFileSync(config.agentsFile, "utf8")).agents[config.agent]?.persona;
+    } catch (err) {
+      logger.warn("roster re-read failed; using startup persona", { err: String(err) });
+      return entry.persona;
+    }
+  };
   const sessions = new SessionManager({
     harness: entry.harness,
     env: sessionEnv(config),
     maxSessions: config.maxSessions,
+    personaPrompt,
     onWarning: (msg) => logger.warn(msg),
     ...(toolbeltFactory === undefined
       ? {}

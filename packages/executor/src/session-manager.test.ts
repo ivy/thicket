@@ -426,3 +426,42 @@ test("harness permissionMode reaches the query options", async () => {
   assert.equal(cli.processes[0]?.options.permissionMode, "auto");
   await manager.shutdown();
 });
+
+test("a persona is appended to the preset prompt, re-read at each spawn", async () => {
+  const cli = makeFakeCli();
+  let persona: string | undefined = "You are warm and terse.";
+  const manager = makeManager(cli, { personaPrompt: () => persona });
+  const session = manager.sessionFor("ctx-persona");
+  collect(session);
+  await session.send(userMessage("hi", "u1"));
+  await until(() => cli.processes.length === 1, "spawned");
+  assert.deepEqual(cli.processes[0]?.options.systemPrompt, {
+    type: "preset",
+    preset: "claude_code",
+    append: "You are warm and terse.",
+  });
+
+  // The provider is consulted at every spawn, so an edit takes effect on
+  // the next session without any restart of the manager.
+  persona = "Answer in haiku.";
+  const other = manager.sessionFor("ctx-persona-2");
+  collect(other);
+  await other.send(userMessage("again", "u2"));
+  await until(() => cli.processes.length === 2, "second session spawned");
+  assert.deepEqual(
+    (cli.processes[1]?.options.systemPrompt as { append?: string }).append,
+    "Answer in haiku.",
+  );
+  await manager.shutdown();
+});
+
+test("no persona leaves the session options without any systemPrompt", async () => {
+  const cli = makeFakeCli();
+  const manager = makeManager(cli);
+  const session = manager.sessionFor("ctx-no-persona");
+  collect(session);
+  await session.send(userMessage("hi", "u1"));
+  await until(() => cli.processes.length === 1, "spawned");
+  assert.equal("systemPrompt" in (cli.processes[0]?.options ?? {}), false);
+  await manager.shutdown();
+});

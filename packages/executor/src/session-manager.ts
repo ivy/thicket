@@ -49,6 +49,13 @@ export interface SessionManagerOptions {
    */
   mcpServers?: () => NonNullable<Options["mcpServers"]>;
   allowedTools?: string[];
+  /**
+   * The agent's persona, appended to the harness's own system prompt —
+   * never replacing it. A provider rather than a string so edits to the
+   * roster take effect on the next session without a restart; undefined
+   * means no appendix and the options are exactly as before.
+   */
+  personaPrompt?: () => string | undefined;
 }
 
 const DEFAULT_MAX_SESSIONS = 8;
@@ -151,6 +158,7 @@ export class SessionManager implements SessionProvider {
   private readonly onWarning: (message: string) => void;
   private readonly mcpServers: (() => NonNullable<Options["mcpServers"]>) | undefined;
   private readonly allowedTools: string[] | undefined;
+  private readonly personaPrompt: (() => string | undefined) | undefined;
 
   /** Insertion order is recency order: oldest first. */
   private readonly sessions = new Map<string, ManagedSession>();
@@ -166,6 +174,7 @@ export class SessionManager implements SessionProvider {
     this.onWarning = options.onWarning ?? (() => {});
     this.mcpServers = options.mcpServers;
     this.allowedTools = options.allowedTools;
+    this.personaPrompt = options.personaPrompt;
   }
 
   sessionFor(contextId: string): SessionHandle {
@@ -305,6 +314,7 @@ export class SessionManager implements SessionProvider {
   private async spawnGeneration(session: ManagedSession): Promise<Generation> {
     this.enforcePoolCap();
 
+    const persona = this.personaPrompt?.();
     const exists = await this.sessionExists(session.id);
     const input = new PushQueue<SDKUserMessage>();
     const abort = new AbortController();
@@ -319,6 +329,11 @@ export class SessionManager implements SessionProvider {
         : {}),
       ...(this.mcpServers === undefined ? {} : { mcpServers: this.mcpServers() }),
       ...(this.allowedTools === undefined ? {} : { allowedTools: this.allowedTools }),
+      // Appended to the claude_code preset, never replacing it: the
+      // harness's own prompt is what makes Claude Code work at all.
+      ...(persona === undefined || persona === ""
+        ? {}
+        : { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append: persona } }),
       ...(exists ? { resume: session.id } : { sessionId: session.id }),
     };
     const q = this.queryFn({ prompt: input, options });

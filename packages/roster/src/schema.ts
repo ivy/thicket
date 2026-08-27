@@ -37,6 +37,12 @@ const agentEntrySchema = z.object({
       message: "must look like tag:thicket-<name>",
     }),
   icon: z.string().optional(),
+  /**
+   * Prompt appendix for the agent's sessions — behaviour, not capability.
+   * Appended to the harness's own system prompt, never replacing it. A
+   * paragraph or two; anything larger belongs in the account's CLAUDE.md.
+   */
+  persona: z.string().min(1).optional(),
   skills: z.array(skillSchema).default([]),
   harness: harnessSchema,
   context: z.enum(["native", "replay"]).default("native"),

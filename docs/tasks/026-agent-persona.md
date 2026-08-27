@@ -1,7 +1,7 @@
 ---
 id: "026"
 title: Agent persona — an appended system prompt per agent
-status: in-progress
+status: done
 component: packages/roster
 language: typescript
 depends_on: ["002"]
@@ -52,9 +52,29 @@ the one thicket can own directly — see task 027 for the larger one.
 
 ## Acceptance criteria
 
-- [ ] An agent's persona reaches its session's system prompt, appended.
-- [ ] Changing it takes effect on the next session without redeploying.
-- [ ] A roster with no persona behaves exactly as today.
+- [x] An agent's persona reaches its session's system prompt, appended.
+- [x] Changing it takes effect on the next session without redeploying.
+- [x] A roster with no persona behaves exactly as today.
+
+## What live verification established (2026-08-27)
+
+`persona:` on the agent entry threads to the session as
+`systemPrompt: { preset: claude_code, append }` — appended, never
+replacing. agentd re-reads `agents.yaml` at every session spawn (falling
+back to the startup persona if the file goes unreadable), which is what
+makes the second criterion true without any restart:
+
+- With `persona: Begin every reply with exactly the phrase 'Hearthside:'`,
+  a DM answered `Hearthside: 4.`
+- Edited live to an end-phrase habit, no restart: the next thread's
+  session answered `6\n\n— the hearth keeps burning.`
+- Removed, no restart: the next thread answered a bare `10`.
+
+On the open question: the division of labour is persona for *behaviour*
+(a paragraph, owned by the roster) and the account's CLAUDE.md for
+*workspace instruction* (task 027). They meet in the model's context
+either way; keeping behaviour out of CLAUDE.md is convention, not
+mechanism.
 
 ## Live verification
 
