@@ -1,7 +1,7 @@
 ---
 id: "016"
 title: Agent-initiated Slack reactions
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["020", "026"]
