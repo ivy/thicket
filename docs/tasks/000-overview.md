@@ -59,6 +59,8 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [031 Canvas read](031-canvas-read.md) | 021 | `apps/bridge` | typescript |
 | [032 A mention in a channel fails at chat.startStream](032-channel-streaming.md) | 015 | `apps/bridge` | typescript |
 | [033 doctor's card check never gets the roster it needs](033-doctor-card-roster-wiring.md) | 010 | `apps/cli` | typescript |
+| [034 Split long replies at boundaries the reader can live with](034-message-length-splitting.md) | 032 | `apps/bridge` | typescript |
+| [035 Task cards carry an icon that says what kind of step this is](035-task-card-icons.md) | 015 | `packages/executor` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -80,6 +82,7 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 10 | 020 | 1 |
 | 11 | 016, 021 | 2 |
 | 12 | 022, 031 | 2 |
+| 13 | 034, 035 | 2 |
 
 `005` and `006` are the hard ones and sit in the widest wave — start them first.
 `003` is Go and shares no files with anything else.
@@ -159,4 +162,6 @@ Verified against upstream; re-check before assuming any of it drifted.
 | `@slack/socket-mode` detects a dead socket in seconds via its own ping loop, but reconnection fetches the wss URL through a WebClient whose default `retryConfig: {retries: 100, factor: 1.3}` retries invisibly and uncancellably for up to hours; bound it via `clientOptions.retryConfig` | `@slack/socket-mode@2.0.7` `dist/src/SocketModeClient.js`, `SlackWebSocket.js` |
 | A `createSdkMcpServer` instance serves exactly one session: the second session to receive the same instance reports the server "failed to connect". Build a fresh instance per subprocess generation | observed live, `@anthropic-ai/claude-agent-sdk` 0.3.247 |
 | `chat.startStream` requires `recipient_user_id` and `recipient_team_id` when streaming anywhere that is not a DM (`missing_recipient_team_id` otherwise); the team id comes from `auth.test` | https://docs.slack.dev/reference/methods/chat.startStream, observed live |
+| `chat.postMessage` truncates text past 40,000 chars; guidance is ≤4,000 per message, and Slack may split longer ones itself at arbitrary points (observed: 4,692 chars became 3,610+1,081). A streamed message hits `msg_too_long` around ~3k chars of text plus cards | https://docs.slack.dev/reference/methods/chat.postMessage, rate-limits guide, observed live |
+| Task-card icons are not emoji: the `icon` field takes `{"type":"icon","name":…}` from a fixed ~52-name set (code, globe, refine, file, edit, gear, bot, …) | https://docs.slack.dev/reference/block-kit/composition-objects/slack-icon-object |
 | `tailcfg.Node.Tags []string` carries peer tags | `tailcfg/tailcfg.go` |
