@@ -75,6 +75,15 @@ export class RemoteAgentClient implements AgentClient {
 
   async fetchCard(): Promise<{ streaming: boolean }> {
     const card = await this.resolver.resolve(this.baseUrl);
+    // The bridge decides transport: dial the address this client was
+    // configured with (its netd egress route), not whatever host the card
+    // advertises. In production the two agree and this is a no-op; in
+    // local development they differ.
+    const origin = new URL(this.baseUrl).origin;
+    card.supportedInterfaces = card.supportedInterfaces.map((iface) => ({
+      ...iface,
+      url: new URL(new URL(iface.url).pathname, origin).toString(),
+    }));
     this.client = await this.factory.createFromAgentCard(card);
     return { streaming: card.capabilities?.streaming === true };
   }

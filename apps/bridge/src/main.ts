@@ -47,6 +47,13 @@ export async function run(
   );
   const state = new BridgeState(config.db_path ?? join(stateDir(), "bridge", "bridge.db"));
 
+  // Per-agent base-URL overrides for local development (no tailnet):
+  // {"hearth": "http://127.0.0.1:8791"}.
+  const endpointOverrides: Record<string, string> =
+    process.env.THICKET_BRIDGE_ENDPOINTS !== undefined
+      ? (JSON.parse(process.env.THICKET_BRIDGE_ENDPOINTS) as Record<string, string>)
+      : {};
+
   const engines = new Map<string, BridgeEngine>();
   for (const [name, agentConfig] of Object.entries(config.agents)) {
     const entry = roster.agents[name];
@@ -57,7 +64,8 @@ export async function run(
       agent: name,
       queueing: entry.queueing,
       client: new RemoteAgentClient(
-        agentUrl(entry, { tailnetDomain: config.tailnet_domain }).replace(/\/a2a\/v1$/, ""),
+        endpointOverrides[name] ??
+          agentUrl(entry, { tailnetDomain: config.tailnet_domain }).replace(/\/a2a\/v1$/, ""),
       ),
       slack: new WebSlackApi(new WebClient(agentConfig.bot_token)),
       state,
