@@ -37,6 +37,7 @@ function manifest(description: string): SlackManifest {
       socket_mode_enabled: true,
       token_rotation_enabled: false,
       event_subscriptions: { bot_events: [] },
+      interactivity: { is_enabled: true },
     },
   };
 }
@@ -109,7 +110,10 @@ class FakeSlackAdmin implements SlackAdminApi {
       settings: {
         ...stored.settings,
         is_mcp_enabled: false,
-        interactivity: { is_enabled: false },
+        // Echoed when we send it, defaulted when we do not — a fake that
+        // reports a value we pushed as something else turns idempotency
+        // into a permanent update loop against a Tier 1 method.
+        interactivity: stored.settings.interactivity ?? { is_enabled: false },
       },
     } as unknown as SlackManifest;
   }

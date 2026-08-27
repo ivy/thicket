@@ -34,6 +34,44 @@ export const BOT_SCOPES = [
   // Redeeming url_private_download on a user's upload; the bridge is the
   // only holder of the token that can.
   "files:read",
+  // Agent toolbelt: react, hand back a file, read what was already said,
+  // and resolve who and what a message refers to.
+  "reactions:write",
+  "files:write",
+  "groups:history",
+  "mpim:history",
+  "channels:read",
+  "groups:read",
+  "users:read",
+  "canvases:read",
+  // Public-channel search on the bot token. Slack rejects plain
+  // `search:read` as a bot scope (observed: illegal_bot_scopes) — that one
+  // is user-token only, and a user token is a materially wider credential.
+  "search:read.public",
+] as const;
+
+/**
+ * Scopes for the live-test harness, which must act as a *human* to be
+ * useful: the bridge drops bot_id messages precisely so agents cannot
+ * answer themselves, so nothing with a bot token can trigger a turn.
+ *
+ * Installing an app that requests these mints a token acting as the
+ * installing operator, everywhere they can reach. Opt-in only, and never
+ * for an agent whose blast radius matters.
+ */
+export const TEST_HARNESS_USER_SCOPES = [
+  "chat:write",
+  "files:write",
+  "channels:history",
+  "groups:history",
+  "im:history",
+  "mpim:history",
+  "channels:read",
+  "im:read",
+  "reactions:read",
+  // Resolving an agent's bot user, so the harness can open its DM rather
+  // than carrying a hardcoded channel id.
+  "users:read",
 ] as const;
 
 export interface SlackSuggestedPrompt {
@@ -77,6 +115,8 @@ export interface SlackManifest {
   oauth_config: {
     scopes: {
       bot: string[];
+      /** Present only when a test-harness user token is wanted. */
+      user?: string[];
     };
   };
   settings: {
@@ -85,6 +125,10 @@ export interface SlackManifest {
     token_rotation_enabled: boolean;
     event_subscriptions: {
       bot_events: string[];
+    };
+    /** Block Kit interactions arrive over Socket Mode; no request URL. */
+    interactivity: {
+      is_enabled: boolean;
     };
   };
 }
@@ -98,6 +142,11 @@ export interface RenderResult {
 export interface RenderOptions {
   /** display_information.background_color, e.g. "#2c2d30". */
   backgroundColor?: string;
+  /**
+   * Request user scopes so an installed app also yields a token that acts
+   * as the operator. Only the live-test harness wants this.
+   */
+  testHarness?: boolean;
 }
 
 export class ManifestRenderError extends Error {
@@ -214,6 +263,7 @@ export function toSlackManifest(card: AgentCard, options: RenderOptions = {}): R
     oauth_config: {
       scopes: {
         bot: [...BOT_SCOPES],
+        ...(options.testHarness === true ? { user: [...TEST_HARNESS_USER_SCOPES] } : {}),
       },
     },
     settings: {
@@ -223,8 +273,17 @@ export function toSlackManifest(card: AgentCard, options: RenderOptions = {}): R
       event_subscriptions: {
         bot_events: [...BOT_EVENTS],
       },
+      interactivity: { is_enabled: true },
     },
   };
+
+  if (options.testHarness === true) {
+    warnings.push(
+      `${card.name}: manifest requests user scopes for the live-test harness — ` +
+        `installing it mints a token that acts as you, wherever you can reach. ` +
+        `Remove the flag and reinstall to revoke.`,
+    );
+  }
 
   return { manifest, warnings };
 }

@@ -32,10 +32,15 @@ async function main(): Promise<void> {
     const agentFlag = rest.indexOf("--agent");
     const only = agentFlag !== -1 ? rest[agentFlag + 1] : undefined;
 
+    // Opt-in, deliberately not a config field: an app that requests user
+    // scopes mints a token acting as the operator, and that should be a
+    // conscious act at a terminal rather than a line someone inherits.
+    const testHarness = process.env.THICKET_SLACK_TEST_HARNESS === "1";
+
     const manifests = new Map<string, SlackManifest>();
     const warnings: string[] = [];
     for (const [name, entry] of Object.entries(roster.agents)) {
-      const rendered = toSlackManifest(toAgentCard(name, entry));
+      const rendered = toSlackManifest(toAgentCard(name, entry), { testHarness });
       manifests.set(name, rendered.manifest);
       warnings.push(...rendered.warnings);
     }
