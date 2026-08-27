@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "slack": {
-      "type": "http",
-      "url": "https://mcp.slack.com/mcp"
-    },
     "slack-test": {
       "command": "mise",
       "args": ["exec", "--", "node", "apps/cli/dist/bin.js", "slack-test-mcp"],
