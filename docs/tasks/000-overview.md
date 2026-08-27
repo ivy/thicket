@@ -44,6 +44,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [016 Agent-initiated Slack reactions](016-agent-reactions.md) | 017 | `apps/bridge` | typescript |
 | [017 Bridge file surface](017-bridge-file-surface.md) | 009 | `apps/bridge` | typescript |
 | [018 Materialize attachments into the agent's cache](018-attachment-materialization.md) | 017 | `packages/executor` | typescript |
+| [019 Detect a Socket Mode connection that stops delivering](019-socket-liveness.md) | 009 | `apps/bridge` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
