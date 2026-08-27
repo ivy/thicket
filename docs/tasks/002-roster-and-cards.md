@@ -1,7 +1,7 @@
 ---
 id: "002"
 title: Roster schema and AgentCard generation
-status: todo
+status: in-progress
 component: packages/roster
 language: typescript
 depends_on: ["001"]
