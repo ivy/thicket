@@ -1,7 +1,7 @@
 ---
 id: "009"
 title: bridge — Slack Socket Mode to A2A
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["002"]
