@@ -1,7 +1,7 @@
 ---
 id: "021"
 title: Slack workspace knowledge — search, history, and directory tools
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["020"]
