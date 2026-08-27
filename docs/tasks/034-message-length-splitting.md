@@ -1,7 +1,7 @@
 ---
 id: "034"
 title: Split long replies at boundaries the reader can live with
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["032"]
