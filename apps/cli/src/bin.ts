@@ -155,7 +155,20 @@ async function main(): Promise<void> {
   if (command === "doctor") {
     // Probes run real commands/network; wired here, logic lives in doctor.ts.
     const { realProbes } = await import("./doctor-probes.js");
-    const results = await runDoctor(loadRoster(), realProbes());
+    const roster = loadRoster();
+    const results = await runDoctor(
+      roster,
+      realProbes({
+        roster,
+        tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
+        // Same dev-rig override fleet and mcp honour: agents reachable on
+        // local ports where there is no tailnet.
+        endpointOverrides:
+          process.env.THICKET_MCP_ENDPOINTS !== undefined
+            ? (JSON.parse(process.env.THICKET_MCP_ENDPOINTS) as Record<string, string>)
+            : undefined,
+      }),
+    );
     for (const line of formatResults(results)) {
       process.stdout.write(line + "\n");
     }

@@ -17,6 +17,8 @@ const execFileAsync = promisify(execFile);
 export function realProbes(options: {
   roster?: ReturnType<typeof parseRoster>;
   tailnetDomain?: string;
+  /** Dev-rig stand-in for the tailnet: agent name -> local base URL. */
+  endpointOverrides?: Record<string, string>;
   fetchImpl?: typeof fetch;
 } = {}): DoctorProbes {
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -28,11 +30,25 @@ export function realProbes(options: {
       if (entry === undefined) {
         throw new Error("agent missing from roster");
       }
-      const base = agentUrl(entry, { tailnetDomain: options.tailnetDomain }).replace(
-        /\/a2a\/v1$/,
-        "",
-      );
-      const response = await fetchImpl(`${base}/.well-known/agent-card.json`);
+      const base =
+        options.endpointOverrides?.[agent] ??
+        agentUrl(entry, { tailnetDomain: options.tailnetDomain }).replace(/\/a2a\/v1$/, "");
+      let response: Response;
+      try {
+        response = await fetchImpl(`${base}/.well-known/agent-card.json`);
+      } catch (err) {
+        // Node's fetch says only "fetch failed"; the cause has the truth,
+        // and an unresolvable tailnet name deserves its own sentence.
+        const cause = err instanceof Error && err.cause instanceof Error ? err.cause : err;
+        const detail = cause instanceof Error ? cause.message : String(cause);
+        if (/ENOTFOUND|EAI_AGAIN/.test(detail)) {
+          throw new Error(
+            `${new URL(base).hostname} does not resolve from here — no tailnet on this ` +
+              `host? (dev rigs set THICKET_MCP_ENDPOINTS to probe local agents)`,
+          );
+        }
+        throw new Error(detail);
+      }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }

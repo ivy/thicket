@@ -1,7 +1,7 @@
 ---
 id: "033"
 title: doctor's card check never gets the roster it needs
-status: in-progress
+status: done
 component: apps/cli
 language: typescript
 depends_on: ["010"]
@@ -36,10 +36,30 @@ was wired.
 
 ## Acceptance criteria
 
-- [ ] On a host where an agent's card is actually reachable, the card
+- [x] On a host where an agent's card is actually reachable, the card
       check passes.
-- [ ] On the dev rig (unix socket, no tailnet), the card row explains
+- [x] On the dev rig (unix socket, no tailnet), the card row explains
       itself instead of claiming the agent is missing from the roster.
+
+## What verification established (2026-08-27)
+
+`bin.ts` now hands the loaded roster to `realProbes`, along with
+`THICKET_TAILNET_DOMAIN` and the same `THICKET_MCP_ENDPOINTS` override
+fleet and mcp already honour — the dev rig's stand-in for a tailnet.
+Live, with the override pointing at the rig's peer-tag proxy:
+
+```
+ok  [card] hearth: agent card fetchable and current
+```
+
+— the first time this check has ever passed. Without the override, the
+row unwraps Node's "fetch failed" to its cause and explains itself:
+
+```
+FAIL [card] hearth: agent card not fetchable: thicket-hearth does not
+resolve from here — no tailnet on this host? (dev rigs set
+THICKET_MCP_ENDPOINTS to probe local agents)
+```
 
 ## Out of scope
 
