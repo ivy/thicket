@@ -1,7 +1,7 @@
 ---
 id: "007"
 title: Slack app manifest renderer
-status: in-progress
+status: done
 component: packages/slack-manifest
 language: typescript
 depends_on: ["002"]
@@ -61,16 +61,16 @@ single source of truth. This package is a pure function; task 010 handles the AP
 
 ## Acceptance criteria
 
-- [ ] Golden-file tests: a fixture roster renders to checked-in expected manifests, and
+- [x] Golden-file tests: a fixture roster renders to checked-in expected manifests, and
       the test fails on any drift.
-- [ ] A card whose composed `long_description` falls under 174 characters raises an
+- [x] A card whose composed `long_description` falls under 174 characters raises an
       error naming the agent — it does not silently pad or emit an invalid manifest.
-- [ ] An `agent_description` over 300 characters is truncated on a word boundary.
-- [ ] Rendered manifests contain no `assistant_view` key and no `request_url`.
-- [ ] `socket_mode_enabled` is `true` in every rendered manifest.
-- [ ] Agents with a `card.iconUrl` produce a warning listing the apps needing a manual
+- [x] An `agent_description` over 300 characters is truncated on a word boundary.
+- [x] Rendered manifests contain no `assistant_view` key and no `request_url`.
+- [x] `socket_mode_enabled` is `true` in every rendered manifest.
+- [x] Agents with a `card.iconUrl` produce a warning listing the apps needing a manual
       icon upload.
-- [ ] The function is pure: no network, no filesystem, no clock.
+- [x] The function is pure: no network, no filesystem, no clock.
 
 ## Out of scope
 

@@ -1,0 +1,54 @@
+# Golden-file fixture: rendered manifests live in fixtures/expected/.
+agents:
+  hearth:
+    host: home
+    user: hearth
+    description: >-
+      Personal assistant for calendar, todo list, Obsidian vault, and email
+      triage. Reads the inbox, sorts what matters, drafts replies, and keeps
+      the week's plan honest.
+    tag: tag:thicket-hearth
+    icon: ":herb:"
+    skills:
+      - id: email-triage
+        name: Email triage
+        description: Reads and sorts the inbox, drafts replies for review.
+        tags: [email, personal]
+        examples:
+          - "What needs a reply today?"
+          - "Summarize anything from my landlord this week."
+      - id: calendar
+        name: Calendar management
+        description: Schedules, reschedules, and flags conflicts before they bite.
+        tags: [calendar]
+        examples:
+          - "What does tomorrow look like?"
+    harness:
+      type: claude-agent-sdk
+      cwd: /home/hearth
+      model: claude-opus-5
+      sessionTtlSeconds: 300
+
+  forge:
+    host: workshop
+    user: forge
+    description: >-
+      Keeps the CI fleet green: watches builds, investigates red pipelines,
+      bisects regressions, and proposes fixes as reviewable patches rather
+      than pushing anything itself.
+    tag: tag:thicket-forge
+    skills:
+      - id: ci-triage
+        name: CI triage
+        description: Investigates failing builds and finds the breaking change.
+        tags: [ci]
+        examples:
+          - "Why is main red?"
+          - "Which commit broke the deploy pipeline?"
+          - "Retry the flaky suite and tell me if it is actually flaky."
+          - "Summarize test failures from the last nightly run."
+          - "Open questions on the build cache — is it stale?"
+    harness:
+      type: claude-agent-sdk
+      cwd: /home/forge
+      model: claude-sonnet-5
