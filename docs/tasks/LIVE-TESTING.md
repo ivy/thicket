@@ -11,7 +11,16 @@ has been watched working.
 
 ## The rig
 
-Five processes, all local, started from `~/thicket-test/`:
+```sh
+./deploy/dev/rig.sh restart   # after every build — a running process holds the old code
+./deploy/dev/rig.sh status    # per-process, plus whether the agent card actually answers
+```
+
+Restarting is not optional housekeeping. Rebuild without it and every live
+check measures the previous commit, which is worse than no check at all
+because it looks like one.
+
+Five processes, all local, under `~/thicket-test/`:
 
 | | |
 |---|---|
@@ -21,8 +30,11 @@ Five processes, all local, started from `~/thicket-test/`:
 | `egress-proxy` | `deploy/dev/egress-proxy.mjs`, standing in for netd outbound |
 
 Both stand-ins assert an identity that netd would verify, which is exactly
-why they are development-only. Restart a process after rebuilding: the
-running one holds the old code.
+why they are development-only.
+
+Logs and pidfiles sit beside each other in `~/thicket-test/`, one pair per
+process. `status` checks liveness rather than presence — it asks the agent
+card, because a process can be up and not serving.
 
 ## Driving Slack
 

@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# The local development rig: agentd, the bridge, and the three stand-ins
+# that play netd where there is no tailnet. Development only — the
+# stand-ins assert identities netd would verify.
+#
+#   ./deploy/dev/rig.sh start|stop|restart|status
+#
+# Restart after every build. A running process holds the old code, and a
+# test against it is a test of the previous commit.
+set -euo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+HOME_DIR="${THICKET_TEST_HOME:-$HOME/thicket-test}"
+
+export XDG_CONFIG_HOME="$HOME_DIR/config"
+export XDG_STATE_HOME="$HOME_DIR/state"
+export XDG_RUNTIME_DIR="$HOME_DIR/run"
+export XDG_CACHE_HOME="$HOME_DIR/cache"
+
+SOCKETS="$XDG_RUNTIME_DIR/thicket"
+AGENTD_PORT=8791   # bridge -> agentd, carrying the bridge's tag
+BRIDGE_PORT=8792   # agent -> bridge file surface, carrying hearth's tag
+
+pidfile() { echo "$HOME_DIR/$1.pid"; }
+logfile() { echo "$HOME_DIR/$1.log"; }
+
+running() {
+  local pid
+  pid="$(cat "$(pidfile "$1")" 2>/dev/null || true)"
+  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+}
+
+# Launch detached, record the pid, and append to the process's own log.
+spawn() {
+  local name="$1"; shift
+  nohup "$@" >>"$(logfile "$name")" 2>&1 &
+  echo $! >"$(pidfile "$name")"
+}
+
+start_one() {
+  local name="$1"; shift
+  if running "$name"; then
+    echo "$name already running ($(cat "$(pidfile "$name")"))"
+    return
+  fi
+  spawn "$name" "$@"
+  echo "$name started ($(cat "$(pidfile "$name")"))"
+}
+
+start() {
+  mkdir -p "$SOCKETS" "$HOME_DIR"
+
+  # netd stand-ins first: the bridge dials the agent through one of them.
+  UPSTREAM="$SOCKETS/agentd.sock" PEER_TAG=tag:thicket-bridge PORT="$AGENTD_PORT" \
+    start_one proxy mise exec -- node "$REPO/deploy/dev/peer-tag-proxy.mjs"
+  UPSTREAM="$SOCKETS/bridge.sock" PEER_TAG=tag:thicket-hearth PORT="$BRIDGE_PORT" \
+    start_one bridge-proxy mise exec -- node "$REPO/deploy/dev/peer-tag-proxy.mjs"
+  SOCKET="$SOCKETS/netd-egress.sock" \
+    start_one egress mise exec -- node "$REPO/deploy/dev/egress-proxy.mjs"
+
+  start_one agentd mise exec -- node "$REPO/apps/agentd/dist/bin.js"
+  THICKET_BRIDGE_ENDPOINTS="{\"hearth\":\"http://127.0.0.1:$AGENTD_PORT\"}" \
+    start_one bridge mise exec -- node "$REPO/apps/bridge/dist/bin.js"
+}
+
+stop() {
+  local name pid
+  for name in bridge agentd egress bridge-proxy proxy; do
+    pid="$(cat "$(pidfile "$name")" 2>/dev/null || true)"
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+      echo "$name stopped ($pid)"
+    fi
+    rm -f "$(pidfile "$name")"
+  done
+  # The bridge unlinks its socket on a clean exit; a killed one may not.
+  rm -f "$SOCKETS/bridge.sock"
+}
+
+status() {
+  local name pid ok=0
+  for name in agentd bridge proxy bridge-proxy egress; do
+    pid="$(cat "$(pidfile "$name")" 2>/dev/null || true)"
+    if running "$name"; then
+      printf '%-14s up    %s\n' "$name" "$pid"
+    else
+      printf '%-14s DOWN\n' "$name"
+      ok=1
+    fi
+  done
+  # Liveness, not just presence: a process can be up and not serving.
+  if curl -fsS --unix-socket "$SOCKETS/agentd.sock" \
+      http://x/.well-known/agent-card.json >/dev/null 2>&1; then
+    printf '%-14s ok\n' "agent card"
+  else
+    printf '%-14s UNREACHABLE\n' "agent card"
+    ok=1
+  fi
+  return "$ok"
+}
+
+case "${1:-status}" in
+  start) start ;;
+  stop) stop ;;
+  restart) stop; sleep 2; start ;;
+  status) status ;;
+  *) echo "usage: $0 start|stop|restart|status" >&2; exit 2 ;;
+esac
