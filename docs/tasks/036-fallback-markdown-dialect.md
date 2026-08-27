@@ -1,7 +1,7 @@
 ---
 id: "036"
 title: Fallback posts speak markdown, like the stream they stand in for
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["032"]
