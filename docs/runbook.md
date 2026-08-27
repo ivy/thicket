@@ -20,8 +20,13 @@ journalctl --user -u thicket-agentd -n 100     # structured JSON lines on stderr
 
 - `fleet` says DOWN, netd unit dead → netd problem (next entries).
 - `fleet` says up but Slack is silent → the bridge: check its account's
-  `journalctl --user -u thicket-bridge`, look for `socket mode connection down`
-  or `event handling failed`.
+  `journalctl --user -u thicket-bridge`, look for `socket mode connection down`,
+  `abandoning socket mode connection`, or `event handling failed`. On the
+  bridge's host, `thicket doctor` reads the bridge's heartbeat file and says
+  per agent whether the Socket Mode connection is up. A quietly dead socket
+  is abandoned and rebuilt within about a minute on its own; each inbound
+  event logs `ageMs`, so a message that sat out a dead window shows how
+  long it waited.
 - Task shows `working` in `fleet` for a long time → a genuinely long turn, or a
   wedged session (see below).
 

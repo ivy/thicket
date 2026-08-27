@@ -23,6 +23,13 @@ export interface SupervisorOptions {
 
 const DEFAULT_BACKOFF_MS = [1_000, 5_000, 15_000, 60_000];
 
+export interface ConnectionHealth {
+  agent: string;
+  connected: boolean;
+  /** Reconnect attempts since the last successful connect. */
+  attempts: number;
+}
+
 interface Slot {
   agent: string;
   connection: Connection | null;
@@ -78,6 +85,15 @@ export class ConnectionSupervisor {
       }
     }
     return n;
+  }
+
+  /** Per-agent connection state, for the health file doctor reads. */
+  health(): ConnectionHealth[] {
+    return [...this.slots.values()].map((slot) => ({
+      agent: slot.agent,
+      connected: slot.connection !== null,
+      attempts: slot.attempts,
+    }));
   }
 
   private async connect(slot: Slot): Promise<void> {

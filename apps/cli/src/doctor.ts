@@ -13,7 +13,18 @@ export interface DoctorProbes {
   workspaceAppUsage(): Promise<{ installed: number; cap: number }>;
   /** loginctl lingering for the agent's unix account on its host. */
   lingeringEnabled(agent: string, user: string): Promise<boolean>;
+  /** The bridge's heartbeat file, if a bridge runs on this host. */
+  bridgeHealth(): Promise<BridgeHealth | undefined>;
 }
+
+/** Shape of the health file the bridge rewrites every few seconds. */
+export interface BridgeHealth {
+  ts: string;
+  agents: { agent: string; connected: boolean; attempts: number }[];
+}
+
+/** Two missed heartbeats: the bridge is down or wedged, not merely busy. */
+const BRIDGE_HEALTH_STALE_MS = 60_000;
 
 export interface CheckResult {
   check: string;
@@ -97,6 +108,37 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
       );
     } else {
       push("lingering", true, `lingering enabled for ${entry.user}`, agent);
+    }
+  }
+
+  const health = await probes.bridgeHealth();
+  if (health === undefined) {
+    push(
+      "bridge",
+      true,
+      "no bridge health file on this host — run doctor where the bridge runs to check its connections",
+    );
+  } else {
+    const ageMs = Date.now() - Date.parse(health.ts);
+    if (!Number.isFinite(ageMs) || ageMs > BRIDGE_HEALTH_STALE_MS) {
+      push(
+        "bridge",
+        false,
+        `bridge health file is stale (last heartbeat ${Number.isFinite(ageMs) ? `${Math.round(ageMs / 1000)}s ago` : "unreadable"}) — the bridge is down or wedged`,
+      );
+    } else {
+      for (const entry of health.agents) {
+        if (entry.connected) {
+          push("bridge", true, "Socket Mode connection up", entry.agent);
+        } else {
+          push(
+            "bridge",
+            false,
+            `Socket Mode connection down (${entry.attempts} reconnect attempts) — see the bridge log`,
+            entry.agent,
+          );
+        }
+      }
     }
   }
 

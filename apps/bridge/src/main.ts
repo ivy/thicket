@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 
@@ -14,6 +14,7 @@ import { ConnectionSupervisor } from "./supervisor.js";
 import { BridgeState } from "./state.js";
 
 const QUEUE_FLUSH_INTERVAL_MS = 30_000;
+const HEALTH_INTERVAL_MS = 15_000;
 const FILE_PRUNE_INTERVAL_MS = 6 * 60 * 60_000;
 /** Matches the agent-side attachment cache's retention. */
 const FILE_RETENTION_MS = 30 * 24 * 60 * 60_000;
@@ -133,6 +134,12 @@ export async function run(
     logger,
     factory: (agent) => {
       const engine = engines.get(agent)!;
+      // Scoped so every connection-level line — lifecycle, watchdog,
+      // library warnings — says which agent's socket it is about.
+      const scoped: EngineLogger = {
+        info: (msg, fields) => logger.info(msg, { agent, ...fields }),
+        warn: (msg, fields) => logger.warn(msg, { agent, ...fields }),
+      };
       return new SlackSocketConnection(
         config.agents[agent]!.app_token,
         (event) => {
@@ -140,12 +147,31 @@ export async function run(
             logger.warn("event handling failed", { agent, err: String(err) });
           });
         },
-        logger,
+        scoped,
       );
     },
   });
   await supervisor.start();
   logger.info("bridge up", { agents: [...engines.keys()] });
+
+  // A heartbeat file `thicket doctor` can read: per-agent connection
+  // state, freshly stamped, so "unhealthy" and "not running" are both
+  // distinguishable from "present". Written atomically; a torn read must
+  // not look like a wedged bridge.
+  const healthPath = join(stateDir(), "bridge", "health.json");
+  mkdirSync(dirname(healthPath), { recursive: true });
+  const writeHealth = () => {
+    try {
+      const doc = { ts: new Date().toISOString(), agents: supervisor.health() };
+      writeFileSync(healthPath + ".tmp", JSON.stringify(doc) + "\n");
+      renameSync(healthPath + ".tmp", healthPath);
+    } catch (err) {
+      logger.warn("health file write failed", { path: healthPath, err: String(err) });
+    }
+  };
+  writeHealth();
+  const healthTimer = setInterval(writeHealth, HEALTH_INTERVAL_MS);
+  healthTimer.unref();
 
   const flushTimer = setInterval(() => {
     for (const engine of engines.values()) {

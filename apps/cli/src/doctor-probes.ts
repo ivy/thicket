@@ -1,10 +1,12 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { agentUrl, parseRoster } from "@thicket/roster";
+import { agentUrl, parseRoster, stateDir } from "@thicket/roster";
 import type { AgentEntry } from "@thicket/roster";
 
-import type { DoctorProbes } from "./doctor.js";
+import type { BridgeHealth, DoctorProbes } from "./doctor.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -65,6 +67,17 @@ export function realProbes(options: {
       // a better source exists.
       const installed = Number(process.env.THICKET_WORKSPACE_APP_COUNT ?? 0);
       return { installed, cap: 10 };
+    },
+
+    async bridgeHealth() {
+      // Same path the bridge writes; absent or unparsable both mean "no
+      // bridge heartbeat here", which doctor reports without failing.
+      try {
+        const raw = await readFile(join(stateDir(), "bridge", "health.json"), "utf8");
+        return JSON.parse(raw) as BridgeHealth;
+      } catch {
+        return undefined;
+      }
     },
 
     async lingeringEnabled(_agent, user) {

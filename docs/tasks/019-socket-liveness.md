@@ -1,7 +1,7 @@
 ---
 id: "019"
 title: Detect a Socket Mode connection that stops delivering
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["009"]
@@ -51,11 +51,53 @@ not need to be invented, only triggered sooner.
 
 ## Acceptance criteria
 
-- [ ] A socket that stops delivering is detected without waiting for the
+- [x] A socket that stops delivering is detected without waiting for the
       library's terminal `disconnected`.
-- [ ] The bridge reconnects on its own and logs why.
-- [ ] A message sent during the dead window arrives within seconds of
+- [x] The bridge reconnects on its own and logs why.
+- [x] A message sent during the dead window arrives within seconds of
       recovery rather than minutes, and the delay is visible in the log.
+
+## What the client actually reports (established from installed source)
+
+`@slack/socket-mode@2.0.7`, read at
+`node_modules/.pnpm/@slack+socket-mode@2.0.7`:
+
+- Its own ping loop finds a dead socket in seconds: a ping every
+  `clientPingTimeout/3` (~1.7s), and after >3 unanswered pings it logs the
+  observed `A pong wasn't received…` warning and closes the socket. The
+  close surfaces as a `close` event on the client, followed by
+  `reconnecting`/`connecting`, and `connected` again on recovery. Detection
+  was never the gap.
+- The hour-long stall lives in `retrieveWSSURL()`: reconnecting fetches a
+  fresh wss URL via a WebClient constructed with
+  `retryConfig: {retries: 100, factor: 1.3}`. Failures retry *inside* the
+  WebClient — invisible to every event listener, uncancellable, and with
+  exponentially growing sleeps (minutes-long by the tenth attempt, an hour
+  in aggregate is unremarkable). During this the client emits nothing and
+  `disconnect()` cannot interrupt it.
+- Library log output goes to its own console logger unless a logger is
+  injected; the pong warning was only ever visible because stderr was
+  captured.
+
+The fix follows: inject our logger (the library's warnings now land in the
+bridge's structured log with agent context), bound the hidden retries
+(`retries: 3`) so failures surface to the library's observable outer
+reconnect loop, and hold a recovery deadline — any `close`/`error`/
+`reconnecting` must reach `connected` within 60s or the whole client is
+abandoned (`abandoning socket mode connection` + reason in the log), the
+supervisor then rebuilding a fresh one with its usual backoff. The initial
+`start()` gets the same deadline so a hung first connect cannot wedge a
+supervisor slot. Slack redelivers the unacked events on the next
+connection — observed live on 05:48:18 during the second incident — and
+each inbound event now logs `ageMs` (and `retryNum` when set), so a
+redelivered message shows exactly how long it sat.
+
+Verified by driving a fake client through dead-socket, healthy-reconnect,
+hung-start, and redelivery scenarios (`socket.test.ts`), and live against
+the rig: DM answered in ~5s with `ageMs: 298` logged, no spurious
+abandonment on a healthy connection. The bridge also heartbeats per-agent
+connection state to `state/bridge/health.json` every 15s, and
+`thicket doctor` reports each connection up/down/stale from it.
 
 ## Live verification
 

@@ -151,4 +151,5 @@ Verified against upstream; re-check before assuming any of it drifted.
 | Socket Mode removes the need for a public request URL | https://docs.slack.dev/apis/events-api/using-socket-mode |
 | Free Slack plan caps installs at 10 apps | https://slack.com/help/articles/115002422943 |
 | `tsnet.Server` exposes `AdvertiseTags`, `Dial`, `LocalClient().WhoIs` | https://pkg.go.dev/tailscale.com/tsnet |
+| `@slack/socket-mode` detects a dead socket in seconds via its own ping loop, but reconnection fetches the wss URL through a WebClient whose default `retryConfig: {retries: 100, factor: 1.3}` retries invisibly and uncancellably for up to hours; bound it via `clientOptions.retryConfig` | `@slack/socket-mode@2.0.7` `dist/src/SocketModeClient.js`, `SlackWebSocket.js` |
 | `tailcfg.Node.Tags []string` carries peer tags | `tailcfg/tailcfg.go` |

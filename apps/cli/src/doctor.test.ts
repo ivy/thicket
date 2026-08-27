@@ -31,6 +31,13 @@ function healthyProbes(): DoctorProbes {
     slackApp: async () => ({ installed: true, socketMode: true }),
     workspaceAppUsage: async () => ({ installed: 4, cap: 10 }),
     lingeringEnabled: async () => true,
+    bridgeHealth: async () => ({
+      ts: new Date().toISOString(),
+      agents: [
+        { agent: "hearth", connected: true, attempts: 0 },
+        { agent: "forge", connected: true, attempts: 0 },
+      ],
+    }),
   };
 }
 
@@ -116,6 +123,43 @@ test("workspace at the app cap is detected", async () => {
   assert.ok(failure);
   assert.equal(failure.check, "workspace");
   assert.match(failure.message, /app cap \(10\/10/);
+});
+
+test("a disconnected Socket Mode connection is reported unhealthy, not merely present", async () => {
+  const probes = healthyProbes();
+  probes.bridgeHealth = async () => ({
+    ts: new Date().toISOString(),
+    agents: [
+      { agent: "hearth", connected: true, attempts: 0 },
+      { agent: "forge", connected: false, attempts: 3 },
+    ],
+  });
+  const results = await runDoctor(ROSTER, probes);
+  const failure = results.find((r) => !r.ok);
+  assert.ok(failure);
+  assert.equal(failure.check, "bridge");
+  assert.equal(failure.agent, "forge");
+  assert.match(failure.message, /connection down \(3 reconnect attempts\)/);
+});
+
+test("a stale bridge heartbeat is a failure; an absent one is not", async () => {
+  const probes = healthyProbes();
+  probes.bridgeHealth = async () => ({
+    ts: new Date(Date.now() - 5 * 60_000).toISOString(),
+    agents: [{ agent: "hearth", connected: true, attempts: 0 }],
+  });
+  const stale = (await runDoctor(ROSTER, probes)).find((r) => !r.ok);
+  assert.ok(stale);
+  assert.equal(stale.check, "bridge");
+  assert.match(stale.message, /stale/);
+
+  probes.bridgeHealth = async () => undefined;
+  const results = await runDoctor(ROSTER, probes);
+  assert.equal(doctorExitCode(results), 0);
+  const absent = results.find((r) => r.check === "bridge");
+  assert.ok(absent);
+  assert.ok(absent.ok);
+  assert.match(absent.message, /no bridge health file/);
 });
 
 test("formatResults marks failures loudly and names the agent", async () => {
