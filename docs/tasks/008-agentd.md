@@ -1,7 +1,7 @@
 ---
 id: "008"
 title: agentd — A2A server daemon
-status: todo
+status: in-progress
 component: apps/agentd
 language: typescript
 depends_on: ["002", "004", "005", "006"]
