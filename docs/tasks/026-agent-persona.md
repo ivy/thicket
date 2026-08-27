@@ -1,7 +1,7 @@
 ---
 id: "026"
 title: Agent persona — an appended system prompt per agent
-status: todo
+status: in-progress
 component: packages/roster
 language: typescript
 depends_on: ["002"]
