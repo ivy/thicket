@@ -19,8 +19,13 @@ export function translateSlackEvent(event: Record<string, unknown>): InboundEven
     };
   }
   if (type === "message") {
-    if (event.bot_id !== undefined || event.subtype !== undefined) {
-      return undefined; // bot echoes, joins, edits
+    // A message carrying an upload is subtyped file_share; every other
+    // subtype is a bot echo, a join, or an edit.
+    if (event.bot_id !== undefined) {
+      return undefined;
+    }
+    if (event.subtype !== undefined && event.subtype !== "file_share") {
+      return undefined;
     }
     const channel = String(event.channel ?? "");
     const ts = String(event.ts ?? "");
