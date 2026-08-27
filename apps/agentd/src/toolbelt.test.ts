@@ -93,6 +93,7 @@ test("the toolbelt is an in-process SDK server exposing exactly the allowed tool
   assert.deepEqual(TOOLBELT_ALLOWED_TOOLS, [
     "mcp__thicket__post_message",
     "mcp__thicket__upload_file",
+    "mcp__thicket__react",
     "mcp__thicket__read_channel",
     "mcp__thicket__read_thread",
     "mcp__thicket__search_messages",

@@ -50,6 +50,16 @@ const SLACK_REFUSALS = new Set([
 const UPLOAD_LIMIT = "50mb";
 
 /**
+ * Reactions per agent per minute. reactions.add is Tier 3 (~50/min);
+ * the cap leaves the workspace budget for everything else the bridge
+ * does with the same app.
+ */
+const REACTIONS_PER_MINUTE = 20;
+
+/** Slack emoji names: what fits between the colons. */
+const EMOJI_NAME = /^[a-z0-9_+'-]+$/;
+
+/**
  * Read budgets. A channel's history can be arbitrarily long; an agent
  * that wants more pages for its next cursor, not a bigger firehose.
  */
@@ -270,6 +280,129 @@ export function buildFileServer(options: FileServerOptions): express.Express {
       });
     },
   );
+
+  // Sliding-window reaction budget per agent.
+  const reactionTimes = new Map<string, number[]>();
+  const underReactionBudget = (agent: string): boolean => {
+    const now = Date.now();
+    const times = (reactionTimes.get(agent) ?? []).filter((t) => now - t < 60_000);
+    if (times.length >= REACTIONS_PER_MINUTE) {
+      reactionTimes.set(agent, times);
+      return false;
+    }
+    times.push(now);
+    reactionTimes.set(agent, times);
+    return true;
+  };
+
+  /**
+   * A reaction goes only on a message in a thread this agent is currently
+   * answering. The agent names a ts and an emoji, nothing more: the
+   * channel comes from the bridge's own in-flight task records, and
+   * membership is checked against Slack's record of that thread. A write
+   * route widens the trust edge 017 opened; this constraint is the whole
+   * design.
+   */
+  app.post("/api/reactions", identify, express.json(), (req, res) => {
+    const agent = res.locals.agent as string;
+    const body = req.body as { message_ts?: unknown; emoji?: unknown };
+    const messageTs = typeof body.message_ts === "string" ? body.message_ts : "";
+    const emoji =
+      typeof body.emoji === "string" ? body.emoji.replace(/^:|:$/g, "").toLowerCase() : "";
+    if (emoji === "") {
+      res.status(400).json({ error: "emoji is required" });
+      return;
+    }
+    if (!EMOJI_NAME.test(emoji)) {
+      res.status(400).json({ error: `not an emoji name: ${emoji}` });
+      return;
+    }
+    if (!underReactionBudget(agent)) {
+      logger.warn("reaction budget exhausted", { agent });
+      res.status(429).json({ error: "reaction budget exhausted; try later" });
+      return;
+    }
+    void (async () => {
+      // Candidate threads: the ones this agent has an open turn in.
+      const agentTasks = state.allTasks().filter((task) => task.agent === agent);
+      if (messageTs === "") {
+        // No ts named: the message being answered — the triggering
+        // message of the most recently opened turn, from the bridge's
+        // own record. The agent never had to know a ts at all.
+        const latest = [...agentTasks].reverse().find((task) => task.messageTs != null);
+        if (latest?.messageTs == null) {
+          res.status(403).json({
+            error: "no open turn to react from; pass message_ts for an earlier thread message",
+          });
+          return;
+        }
+        const added = await slackCall(agent, "reactions.add", {
+          channel: latest.channel,
+          timestamp: latest.messageTs,
+          name: emoji,
+        });
+        if (!added.ok && added.error !== "already_reacted") {
+          refuseOrFail(res, agent, "react", added.error);
+          return;
+        }
+        res.status(200).json({ ok: true, message_ts: latest.messageTs });
+        return;
+      }
+      const threads = new Map<string, { channel: string; threadTs: string }>();
+      for (const task of agentTasks) {
+        threads.set(`${task.channel}:${task.threadTs}`, {
+          channel: task.channel,
+          threadTs: task.threadTs,
+        });
+      }
+      let target: { channel: string } | undefined;
+      for (const { channel, threadTs } of threads.values()) {
+        if (messageTs === threadTs) {
+          target = { channel };
+          break;
+        }
+        const result = await slackCall(agent, "conversations.replies", {
+          channel,
+          ts: threadTs,
+          limit: "200",
+        });
+        if (!result.ok) {
+          continue; // an unreadable candidate is simply not a match
+        }
+        const messages = (result.body.messages ?? []) as { ts?: string }[];
+        if (messages.some((message) => message.ts === messageTs)) {
+          target = { channel };
+          break;
+        }
+      }
+      if (target === undefined) {
+        logger.warn("refused reaction outside the agent's open threads", { agent, messageTs });
+        res.status(403).json({
+          error: "message is not in a thread you are currently answering",
+        });
+        return;
+      }
+      const added = await slackCall(agent, "reactions.add", {
+        channel: target.channel,
+        timestamp: messageTs,
+        name: emoji,
+      });
+      if (!added.ok) {
+        if (added.error === "already_reacted") {
+          res.status(200).json({ ok: true, already: true });
+          return;
+        }
+        refuseOrFail(res, agent, "react", added.error);
+        return;
+      }
+      res.status(200).json({ ok: true });
+    })().catch((err: unknown) => {
+      logger.warn("agent reaction failed", { agent, err: String(err) });
+      if (!res.headersSent) {
+        res.status(502).json({ error: "slack unreachable" });
+      }
+    });
+  });
 
   /**
    * The read routes. Entitlement is the same everywhere: the call runs on

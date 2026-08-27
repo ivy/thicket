@@ -173,6 +173,30 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
         async (args) => toToolResult(await uploadFile(options, args)),
       ),
       tool(
+        "react",
+        "Put an emoji reaction on the message you are currently answering — " +
+          "omit message_ts and the bridge resolves it for you. Pass message_ts " +
+          "only to react to an earlier message in the same thread. Cheaper " +
+          "than a reply and lands on their message. Use it situationally and " +
+          "vary the emoji; the same reaction every time reads as a status " +
+          "light, not a presence.",
+        {
+          emoji: z.string().min(1).describe("emoji name without colons, e.g. white_check_mark"),
+          message_ts: z
+            .string()
+            .optional()
+            .describe("ts of an earlier thread message; omit for the message being answered"),
+        },
+        async (args) =>
+          toToolResult(
+            await callBridge(options, "/api/reactions", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(args),
+            }),
+          ),
+      ),
+      tool(
         "read_channel",
         "Read recent messages in a Slack channel or DM the agent's app is in, " +
           "newest first. Use the returned next_cursor to page further back.",
@@ -243,6 +267,7 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
 export const TOOLBELT_ALLOWED_TOOLS = [
   "mcp__thicket__post_message",
   "mcp__thicket__upload_file",
+  "mcp__thicket__react",
   "mcp__thicket__read_channel",
   "mcp__thicket__read_thread",
   "mcp__thicket__search_messages",

@@ -106,6 +106,8 @@ export interface SlackApi {
   stopStream(channel: string, streamTs: string): Promise<void>;
   /** A thread's messages, oldest first, for replaying to a stateless agent. */
   replies(channel: string, threadTs: string, limit?: number): Promise<ThreadMessage[]>;
+  /** reactions.add: `emoji` is the bare name, no colons. */
+  addReaction(channel: string, messageTs: string, emoji: string): Promise<void>;
 }
 
 // Metadata keys and the activity shape are thicket's A2A extension; the

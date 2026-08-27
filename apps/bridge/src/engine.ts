@@ -306,6 +306,17 @@ export class BridgeEngine {
     // thread's first message is the only chance to name it.
     const opening = !this.state.isEngaged(channel, threadTs);
     this.state.saveContext(channel, threadTs, contextId);
+    if (opening) {
+      // The acknowledgement that costs nothing and is always correct:
+      // eyes on the message that opened the session. Everything after
+      // this is the agent's judgement, and a failed reaction is never
+      // worth a failed turn.
+      try {
+        await this.slack.addReaction(channel, messageTs, "eyes");
+      } catch (err) {
+        this.logger.warn("opening reaction failed", { channel, messageTs, err: String(err) });
+      }
+    }
     await this.slack.setStatus(
       channel,
       threadTs,
@@ -327,7 +338,7 @@ export class BridgeEngine {
     const message = this.buildMessage(channel, threadTs, outgoing, messageTs, true, fileIds);
     try {
       if (card.streaming) {
-        await this.pumpTracked(this.client.stream(message), channel, threadTs, contextId);
+        await this.pumpTracked(this.client.stream(message), channel, threadTs, contextId, messageTs);
       } else {
         const task = await this.client.send(message);
         await this.finishBlocking(task, channel, threadTs, contextId);
@@ -481,11 +492,12 @@ export class BridgeEngine {
     channel: string,
     threadTs: string,
     sentContextId: string | undefined,
+    messageTs?: string,
   ): Promise<void> {
     const key = `${channel}:${threadTs}`;
     this.turnsOpen.set(key, (this.turnsOpen.get(key) ?? 0) + 1);
     try {
-      await this.pump(events, channel, threadTs, sentContextId);
+      await this.pump(events, channel, threadTs, sentContextId, messageTs);
     } finally {
       const left = (this.turnsOpen.get(key) ?? 1) - 1;
       this.turnsOpen.set(key, left);
@@ -505,9 +517,10 @@ export class BridgeEngine {
     channel: string,
     threadTs: string,
     sentContextId: string | undefined,
+    messageTs?: string,
   ): Promise<void> {
     for await (const event of events) {
-      await this.handleA2AEvent(event, channel, threadTs, sentContextId);
+      await this.handleA2AEvent(event, channel, threadTs, sentContextId, messageTs);
     }
   }
 
@@ -516,6 +529,7 @@ export class BridgeEngine {
     channel: string,
     threadTs: string,
     sentContextId: string | undefined,
+    messageTs?: string,
   ): Promise<void> {
     switch (event.kind) {
       case "task": {
@@ -525,6 +539,8 @@ export class BridgeEngine {
           channel,
           threadTs,
           streamTs: null,
+          // The triggering message: what a bare `react` tool call targets.
+          messageTs: messageTs ?? null,
         });
         if (sentContextId !== undefined && event.task.contextId !== sentContextId) {
           // The agent minted its own contextId; persist and use it from

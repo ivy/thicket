@@ -77,6 +77,15 @@ class FakeSlack implements SlackApi {
   async stopStream(channel: string, ts: string) {
     this.calls.push({ type: "stop", channel, ts });
   }
+  /** Reactions the bridge added; when reactionError is set, adds reject. */
+  reactions: { channel: string; ts: string; emoji: string }[] = [];
+  reactionError: Error | undefined;
+  async addReaction(channel: string, ts: string, emoji: string) {
+    if (this.reactionError !== undefined) {
+      throw this.reactionError;
+    }
+    this.reactions.push({ channel, ts, emoji });
+  }
   /** Thread transcript served to replay agents; keyed `channel:threadTs`. */
   threads = new Map<string, { ts: string; authorId?: string; botId?: string; text: string }[]>();
   repliesError: Error | undefined;
@@ -927,5 +936,33 @@ test("a replay agent gets no context-only pushes; the next turn re-reads the thr
     viaApp: false,
   });
   assert.equal(r.client.sent.length, 0, "no shouldQuery:false push for a stateless harness");
+  r.state.close();
+});
+
+// --------------------------------------------------------------- reactions
+
+test("the message that opens a session gets eyes, later messages do not", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  await r.engine.handleEvent(dm("hello", "1724650001.000001"));
+  await r.engine.handleEvent(dm("and another", "1724650002.000001"));
+
+  assert.deepEqual(r.slack.reactions, [
+    { channel: CH, ts: "1724650001.000001", emoji: "eyes" },
+  ]);
+  r.state.close();
+});
+
+test("a failed opening reaction never fails the turn", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  r.slack.reactionError = new Error("ratelimited");
+  await r.engine.handleEvent(dm("hello"));
+
+  assert.equal(r.client.streamed.length, 1, "the turn still ran");
+  assert.equal(r.slack.lastStatus(), "active", "and completed normally");
+  assert.ok(r.warnings.some((w) => w.includes("opening reaction failed")));
   r.state.close();
 });

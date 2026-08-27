@@ -1,7 +1,7 @@
 ---
 id: "016"
 title: Agent-initiated Slack reactions
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["020", "026"]
@@ -57,10 +57,29 @@ model in the loop; reactions do.
 
 ## Acceptance criteria
 
-- [ ] An agent can react to the message it is answering, and cannot react to
+- [x] An agent can react to the message it is answering, and cannot react to
       anything else — including messages in another thread of its own.
-- [ ] Reaction failures never fail the turn.
-- [ ] The agent holds no Slack credential.
+- [x] Reaction failures never fail the turn.
+- [x] The agent holds no Slack credential.
+
+## What live verification established (2026-08-27)
+
+The first live round exposed the real design constraint: the model does
+not know any Slack ts, so a tool that demands `message_ts` cannot target
+"the message you are answering". The bridge now records the triggering
+message's ts on the in-flight task row, and a bare `react(emoji)` targets
+exactly that — resolved from bridge state, with the agent never supplying
+a coordinate. An explicit `message_ts` reaches only messages the bridge
+can verify are in a thread with an open turn (root, or present in
+Slack's own record of that thread), and reactions are capped per agent
+per minute against the Tier 3 budget.
+
+Observed: 👀 from the bridge landed on the opening message automatically;
+"react with a party emoji" produced 🎉 on the triggering message via a
+bare react; a reaction aimed at a message in `#thicket-test` — the
+agent's own earlier post, but no open turn — came back as the bridge's
+403 (`refused reaction outside the agent's open threads`), and the turn
+completed normally, reporting the refusal.
 
 ## Live verification
 

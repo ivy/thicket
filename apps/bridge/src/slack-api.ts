@@ -121,6 +121,10 @@ export class WebSlackApi implements SlackApi {
     await this.call("chat.stopStream", { channel, ts: streamTs });
   }
 
+  async addReaction(channel: string, messageTs: string, emoji: string): Promise<void> {
+    await this.call("reactions.add", { channel, timestamp: messageTs, name: emoji });
+  }
+
   async replies(channel: string, threadTs: string, limit = 50): Promise<ThreadMessage[]> {
     const res = (await this.call("conversations.replies", {
       channel,

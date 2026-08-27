@@ -8,6 +8,8 @@ export interface InFlightTask {
   channel: string;
   threadTs: string;
   streamTs: string | null;
+  /** ts of the Slack message that triggered the turn; the reaction target. */
+  messageTs?: string | null;
 }
 
 function parseIds(raw: string): string[] {
@@ -95,6 +97,7 @@ export class BridgeState {
       );
     `);
     this.addColumn("queued", "file_ids", "TEXT NOT NULL DEFAULT '[]'");
+    this.addColumn("tasks", "message_ts", "TEXT");
   }
 
   /**
@@ -116,10 +119,18 @@ export class BridgeState {
   recordTask(task: InFlightTask): void {
     this.db
       .prepare(
-        `INSERT OR REPLACE INTO tasks (task_id, agent, channel, thread_ts, stream_ts, created_ms)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO tasks (task_id, agent, channel, thread_ts, stream_ts, message_ts, created_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(task.taskId, task.agent, task.channel, task.threadTs, task.streamTs, Date.now());
+      .run(
+        task.taskId,
+        task.agent,
+        task.channel,
+        task.threadTs,
+        task.streamTs,
+        task.messageTs ?? null,
+        Date.now(),
+      );
   }
 
   /** null once the stream has been stopped, so it is not stopped twice. */
@@ -129,9 +140,9 @@ export class BridgeState {
 
   taskById(taskId: string): InFlightTask | undefined {
     const row = this.db
-      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts FROM tasks WHERE task_id = ?")
+      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts FROM tasks WHERE task_id = ?")
       .get(taskId) as
-      | { task_id: string; agent: string; channel: string; thread_ts: string; stream_ts: string | null }
+      | { task_id: string; agent: string; channel: string; thread_ts: string; stream_ts: string | null; message_ts: string | null }
       | undefined;
     return row === undefined
       ? undefined
@@ -141,13 +152,14 @@ export class BridgeState {
           channel: row.channel,
           threadTs: row.thread_ts,
           streamTs: row.stream_ts,
+          messageTs: row.message_ts,
         };
   }
 
   tasksForThread(channel: string, threadTs: string): InFlightTask[] {
     const rows = this.db
       .prepare(
-        "SELECT task_id, agent, channel, thread_ts, stream_ts FROM tasks WHERE channel = ? AND thread_ts = ? ORDER BY created_ms",
+        "SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts FROM tasks WHERE channel = ? AND thread_ts = ? ORDER BY created_ms",
       )
       .all(channel, threadTs) as {
       task_id: string;
@@ -155,6 +167,7 @@ export class BridgeState {
       channel: string;
       thread_ts: string;
       stream_ts: string | null;
+      message_ts: string | null;
     }[];
     return rows.map((row) => ({
       taskId: row.task_id,
@@ -162,18 +175,20 @@ export class BridgeState {
       channel: row.channel,
       threadTs: row.thread_ts,
       streamTs: row.stream_ts,
+      messageTs: row.message_ts,
     }));
   }
 
   allTasks(): InFlightTask[] {
     const rows = this.db
-      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts FROM tasks ORDER BY created_ms")
+      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts FROM tasks ORDER BY created_ms")
       .all() as {
       task_id: string;
       agent: string;
       channel: string;
       thread_ts: string;
       stream_ts: string | null;
+      message_ts: string | null;
     }[];
     return rows.map((row) => ({
       taskId: row.task_id,
@@ -181,6 +196,7 @@ export class BridgeState {
       channel: row.channel,
       threadTs: row.thread_ts,
       streamTs: row.stream_ts,
+      messageTs: row.message_ts,
     }));
   }
 

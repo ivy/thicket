@@ -475,3 +475,124 @@ test("the directory routes list channels and users, deleted users dropped", asyn
     { id: "U3", name: "hearth", is_bot: true },
   ]);
 });
+
+// -------------------------------------------------------------- reactions
+
+function inFlight(state: BridgeState, agent: string, channel: string, threadTs: string): void {
+  state.recordTask({ taskId: `task-${channel}-${threadTs}`, agent, channel, threadTs, streamTs: null });
+}
+
+async function react(r: Rig, body: Record<string, unknown>, tag = HEARTH_TAG): Promise<Response> {
+  return fetch(`${r.url}/api/reactions`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: tag, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+test("a reaction lands on a message in the thread the agent is answering", async (t) => {
+  const responses = [
+    slackOk({ messages: [{ ts: "10.1" }, { ts: "10.2" }] }), // conversations.replies
+    slackOk({}), // reactions.add
+  ];
+  const r = await rig(() => responses.shift()!);
+  t.after(() => r.close());
+  inFlight(r.state, "hearth", "C42", "10.1");
+
+  const res = await react(r, { message_ts: "10.2", emoji: ":white_check_mark:" });
+  assert.equal(res.status, 200);
+  const urls = r.upstream.calls.map((call) => call.url);
+  assert.deepEqual(urls, [
+    "https://slack.com/api/conversations.replies",
+    "https://slack.com/api/reactions.add",
+  ]);
+});
+
+test("the thread root needs no membership lookup", async (t) => {
+  const r = await rig(() => slackOk({}));
+  t.after(() => r.close());
+  inFlight(r.state, "hearth", "C42", "10.1");
+
+  const res = await react(r, { message_ts: "10.1", emoji: "eyes" });
+  assert.equal(res.status, 200);
+  assert.deepEqual(
+    r.upstream.calls.map((call) => call.url),
+    ["https://slack.com/api/reactions.add"],
+  );
+});
+
+test("a message outside the agent's open threads is refused — including its own other business", async (t) => {
+  const r = await rig(() => slackOk({ messages: [{ ts: "10.1" }] }));
+  t.after(() => r.close());
+  inFlight(r.state, "hearth", "C42", "10.1"); // hearth's open thread
+  inFlight(r.state, "forge", "C99", "77.1"); // someone else's thread
+
+  const elsewhere = await react(r, { message_ts: "77.1", emoji: "eyes" });
+  assert.equal(elsewhere.status, 403, "another agent's thread is out of reach");
+
+  const nowhere = await react(r, { message_ts: "55.5", emoji: "eyes" });
+  assert.equal(nowhere.status, 403, "an arbitrary ts matches nothing");
+  assert.ok(
+    !r.upstream.calls.some((call) => call.url.endsWith("reactions.add")),
+    "reactions.add never called",
+  );
+});
+
+test("with no open turn there is nothing to react to", async (t) => {
+  const r = await rig(() => slackOk({}));
+  t.after(() => r.close());
+  const res = await react(r, { message_ts: "10.1", emoji: "eyes" });
+  assert.equal(res.status, 403);
+});
+
+test("emoji names are validated and colons stripped", async (t) => {
+  const r = await rig(() => slackOk({}));
+  t.after(() => r.close());
+  inFlight(r.state, "hearth", "C42", "10.1");
+
+  const bad = await react(r, { message_ts: "10.1", emoji: "not an emoji!" });
+  assert.equal(bad.status, 400);
+  assert.equal(r.upstream.calls.length, 0);
+});
+
+test("the reaction budget caps a chatty agent without failing it terminally", async (t) => {
+  const r = await rig(() => slackOk({}));
+  t.after(() => r.close());
+  inFlight(r.state, "hearth", "C42", "10.1");
+
+  let limited: Response | undefined;
+  for (let i = 0; i < 25; i += 1) {
+    const res = await react(r, { message_ts: "10.1", emoji: "eyes" });
+    if (res.status === 429) {
+      limited = res;
+      break;
+    }
+    assert.equal(res.status, 200);
+  }
+  assert.ok(limited, "the budget eventually said no");
+  assert.match(await errorOf(limited), /budget/);
+});
+
+test("a bare react targets the triggering message of the latest open turn", async (t) => {
+  const r = await rig(() => slackOk({}));
+  t.after(() => r.close());
+  r.state.recordTask({
+    taskId: "t-early", agent: "hearth", channel: "C42", threadTs: "10.1", streamTs: null, messageTs: "10.1",
+  });
+  r.state.recordTask({
+    taskId: "t-late", agent: "hearth", channel: "D9", threadTs: "20.1", streamTs: null, messageTs: "20.4",
+  });
+
+  const res = await react(r, { emoji: "eyes" });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, message_ts: "20.4" });
+  assert.deepEqual(
+    r.upstream.calls.map((call) => call.url),
+    ["https://slack.com/api/reactions.add"],
+  );
+
+  const idle = await rig(() => slackOk({}));
+  t.after(() => idle.close());
+  const nothing = await react(idle, { emoji: "eyes" });
+  assert.equal(nothing.status, 403, "no open turn, nothing to infer");
+});

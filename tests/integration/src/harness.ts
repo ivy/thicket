@@ -325,6 +325,10 @@ export class MockSlack implements SlackApi {
   async replies(channel: string, threadTs: string) {
     return this.threads.get(`${channel}:${threadTs}`) ?? [];
   }
+  reactions: { channel: string; ts: string; emoji: string }[] = [];
+  async addReaction(channel: string, ts: string, emoji: string) {
+    this.reactions.push({ channel, ts, emoji });
+  }
   activities(): AgentActivity[] {
     return this.calls.filter((c) => c.type === "activity").map((c) => c.activity);
   }
