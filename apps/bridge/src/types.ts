@@ -77,7 +77,6 @@ export interface SlackApi {
   stopStream(channel: string, streamTs: string): Promise<void>;
 }
 
-/** Message metadata key: agent-side should append without triggering a turn. */
-export const META_SHOULD_QUERY = "thicket.shouldQuery";
-/** Terminal status metadata key set by the executor (task 005). */
-export const META_QUEUED_TURN_COUNT = "queued_turn_count";
+// Metadata keys are thicket's A2A extension; the executor package owns
+// their definitions so the two ends cannot drift.
+export { META_QUEUED_TURN_COUNT, META_SHOULD_QUERY } from "@thicket/executor";

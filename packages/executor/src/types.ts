@@ -50,3 +50,13 @@ export const META_FOLDED_MESSAGE_IDS = "folded_message_ids";
 export const META_STILL_QUEUED = "still_queued";
 export const META_CANCELLED = "cancelled";
 export const META_QUEUE_STATE = "queue_state";
+
+// Inbound A2A message metadata: thicket's extensions to the protocol.
+// The bridge writes these; the executor is the reader. One definition —
+// the bridge imports them from here.
+/** false = append to the transcript without triggering a turn. */
+export const META_SHOULD_QUERY = "thicket.shouldQuery";
+/** Maps onto SDKUserMessage.priority: "now" | "next" | "later". */
+export const META_PRIORITY = "thicket.priority";
+/** Stamped on the synthetic task acknowledging a context-only message. */
+export const META_CONTEXT_ONLY = "thicket.contextOnly";

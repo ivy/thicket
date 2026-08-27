@@ -1,7 +1,7 @@
 ---
 id: "014"
 title: Honor shouldQuery metadata end to end
-status: in-progress
+status: done
 component: packages/executor
 language: typescript
 depends_on: ["005", "008", "009"]
@@ -39,14 +39,14 @@ must agree on it.
 
 ## Acceptance criteria
 
-- [ ] An executor test: a message with `thicket.shouldQuery: false` produces an
+- [x] An executor test: a message with `thicket.shouldQuery: false` produces an
       `SDKUserMessage` with `shouldQuery: false`, no turn registration, and an
       immediately-completed task event.
-- [ ] A session-manager-level assertion already exists (task 006) that
+- [x] A session-manager-level assertion already exists (task 006) that
       `shouldQuery: false` sends do not trigger a turn; it keeps passing.
-- [ ] The bridge and executor share one exported constant for the metadata key;
+- [x] The bridge and executor share one exported constant for the metadata key;
       grep shows no duplicated string literal.
-- [ ] `thicket.priority` maps onto `SDKUserMessage.priority` and is covered by
+- [x] `thicket.priority` maps onto `SDKUserMessage.priority` and is covered by
       a test.
 
 ## Out of scope

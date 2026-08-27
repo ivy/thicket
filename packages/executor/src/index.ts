@@ -19,9 +19,12 @@ export {
 } from "./session-manager.js";
 export {
   META_CANCELLED,
+  META_CONTEXT_ONLY,
   META_FOLDED_MESSAGE_IDS,
+  META_PRIORITY,
   META_QUEUED_TURN_COUNT,
   META_QUEUE_STATE,
+  META_SHOULD_QUERY,
   META_STILL_QUEUED,
   type PendingSend,
   type SessionHandle,

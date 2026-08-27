@@ -14,7 +14,10 @@ import { ServerCallContext } from "@a2a-js/sdk/server";
 import { ClaudeAgentExecutor } from "./executor.js";
 import {
   META_CANCELLED,
+  META_CONTEXT_ONLY,
+  META_PRIORITY,
   META_QUEUE_STATE,
+  META_SHOULD_QUERY,
   META_STILL_QUEUED,
   type SessionHandle,
 } from "./types.js";
@@ -99,7 +102,12 @@ function stubBus(events: AgentExecutionEvent[]): ExecutionEventBus {
   } as ExecutionEventBus;
 }
 
-function requestContext(taskId: string, contextId: string, text: string): RequestContext {
+function requestContext(
+  taskId: string,
+  contextId: string,
+  text: string,
+  metadata: Record<string, unknown> = {},
+): RequestContext {
   const message = {
     messageId: `${taskId}-inbound`,
     contextId,
@@ -113,7 +121,7 @@ function requestContext(taskId: string, contextId: string, text: string): Reques
         metadata: {},
       },
     ],
-    metadata: {},
+    metadata,
     extensions: [],
     referenceTaskIds: [],
   };
@@ -256,5 +264,78 @@ test("cancelTask on a CLI with no receipt reports the queue as unknown", async (
   const cancelEvent = events[events.length - 1];
   assert.ok(cancelEvent?.kind === "statusUpdate");
   assert.equal(cancelEvent.data.metadata?.[META_QUEUE_STATE], "unknown");
+  session.queue.close();
+});
+
+test("shouldQuery:false metadata: context-only send, no turn, immediate completion", async () => {
+  const session = fakeSession(undefined);
+  const events: AgentExecutionEvent[] = [];
+  const executor = new ClaudeAgentExecutor({
+    sessions: { sessionFor: () => session },
+    uuid: () => "fixed-uuid-1",
+    now: () => "2026-08-26T00:00:00.000Z",
+  });
+
+  // Resolves without any frames from the session: no turn answers it.
+  await executor.execute(
+    requestContext("task-ambient", "ctx-1", "fyi: deploy window is Friday", {
+      [META_SHOULD_QUERY]: false,
+    }),
+    stubBus(events),
+  );
+
+  assert.equal(session.sent.length, 1);
+  assert.equal(session.sent[0]?.shouldQuery, false, "SDKUserMessage carries shouldQuery:false");
+  assert.equal(session.sent[0]?.message.content, "fyi: deploy window is Friday");
+
+  assert.equal(events.length, 1, "exactly one event: the acknowledgement task");
+  const ack = events[0];
+  assert.ok(ack?.kind === "task");
+  assert.equal(ack.data.id, "task-ambient");
+  assert.equal(ack.data.status?.state, TaskState.TASK_STATE_COMPLETED);
+  assert.equal(ack.data.metadata?.[META_CONTEXT_ONLY], true);
+
+  // A later real turn binds to its own send, unconfused by the ambient one.
+  const turnEvents: AgentExecutionEvent[] = [];
+  const pending = executor.execute(
+    requestContext("task-real", "ctx-1", "when is the deploy?"),
+    stubBus(turnEvents),
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  session.queue.push(...withUuid(loadFixture("plain-turn"), "fixed-uuid-1"));
+  await pending;
+  const terminal = turnEvents[turnEvents.length - 1];
+  assert.ok(terminal?.kind === "statusUpdate");
+  assert.equal(terminal.data.status?.state, TaskState.TASK_STATE_COMPLETED);
+  session.queue.close();
+});
+
+test("thicket.priority metadata maps onto SDKUserMessage.priority", async () => {
+  const session = fakeSession(undefined);
+  const executor = new ClaudeAgentExecutor({
+    sessions: { sessionFor: () => session },
+    uuid: () => "fixed-uuid-1",
+    now: () => "2026-08-26T00:00:00.000Z",
+  });
+
+  // Context-only send so execute resolves without scripted frames.
+  await executor.execute(
+    requestContext("task-p1", "ctx-1", "urgent note", {
+      [META_SHOULD_QUERY]: false,
+      [META_PRIORITY]: "now",
+    }),
+    stubBus([]),
+  );
+  assert.equal(session.sent[0]?.priority, "now");
+
+  // Invalid values are dropped rather than passed through.
+  await executor.execute(
+    requestContext("task-p2", "ctx-1", "odd note", {
+      [META_SHOULD_QUERY]: false,
+      [META_PRIORITY]: "immediately",
+    }),
+    stubBus([]),
+  );
+  assert.equal(session.sent[1]?.priority, undefined);
   session.queue.close();
 });

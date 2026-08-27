@@ -14,7 +14,10 @@ import type {
 import { TurnTranslator } from "./translator.js";
 import {
   META_CANCELLED,
+  META_CONTEXT_ONLY,
+  META_PRIORITY,
   META_QUEUE_STATE,
+  META_SHOULD_QUERY,
   META_STILL_QUEUED,
   type SessionHandle,
   type SessionProvider,
@@ -69,10 +72,48 @@ export class ClaudeAgentExecutor implements AgentExecutor {
     const state = await this.contextState(contextId);
     const inbound = requestContext.userMessage;
 
+    const uuid = this.uuid();
+    const contextOnly = inbound.metadata?.[META_SHOULD_QUERY] === false;
+    const rawPriority = inbound.metadata?.[META_PRIORITY];
+    const priority =
+      rawPriority === "now" || rawPriority === "next" || rawPriority === "later"
+        ? rawPriority
+        : undefined;
+
+    const sdkMessage: SDKUserMessage = {
+      type: "user",
+      message: { role: "user", content: messageText(inbound) },
+      parent_tool_use_id: null,
+      uuid: uuid as SDKUserMessage["uuid"],
+      ...(contextOnly ? { shouldQuery: false as const } : {}),
+      ...(priority !== undefined ? { priority } : {}),
+    };
+
+    if (contextOnly) {
+      // The message merges into the next querying turn; no turn answers it,
+      // so no send is registered. The caller still gets a well-formed,
+      // immediately-completed task instead of a hang.
+      await state.session.send(sdkMessage);
+      eventBus.publish(
+        AgentEvent.task({
+          id: taskId,
+          contextId,
+          status: {
+            state: TaskState.TASK_STATE_COMPLETED,
+            message: undefined,
+            timestamp: this.now(),
+          },
+          artifacts: [],
+          history: [inbound],
+          metadata: { [META_CONTEXT_ONLY]: true },
+        }),
+      );
+      return;
+    }
+
     this.busByTask.set(taskId, eventBus);
     this.contextOfTask.set(taskId, contextId);
 
-    const uuid = this.uuid();
     const done = state.translator.registerSend({
       uuid,
       messageId: inbound.messageId,
@@ -81,12 +122,6 @@ export class ClaudeAgentExecutor implements AgentExecutor {
       message: inbound,
     });
 
-    const sdkMessage: SDKUserMessage = {
-      type: "user",
-      message: { role: "user", content: messageText(inbound) },
-      parent_tool_use_id: null,
-      uuid: uuid as SDKUserMessage["uuid"],
-    };
     await state.session.send(sdkMessage);
     try {
       await done;
