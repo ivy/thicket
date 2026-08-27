@@ -18,8 +18,10 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "^1.1.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@thicket/roster": "workspace:*",
     "@thicket/slack-manifest": "workspace:*",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   }
 }

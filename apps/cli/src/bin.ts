@@ -14,7 +14,8 @@ import { FileStore } from "./store.js";
 function usage(): never {
   process.stderr.write(
     "usage: thicket provision [--dry-run] [--agent NAME]\n" +
-      "       thicket doctor\n",
+      "       thicket doctor\n" +
+      "       thicket mcp\n",
   );
   process.exit(2);
 }
@@ -57,6 +58,27 @@ async function main(): Promise<void> {
       process.stdout.write(`rendered ${written.length} per-account config files\n`);
     }
     return;
+  }
+
+  if (command === "mcp") {
+    const { StdioServerTransport } = await import(
+      "@modelcontextprotocol/sdk/server/stdio.js"
+    );
+    const { buildMcpServer } = await import("./mcp/server.js");
+    const { egressHttp } = await import("./mcp/http.js");
+    const { socketPath } = await import("@thicket/roster");
+    const egressSocket = process.env.THICKET_EGRESS_SOCKET ?? socketPath("netd-egress");
+    const server = buildMcpServer({
+      roster,
+      http: egressHttp(egressSocket),
+      tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
+      endpointOverrides:
+        process.env.THICKET_MCP_ENDPOINTS !== undefined
+          ? (JSON.parse(process.env.THICKET_MCP_ENDPOINTS) as Record<string, string>)
+          : undefined,
+    });
+    await server.connect(new StdioServerTransport());
+    return; // serves until stdio closes
   }
 
   if (command === "doctor") {

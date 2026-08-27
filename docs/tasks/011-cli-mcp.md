@@ -1,7 +1,7 @@
 ---
 id: "011"
 title: CLI — MCP server for local Claude Code
-status: in-progress
+status: done
 component: apps/cli
 language: typescript
 depends_on: ["002"]
@@ -44,16 +44,16 @@ lets work started in Slack be picked up locally.
 
 ## Acceptance criteria
 
-- [ ] Claude Code lists the tools when the server is configured in its MCP settings.
-- [ ] `list_agents` reflects a skill added to an agent's card without restarting the
+- [x] Claude Code lists the tools when the server is configured in its MCP settings.
+- [x] `list_agents` reflects a skill added to an agent's card without restarting the
       MCP server, once the cache expires.
-- [ ] `ask_agent` against a live agent returns its response.
-- [ ] A conversation started in Slack can be continued by passing its `context_id`, and
+- [x] `ask_agent` against a live agent returns its response.
+- [x] A conversation started in Slack can be continued by passing its `context_id`, and
       the agent recalls the earlier turns.
-- [ ] Calls route through the egress socket; an agent the caller's tag may not reach
+- [x] Calls route through the egress socket; an agent the caller's tag may not reach
       fails with a clear authorization error, not a timeout.
-- [ ] An unreachable agent returns a useful error promptly rather than hanging.
-- [ ] Card fetches issue conditional requests and handle 304.
+- [x] An unreachable agent returns a useful error promptly rather than hanging.
+- [x] Card fetches issue conditional requests and handle 304.
 
 ## Out of scope
 

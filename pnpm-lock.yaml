@@ -82,6 +82,9 @@ importers:
       '@a2a-js/sdk':
         specifier: ^1.1.0
         version: 1.1.0(express@5.2.1)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.30.0
+        version: 1.30.0(zod@4.4.3)
       '@thicket/roster':
         specifier: workspace:*
         version: link:../../packages/roster
@@ -91,6 +94,9 @@ importers:
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
