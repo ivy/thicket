@@ -133,11 +133,15 @@ export async function run(
     logger,
     factory: (agent) => {
       const engine = engines.get(agent)!;
-      return new SlackSocketConnection(config.agents[agent]!.app_token, (event) => {
-        void engine.handleEvent(event).catch((err: unknown) => {
-          logger.warn("event handling failed", { agent, err: String(err) });
-        });
-      });
+      return new SlackSocketConnection(
+        config.agents[agent]!.app_token,
+        (event) => {
+          void engine.handleEvent(event).catch((err: unknown) => {
+            logger.warn("event handling failed", { agent, err: String(err) });
+          });
+        },
+        logger,
+      );
     },
   });
   await supervisor.start();
