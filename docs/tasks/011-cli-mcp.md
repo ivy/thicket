@@ -1,7 +1,7 @@
 ---
 id: "011"
 title: CLI — MCP server for local Claude Code
-status: todo
+status: in-progress
 component: apps/cli
 language: typescript
 depends_on: ["002"]
