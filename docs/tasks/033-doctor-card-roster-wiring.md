@@ -1,7 +1,7 @@
 ---
 id: "033"
 title: doctor's card check never gets the roster it needs
-status: todo
+status: in-progress
 component: apps/cli
 language: typescript
 depends_on: ["010"]
