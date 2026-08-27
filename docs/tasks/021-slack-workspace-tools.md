@@ -1,7 +1,7 @@
 ---
 id: "021"
 title: Slack workspace knowledge — search, history, and directory tools
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["020"]
@@ -55,10 +55,30 @@ which is the same route these tools need.
 
 ## Acceptance criteria
 
-- [ ] An agent can answer "what was already posted in this channel?" without
+- [x] An agent can answer "what was already posted in this channel?" without
       the operator pasting it.
-- [ ] A read the agent's app is not entitled to is refused by the bridge.
-- [ ] `context: replay` drives a real turn for a harness that keeps no state.
+- [x] A read the agent's app is not entitled to is refused by the bridge.
+- [x] `context: replay` drives a real turn for a harness that keeps no state.
+
+## What live verification established (2026-08-27)
+
+- Asked over DM what was in `#thicket-test`: hearth used `read_channel`
+  and listed the channel's actual contents — the joins, the toolbelt post,
+  and the upload with its filename — nothing pasted by the operator.
+- Asked to read `#general`, where the app is not a member: the bridge
+  answered 403 `not_in_channel` (logged `refused agent slack action`,
+  `action: history`) and the agent explained the refusal.
+- Replay, proven with the harness actually stateless: seeded a DM thread
+  with a secret word, killed the session pool, **deleted the session's
+  transcript**, then asked in-thread for the word. The fresh session
+  answered correctly, and the task store shows the turn's message carrying
+  `Thread so far, replayed because you keep no conversation state:` with
+  the full transcript. The bridge log shows `conversations.replies` fetched
+  before the turn.
+- A channel *mention* surfaced a pre-existing defect unrelated to replay:
+  `chat.startStream` in a channel fails with `missing_recipient_team_id`
+  (every earlier live turn was a DM). Filed as task 032; the replay fetch
+  itself fired correctly in that turn.
 
 Note the asymmetry with Slack's own MCP server: that gives *this repo's
 tooling* search, over the operator's OAuth grant. This task is about giving
