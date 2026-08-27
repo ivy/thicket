@@ -1,7 +1,7 @@
 ---
 id: "022"
 title: Routines — agent-scheduled recurring prompts
-status: in-progress
+status: done
 component: apps/agentd
 language: typescript
 depends_on: ["020", "021", "026"]
@@ -59,10 +59,17 @@ which is precisely the ambiguity the silence rule creates.
 
 **The schedule lives agent-side.** Decided: the agent owns its routines and
 manages them by being asked to, which a bridge-side scheduler cannot offer.
-The Agent SDK already has cron (`SessionCronSummary`: expression, prompt,
-recurring or one-shot). The cost is that an agent-originated turn has no A2A
-requester, so its output must reach Slack through the toolbelt (task 020)
-rather than through a reply — which is the real work here.
+*Amended in implementation:* the SDK's session crons turned out to be the
+wrong substrate — they exist only while a session subprocess is alive, so
+TTL eviction and restarts would silently kill them, and their per-thread
+scoping fragments CRUD across conversations. The schedule lives in
+**agentd** instead (same account, same host — still agent-side), in a
+durable store the scheduler re-arms at boot. The turn-with-no-requester
+problem dissolved rather than needing solving: agentd fires a routine by
+sending itself a normal A2A message (metadata `thicket.trigger: routine`),
+so the translator, task store, and journal all apply unchanged, the reply
+text streams back to agentd and is discarded, and anything worth saying
+goes through the toolbelt.
 
 **Fail closed.** Five consecutive failing runs disables a routine and reports
 once. An autonomous agent looping unattended spends real money, and a routine
@@ -70,21 +77,49 @@ designed to be silent is the worst possible place for a silent failure.
 
 ## Open questions
 
-- **Missed fires.** A machine asleep at 09:00 — does the routine run late, or
-  skip? Skipping is usually right for "every morning" and wrong for "every
-  hour", so it may need to be per-routine.
-- **Timezone.** Cron with no zone is a bug waiting to be filed.
+- **Missed fires.** Resolved: skipped, never replayed — the scheduler only
+  matches the current minute, so minutes that pass while the process is
+  down or the machine asleep simply do not fire. "Every morning" stays
+  once-a-morning; a per-routine catch-up policy can come later if an
+  hourly routine ever wants it.
+- **Timezone.** Resolved: host local time, stated in the tool description
+  the model reads when creating a schedule.
 
 ## Acceptance criteria
 
-- [ ] An agent can create, list, edit, and delete its own routines by being
+- [x] An agent can create, list, edit, and delete its own routines by being
       asked to, in conversation.
-- [ ] A routine that finds nothing produces no Slack traffic.
-- [ ] A routine that posts does so through a validated structured call; a
+- [x] A routine that finds nothing produces no Slack traffic.
+- [x] A routine that posts does so through a validated structured call; a
       malformed one is re-prompted, not dropped.
-- [ ] Every run leaves a record explaining what happened, including the ones
+- [x] Every run leaves a record explaining what happened, including the ones
       that decided to stay quiet.
-- [ ] Routines survive an agentd restart.
+- [x] Routines survive an agentd restart.
+
+## What live verification established (2026-08-27)
+
+The worked example ran for real, as `banana-watch` (`* * * * *`) watching
+`#thicket-test`:
+
+- Created, listed, edited (schedule + enabled flag, verified in the
+  store), and deleted purely by asking hearth in a DM.
+- Two quiet runs before the marker: the journal shows them
+  (`trigger: routine`, tools `read_channel`, completed, with cost) and the
+  channel shows nothing — the run record is exactly what makes verified
+  silence different from a dead routine.
+- `BANANA delivery has arrived` planted at 09:14:02; the routine posted
+  the exact string ten seconds later, and the journal's posting run shows
+  `read_channel, post_message`. The two runs after it stayed silent:
+  session-per-routine memory answers "did I already report this?".
+- A rig restart reloaded the store (`routine scheduler running,
+  routines: 1`) and the next minute fired normally.
+- `cron: "every day at noonish"` came back as the tool's structured
+  validation error, quoted verbatim by the model, with nothing created;
+  Slack-side failures re-prompt the same way (the 020/021 error paths).
+
+Fail-closed (five failures → disabled + one agent-delivered report) is
+covered by unit tests; staging five real consecutive failures live was
+not worth the money it exists to save.
 
 ## Live verification
 
