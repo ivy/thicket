@@ -278,7 +278,7 @@ test("no token value appears in any report line; state records app ids", async (
     }
   }
   assert.ok(r.lines.some((l) => l.includes("manual step") && l.includes("icon")));
-  assert.ok(r.lines.some((l) => l.includes("install a: https://slack.com/oauth/authorize")));
+  assert.ok(r.lines.some((l) => l.includes("install a: https://api.slack.com/apps/A1/install-on-team")));
   const state = r.store.read<{ apps: Record<string, { appId: string }> }>(PROVISION_STATE_FILE);
   assert.equal(Object.keys(state?.apps ?? {}).length, 4);
 });

@@ -148,9 +148,13 @@ export class Provisioner {
         this.deps.store.write(PROVISION_STATE_FILE, state);
         created.push(agent);
         this.deps.report(`created Slack app ${result.appId} for ${agent}`);
-        if (result.oauthAuthorizeUrl !== undefined) {
-          this.deps.report(`install ${agent}: ${result.oauthAuthorizeUrl}`);
-        }
+        // Not the oauth_authorize_url from the create response: that flow
+        // requires a configured redirect URL and fails without one
+        // (observed live: "redirect_uri did not match any configured
+        // URIs"). The app settings page installs directly.
+        this.deps.report(
+          `install ${agent}: https://api.slack.com/apps/${result.appId}/install-on-team`,
+        );
         continue;
       }
 
