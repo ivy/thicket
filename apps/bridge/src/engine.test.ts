@@ -60,7 +60,15 @@ class FakeSlack implements SlackApi {
   async postMessage(channel: string, threadTs: string, text: string) {
     this.calls.push({ type: "post", channel, threadTs, text });
   }
-  async startStream(channel: string, threadTs: string) {
+  /** When set, startStream rejects with it (a channel refusing a stream). */
+  startStreamError: Error | undefined;
+  /** Recipients passed to startStream, in call order. */
+  streamRecipients: (string | undefined)[] = [];
+  async startStream(channel: string, threadTs: string, recipient?: string) {
+    if (this.startStreamError !== undefined) {
+      throw this.startStreamError;
+    }
+    this.streamRecipients.push(recipient);
     const ts = `stream-${++this.streamCounter}`;
     this.calls.push({ type: "startStream", channel, threadTs, ts });
     return ts;
@@ -964,5 +972,48 @@ test("a failed opening reaction never fails the turn", async () => {
   assert.equal(r.client.streamed.length, 1, "the turn still ran");
   assert.equal(r.slack.lastStatus(), "active", "and completed normally");
   assert.ok(r.warnings.some((w) => w.includes("opening reaction failed")));
+  r.state.close();
+});
+
+
+// ------------------------------------------------------- channel streaming
+
+test("a channel turn's stream is addressed to the message's author", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "here you go", false, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  await r.engine.handleEvent({
+    kind: "mention",
+    channel: CH,
+    threadTs: TH,
+    text: "@hearth summarize",
+    messageTs: "1724650001.000001",
+    files: [],
+    authorId: HUMAN,
+    viaApp: false,
+  });
+  assert.deepEqual(r.slack.streamRecipients, [HUMAN]);
+  r.state.close();
+});
+
+test("a refused stream degrades to one plain message carrying the whole answer", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "the answer ", false, false),
+      artifactEvent("t1", "in two chunks", true, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  r.slack.startStreamError = new Error("An API error occurred: missing_recipient_team_id");
+  await r.engine.handleEvent(dm("hello"));
+
+  assert.deepEqual(r.slack.posts(), ["the answer in two chunks"]);
+  assert.equal(r.slack.lastStatus(), "active", "the turn settled normally");
+  assert.ok(r.warnings.some((w) => w.includes("stream refused")));
   r.state.close();
 });

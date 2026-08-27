@@ -1,7 +1,7 @@
 ---
 id: "032"
 title: A mention in a channel fails at chat.startStream
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["015"]
@@ -39,10 +39,29 @@ and eventually routines) that landed with 020/021.
 
 ## Acceptance criteria
 
-- [ ] A mention in `#thicket-test` streams a reply in-thread, live.
-- [ ] A DM turn still streams as before, live.
-- [ ] The failure mode for a stream Slack still refuses is a posted
+- [x] A mention in `#thicket-test` streams a reply in-thread, live.
+- [x] A DM turn still streams as before, live.
+- [x] The failure mode for a stream Slack still refuses is a posted
       message, not a dead turn.
+
+## What verification established (2026-08-27)
+
+Slack's reference confirms both `recipient_user_id` and
+`recipient_team_id` are "required when streaming to channels"; the team
+id comes from `auth.test` (asked once, cached). The triggering message's
+author now rides the task row (like `message_ts` before it), so the
+stream is addressed to whoever asked, and the queue preserves it across
+an unreachable-agent replay. DM streams carry neither field — that path
+is byte-identical to before, verified live alongside the fix.
+
+Live: the same mention shape that died at `missing_recipient_team_id`
+now streams in-thread (`chat.startStream` logged with
+`recipient_user_id: U02…, recipient_team_id: T02…`), and a DM turn
+still streams with neither field.
+
+The refusal path is covered by test: a stream Slack refuses buffers the
+answer text and delivers it as one plain message when the turn settles —
+streaming is presentation, never worth losing the answer.
 
 ## Out of scope
 

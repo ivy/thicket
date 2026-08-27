@@ -123,6 +123,8 @@ export class BridgeEngine {
   private readonly pendingRelease = new Map<string, SlackSessionStatus>();
   /** Tasks whose activity cards were abandoned after a Slack rejection. */
   private readonly activityOff = new Set<string>();
+  /** Answer text buffered for tasks whose stream Slack refused. */
+  private readonly streamlessText = new Map<string, string>();
   /** Threads whose prose status line was abandoned after a rejection. */
   private readonly noteOff = new Set<string>();
   private readonly fileBaseUrl: string | undefined;
@@ -169,7 +171,14 @@ export class BridgeEngine {
       case "dm":
       case "mention": {
         const files = await this.acceptFiles(event);
-        await this.trigger(event.channel, event.threadTs, event.text, event.messageTs, files);
+        await this.trigger(
+          event.channel,
+          event.threadTs,
+          event.text,
+          event.messageTs,
+          files,
+          event.authorId,
+        );
         return;
       }
       case "thread_message": {
@@ -279,16 +288,17 @@ export class BridgeEngine {
     text: string,
     messageTs: string,
     fileIds: string[],
+    authorId?: string,
   ): Promise<void> {
     if (this.queueing === "harness") {
       // The harness queues concurrent turns itself; send without waiting.
-      return this.runTurn(channel, threadTs, text, messageTs, fileIds);
+      return this.runTurn(channel, threadTs, text, messageTs, fileIds, authorId);
     }
     const key = `${channel}:${threadTs}`;
     const prev = this.chains.get(key) ?? Promise.resolve();
     const next = prev.then(
-      () => this.runTurn(channel, threadTs, text, messageTs, fileIds),
-      () => this.runTurn(channel, threadTs, text, messageTs, fileIds),
+      () => this.runTurn(channel, threadTs, text, messageTs, fileIds, authorId),
+      () => this.runTurn(channel, threadTs, text, messageTs, fileIds, authorId),
     );
     this.chains.set(key, next);
     return next;
@@ -300,6 +310,7 @@ export class BridgeEngine {
     text: string,
     messageTs: string,
     fileIds: string[],
+    authorId?: string,
   ): Promise<void> {
     const contextId = this.contextIdFor(channel, threadTs);
     // Slack takes a session title only when the session is created, so the
@@ -330,7 +341,7 @@ export class BridgeEngine {
     try {
       card = await this.client.fetchCard();
     } catch (err) {
-      await this.unreachable(channel, threadTs, text, messageTs, fileIds, err);
+      await this.unreachable(channel, threadTs, text, messageTs, fileIds, authorId, err);
       return;
     }
 
@@ -338,7 +349,14 @@ export class BridgeEngine {
     const message = this.buildMessage(channel, threadTs, outgoing, messageTs, true, fileIds);
     try {
       if (card.streaming) {
-        await this.pumpTracked(this.client.stream(message), channel, threadTs, contextId, messageTs);
+        await this.pumpTracked(
+          this.client.stream(message),
+          channel,
+          threadTs,
+          contextId,
+          messageTs,
+          authorId,
+        );
       } else {
         const task = await this.client.send(message);
         await this.finishBlocking(task, channel, threadTs, contextId);
@@ -360,10 +378,19 @@ export class BridgeEngine {
     text: string,
     messageTs: string,
     fileIds: string[],
+    authorId: string | undefined,
     err: unknown,
   ): Promise<void> {
     this.logger.warn("agent unreachable; queueing", { agent: this.agent, err: String(err) });
-    this.state.enqueue({ agent: this.agent, channel, threadTs, text, messageTs, fileIds });
+    this.state.enqueue({
+      agent: this.agent,
+      channel,
+      threadTs,
+      text,
+      messageTs,
+      fileIds,
+      authorId: authorId ?? null,
+    });
     await this.slack.postMessage(
       channel,
       threadTs,
@@ -397,6 +424,7 @@ export class BridgeEngine {
         request.text,
         request.messageTs,
         request.fileIds,
+        request.authorId ?? undefined,
       );
     }
     return delivered;
@@ -493,11 +521,12 @@ export class BridgeEngine {
     threadTs: string,
     sentContextId: string | undefined,
     messageTs?: string,
+    authorId?: string,
   ): Promise<void> {
     const key = `${channel}:${threadTs}`;
     this.turnsOpen.set(key, (this.turnsOpen.get(key) ?? 0) + 1);
     try {
-      await this.pump(events, channel, threadTs, sentContextId, messageTs);
+      await this.pump(events, channel, threadTs, sentContextId, messageTs, authorId);
     } finally {
       const left = (this.turnsOpen.get(key) ?? 1) - 1;
       this.turnsOpen.set(key, left);
@@ -518,9 +547,10 @@ export class BridgeEngine {
     threadTs: string,
     sentContextId: string | undefined,
     messageTs?: string,
+    authorId?: string,
   ): Promise<void> {
     for await (const event of events) {
-      await this.handleA2AEvent(event, channel, threadTs, sentContextId, messageTs);
+      await this.handleA2AEvent(event, channel, threadTs, sentContextId, messageTs, authorId);
     }
   }
 
@@ -530,6 +560,7 @@ export class BridgeEngine {
     threadTs: string,
     sentContextId: string | undefined,
     messageTs?: string,
+    authorId?: string,
   ): Promise<void> {
     switch (event.kind) {
       case "task": {
@@ -539,8 +570,10 @@ export class BridgeEngine {
           channel,
           threadTs,
           streamTs: null,
-          // The triggering message: what a bare `react` tool call targets.
+          // The triggering message: what a bare `react` tool call targets,
+          // and its author: who a channel stream is addressed to.
           messageTs: messageTs ?? null,
+          authorId: authorId ?? null,
         });
         if (sentContextId !== undefined && event.task.contextId !== sentContextId) {
           // The agent minted its own contextId; persist and use it from
@@ -558,11 +591,27 @@ export class BridgeEngine {
         return;
       }
       case "artifact": {
-        const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
-        await this.slack.appendStream(channel, streamTs, event.text);
-        if (event.lastChunk) {
-          await this.slack.stopStream(channel, streamTs);
-          this.state.setStreamTs(event.taskId, null);
+        // Streaming is presentation, never worth losing the answer: if
+        // Slack refuses the stream, buffer the text and deliver it as a
+        // plain message when the turn settles.
+        try {
+          const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
+          await this.slack.appendStream(channel, streamTs, event.text);
+          if (event.lastChunk) {
+            await this.slack.stopStream(channel, streamTs);
+            this.state.setStreamTs(event.taskId, null);
+          }
+        } catch (err) {
+          if (!this.streamlessText.has(event.taskId)) {
+            this.logger.warn("stream refused; will deliver as a message", {
+              taskId: event.taskId,
+              err: String(err),
+            });
+          }
+          this.streamlessText.set(
+            event.taskId,
+            (this.streamlessText.get(event.taskId) ?? "") + event.text,
+          );
         }
         return;
       }
@@ -628,7 +677,11 @@ export class BridgeEngine {
     if (record?.streamTs != null) {
       return record.streamTs;
     }
-    const streamTs = await this.slack.startStream(channel, threadTs);
+    const streamTs = await this.slack.startStream(
+      channel,
+      threadTs,
+      record?.authorId ?? undefined,
+    );
     if (record === undefined) {
       this.state.recordTask({ taskId, agent: this.agent, channel, threadTs, streamTs });
     } else {
@@ -683,6 +736,13 @@ export class BridgeEngine {
 
     const key = `${channel}:${threadTs}`;
     if (TERMINAL.has(state)) {
+      const buffered = this.streamlessText.get(taskId);
+      if (buffered !== undefined) {
+        this.streamlessText.delete(taskId);
+        if (buffered.trim() !== "") {
+          await this.slack.postMessage(channel, threadTs, buffered);
+        }
+      }
       await this.closeStream(taskId, channel);
       // A turn that ends without posting anything — a cancel — would
       // otherwise leave its last step on screen until Slack's timeout.

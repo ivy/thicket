@@ -15,7 +15,7 @@ function fakeWeb(): { web: WebClient; calls: Call[] } {
   const web = {
     apiCall: async (method: string, args: Record<string, unknown>) => {
       calls.push({ method, args });
-      return { ok: true, ts: "1724650000.000200" };
+      return { ok: true, ts: "1724650000.000200", team_id: "T042" };
     },
     chat: {
       postMessage: async (args: Record<string, unknown>) => {
@@ -130,4 +130,26 @@ test("a stream that comes back without a ts is an error, not a silent no-op", as
   } as unknown as WebClient);
   await assert.rejects(() => api.startStream("C1", "1.1"), /returned no ts/);
   assert.equal(calls.length, 0);
+});
+
+
+test("a channel stream carries the recipient and team; a DM stream never does", async () => {
+  const r = rig();
+  await r.api.startStream("C1", "1.1", "U-human");
+  await r.api.startStream("C1", "2.2", "U-human");
+  await r.api.startStream("D1", "3.3", "U-human");
+  await r.api.startStream("D1", "4.4");
+
+  const methods = r.calls.map((c) => c.method);
+  assert.deepEqual(
+    methods,
+    ["auth.test", "chat.startStream", "chat.startStream", "chat.startStream", "chat.startStream"],
+    "the team id is asked for once, not per stream",
+  );
+  const channelStream = r.calls[1]!.args;
+  assert.equal(channelStream.recipient_user_id, "U-human");
+  assert.equal(channelStream.recipient_team_id, "T042");
+  const dmStream = r.calls[3]!.args;
+  assert.equal("recipient_user_id" in dmStream, false, "DM path stays exactly as before");
+  assert.equal("recipient_team_id" in dmStream, false);
 });

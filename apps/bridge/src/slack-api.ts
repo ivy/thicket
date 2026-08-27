@@ -72,16 +72,47 @@ export class WebSlackApi implements SlackApi {
     await this.web.chat.postMessage({ channel, thread_ts: threadTs, text });
   }
 
-  async startStream(channel: string, threadTs: string): Promise<string> {
+  async startStream(channel: string, threadTs: string, recipient?: string): Promise<string> {
     const res = (await this.call("chat.startStream", {
       channel,
       thread_ts: threadTs,
       task_display_mode: "timeline",
+      ...(await this.recipientFields(channel, recipient)),
     })) as { ts?: string };
     if (res.ts === undefined) {
       throw new Error("chat.startStream returned no ts");
     }
     return res.ts;
+  }
+
+  /** Cached team id for recipient_team_id; null when auth.test failed. */
+  private teamId: string | null | undefined;
+
+  /**
+   * Slack requires recipient_user_id and recipient_team_id when streaming
+   * to a channel; in a DM the recipient is the DM and the fields are
+   * omitted so that path stays exactly as it always was. The team id
+   * comes from auth.test, asked once per process.
+   */
+  private async recipientFields(
+    channel: string,
+    recipient: string | undefined,
+  ): Promise<Record<string, string>> {
+    if (recipient === undefined || channel.startsWith("D")) {
+      return {};
+    }
+    if (this.teamId === undefined) {
+      try {
+        const res = (await this.call("auth.test", {})) as { team_id?: string };
+        this.teamId = typeof res.team_id === "string" ? res.team_id : null;
+      } catch {
+        this.teamId = null;
+      }
+    }
+    return {
+      recipient_user_id: recipient,
+      ...(this.teamId === null ? {} : { recipient_team_id: this.teamId }),
+    };
   }
 
   /**

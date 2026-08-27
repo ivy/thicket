@@ -10,6 +10,8 @@ export interface InFlightTask {
   streamTs: string | null;
   /** ts of the Slack message that triggered the turn; the reaction target. */
   messageTs?: string | null;
+  /** Slack user id of the turn's author; the stream's recipient. */
+  authorId?: string | null;
 }
 
 function parseIds(raw: string): string[] {
@@ -42,6 +44,8 @@ export interface QueuedRequest {
   messageTs: string;
   /** Attachments already recorded in `files`, referred to by id. */
   fileIds: string[];
+  /** Slack user id of the author, for the stream's recipient on replay. */
+  authorId?: string | null;
 }
 
 /**
@@ -97,7 +101,9 @@ export class BridgeState {
       );
     `);
     this.addColumn("queued", "file_ids", "TEXT NOT NULL DEFAULT '[]'");
+    this.addColumn("queued", "author", "TEXT");
     this.addColumn("tasks", "message_ts", "TEXT");
+    this.addColumn("tasks", "author", "TEXT");
   }
 
   /**
@@ -119,8 +125,8 @@ export class BridgeState {
   recordTask(task: InFlightTask): void {
     this.db
       .prepare(
-        `INSERT OR REPLACE INTO tasks (task_id, agent, channel, thread_ts, stream_ts, message_ts, created_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO tasks (task_id, agent, channel, thread_ts, stream_ts, message_ts, author, created_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         task.taskId,
@@ -129,6 +135,7 @@ export class BridgeState {
         task.threadTs,
         task.streamTs,
         task.messageTs ?? null,
+        task.authorId ?? null,
         Date.now(),
       );
   }
@@ -140,9 +147,9 @@ export class BridgeState {
 
   taskById(taskId: string): InFlightTask | undefined {
     const row = this.db
-      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts FROM tasks WHERE task_id = ?")
+      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author FROM tasks WHERE task_id = ?")
       .get(taskId) as
-      | { task_id: string; agent: string; channel: string; thread_ts: string; stream_ts: string | null; message_ts: string | null }
+      | { task_id: string; agent: string; channel: string; thread_ts: string; stream_ts: string | null; message_ts: string | null; author: string | null }
       | undefined;
     return row === undefined
       ? undefined
@@ -153,13 +160,14 @@ export class BridgeState {
           threadTs: row.thread_ts,
           streamTs: row.stream_ts,
           messageTs: row.message_ts,
+          authorId: row.author,
         };
   }
 
   tasksForThread(channel: string, threadTs: string): InFlightTask[] {
     const rows = this.db
       .prepare(
-        "SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts FROM tasks WHERE channel = ? AND thread_ts = ? ORDER BY created_ms",
+        "SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author FROM tasks WHERE channel = ? AND thread_ts = ? ORDER BY created_ms",
       )
       .all(channel, threadTs) as {
       task_id: string;
@@ -168,6 +176,7 @@ export class BridgeState {
       thread_ts: string;
       stream_ts: string | null;
       message_ts: string | null;
+      author: string | null;
     }[];
     return rows.map((row) => ({
       taskId: row.task_id,
@@ -176,12 +185,13 @@ export class BridgeState {
       threadTs: row.thread_ts,
       streamTs: row.stream_ts,
       messageTs: row.message_ts,
+      authorId: row.author,
     }));
   }
 
   allTasks(): InFlightTask[] {
     const rows = this.db
-      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts FROM tasks ORDER BY created_ms")
+      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author FROM tasks ORDER BY created_ms")
       .all() as {
       task_id: string;
       agent: string;
@@ -189,6 +199,7 @@ export class BridgeState {
       thread_ts: string;
       stream_ts: string | null;
       message_ts: string | null;
+      author: string | null;
     }[];
     return rows.map((row) => ({
       taskId: row.task_id,
@@ -197,6 +208,7 @@ export class BridgeState {
       threadTs: row.thread_ts,
       streamTs: row.stream_ts,
       messageTs: row.message_ts,
+      authorId: row.author,
     }));
   }
 
@@ -294,8 +306,8 @@ export class BridgeState {
   enqueue(request: Omit<QueuedRequest, "id">): void {
     this.db
       .prepare(
-        `INSERT INTO queued (agent, channel, thread_ts, text, message_ts, file_ids, created_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO queued (agent, channel, thread_ts, text, message_ts, file_ids, author, created_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         request.agent,
@@ -304,6 +316,7 @@ export class BridgeState {
         request.text,
         request.messageTs,
         JSON.stringify(request.fileIds),
+        request.authorId ?? null,
         Date.now(),
       );
   }
@@ -311,7 +324,7 @@ export class BridgeState {
   queuedFor(agent: string): QueuedRequest[] {
     const rows = this.db
       .prepare(
-        `SELECT id, agent, channel, thread_ts, text, message_ts, file_ids
+        `SELECT id, agent, channel, thread_ts, text, message_ts, file_ids, author
            FROM queued WHERE agent = ? ORDER BY id`,
       )
       .all(agent) as {
@@ -322,6 +335,7 @@ export class BridgeState {
       text: string;
       message_ts: string;
       file_ids: string;
+      author: string | null;
     }[];
     return rows.map((row) => ({
       id: row.id,
@@ -331,6 +345,7 @@ export class BridgeState {
       text: row.text,
       messageTs: row.message_ts,
       fileIds: parseIds(row.file_ids),
+      authorId: row.author,
     }));
   }
 

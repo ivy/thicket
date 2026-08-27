@@ -98,8 +98,12 @@ export interface SlackApi {
   /** Whether a user id belongs to a bot. Cached; asked only when ambiguous. */
   isBotUser(userId: string): Promise<boolean>;
   postMessage(channel: string, threadTs: string, text: string): Promise<void>;
-  /** chat.startStream → stream ts used for appends. */
-  startStream(channel: string, threadTs: string): Promise<string>;
+  /**
+   * chat.startStream → stream ts used for appends. `recipient` is the
+   * user the stream answers; Slack requires it (with the team id) when
+   * streaming anywhere that is not a DM.
+   */
+  startStream(channel: string, threadTs: string, recipient?: string): Promise<string>;
   appendStream(channel: string, streamTs: string, text: string): Promise<void>;
   /** A step the agent took, rendered as a card on the open stream. */
   appendActivity(channel: string, streamTs: string, activity: AgentActivity): Promise<void>;
