@@ -384,6 +384,24 @@ test("a crash mid-turn injects a failure result and the session recovers", async
   await manager.shutdown();
 });
 
+test("in-process MCP servers and their allow-list reach the query options", async () => {
+  const cli = makeFakeCli();
+  const toolbelt = { type: "sdk", name: "thicket" } as unknown as NonNullable<
+    Options["mcpServers"]
+  >[string];
+  const manager = makeManager(cli, {
+    mcpServers: { thicket: toolbelt },
+    allowedTools: ["mcp__thicket__post_message"],
+  });
+  const session = manager.sessionFor("ctx-mcp");
+  collect(session);
+  await session.send(userMessage("hi", "u1"));
+  await until(() => cli.processes.length === 1, "spawned");
+  assert.equal(cli.processes[0]?.options.mcpServers?.thicket, toolbelt);
+  assert.deepEqual(cli.processes[0]?.options.allowedTools, ["mcp__thicket__post_message"]);
+  await manager.shutdown();
+});
+
 test("harness permissionMode reaches the query options", async () => {
   const cli = makeFakeCli();
   const manager = makeManager(cli, {

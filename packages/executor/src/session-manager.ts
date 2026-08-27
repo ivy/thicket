@@ -41,6 +41,13 @@ export interface SessionManagerOptions {
   /** Whether a session transcript already exists (cold start: resume vs new). */
   sessionExists?: (sessionId: string) => Promise<boolean>;
   onWarning?: (message: string) => void;
+  /**
+   * In-process MCP servers for every session (e.g. the Slack toolbelt).
+   * Tools named in allowedTools skip the permission prompt a headless
+   * session cannot answer.
+   */
+  mcpServers?: Options["mcpServers"];
+  allowedTools?: string[];
 }
 
 const DEFAULT_MAX_SESSIONS = 8;
@@ -141,6 +148,8 @@ export class SessionManager implements SessionProvider {
   private readonly queryFn: QueryFn;
   private readonly sessionExists: (sessionId: string) => Promise<boolean>;
   private readonly onWarning: (message: string) => void;
+  private readonly mcpServers: Options["mcpServers"];
+  private readonly allowedTools: string[] | undefined;
 
   /** Insertion order is recency order: oldest first. */
   private readonly sessions = new Map<string, ManagedSession>();
@@ -154,6 +163,8 @@ export class SessionManager implements SessionProvider {
     this.queryFn = options.queryFn ?? ((args) => query(args));
     this.sessionExists = options.sessionExists ?? defaultSessionExists;
     this.onWarning = options.onWarning ?? (() => {});
+    this.mcpServers = options.mcpServers;
+    this.allowedTools = options.allowedTools;
   }
 
   sessionFor(contextId: string): SessionHandle {
@@ -305,6 +316,8 @@ export class SessionManager implements SessionProvider {
       ...(this.harness.permissionMode !== undefined
         ? { permissionMode: this.harness.permissionMode }
         : {}),
+      ...(this.mcpServers === undefined ? {} : { mcpServers: this.mcpServers }),
+      ...(this.allowedTools === undefined ? {} : { allowedTools: this.allowedTools }),
       ...(exists ? { resume: session.id } : { sessionId: session.id }),
     };
     const q = this.queryFn({ prompt: input, options });

@@ -10,6 +10,7 @@ import { defaultConfigPath, loadConfig, sessionEnv, type AgentdConfig } from "./
 import { egressFetch } from "./egress.js";
 import { pruneAttachments } from "./attachments-cache.js";
 import { listen, resolveListenTarget } from "./listen.js";
+import { buildToolbelt, TOOLBELT_ALLOWED_TOOLS } from "./toolbelt.js";
 import { createLogger, type Logger } from "./logger.js";
 import { buildServer } from "./server.js";
 import { SqliteTaskStore } from "./store/sqlite-task-store.js";
@@ -39,11 +40,30 @@ export async function run(
     logger.warn("failed unfinished tasks from previous process", { count: reconciled });
   }
 
+  // The Slack toolbelt exists only when the bridge is addressable — like
+  // attachments, absence of configuration means absence of capability.
+  const toolbelt =
+    config.bridgeBaseUrl === undefined
+      ? undefined
+      : buildToolbelt({
+          bridgeBaseUrl: config.bridgeBaseUrl,
+          fetchImpl: egressFetch(config.egressSocket),
+          cwd: entry.harness.cwd,
+        });
+  if (toolbelt === undefined) {
+    logger.info("slack toolbelt disabled: no bridge_base_url configured");
+  }
   const sessions = new SessionManager({
     harness: entry.harness,
     env: sessionEnv(config),
     maxSessions: config.maxSessions,
     onWarning: (msg) => logger.warn(msg),
+    ...(toolbelt === undefined
+      ? {}
+      : {
+          mcpServers: { thicket: toolbelt },
+          allowedTools: TOOLBELT_ALLOWED_TOOLS,
+        }),
   });
   // Refusing attachments is a roster policy, so the store is simply absent
   // for an agent that does not take them: nothing to fetch, nothing to

@@ -35,6 +35,11 @@ export function renderAccountConfigs(
       agents_file: "agents.yaml",
       allowed_peer_tags: options.allowedPeerTags,
       ...(options.tailnetDomain !== undefined ? { tailnet_domain: options.tailnetDomain } : {}),
+      // The bridge's inbound netd, named per deploy/README.md; gives the
+      // session its Slack toolbelt. Development rigs override by hand.
+      ...(options.tailnetDomain !== undefined
+        ? { bridge_base_url: `https://thicket-bridge.${options.tailnetDomain}` }
+        : {}),
     };
     writeFileSync(join(dir, "agentd.json"), JSON.stringify(agentd, null, 2) + "\n");
     written.push(join(dir, "agentd.json"));

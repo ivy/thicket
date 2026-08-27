@@ -151,6 +151,136 @@ test("a Slack refusal surfaces as a gateway error, not as empty bytes", async (t
   assert.match(await errorOf(res), /slack returned 404/);
 });
 
+function slackOk(extra: Record<string, unknown> = {}): Response {
+  return Response.json({ ok: true, ...extra });
+}
+
+function slackError(code: string): Response {
+  return Response.json({ ok: false, error: code });
+}
+
+test("an agent posts a message through the bridge; the token stays on the bridge", async (t) => {
+  const r = await rig(() => slackOk({ channel: "C42", ts: "9.9" }));
+  t.after(() => r.close());
+
+  const res = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+    body: JSON.stringify({ channel: "C42", text: "routine output" }),
+  });
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, channel: "C42", ts: "9.9" });
+  assert.equal(r.upstream.calls.length, 1);
+  assert.equal(r.upstream.calls[0]!.url, "https://slack.com/api/chat.postMessage");
+  assert.equal(r.upstream.calls[0]!.auth, "Bearer xoxb-hearth", "hearth's own token, held by the bridge");
+});
+
+test("a channel the app is not in is refused as an authorization decision", async (t) => {
+  const r = await rig(() => slackError("not_in_channel"));
+  t.after(() => r.close());
+
+  const res = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+    body: JSON.stringify({ channel: "C99", text: "hello?" }),
+  });
+  assert.equal(res.status, 403);
+  assert.equal(await errorOf(res), "not_in_channel");
+});
+
+test("a transient Slack failure is a gateway error, not a refusal", async (t) => {
+  const r = await rig(() => slackError("ratelimited"));
+  t.after(() => r.close());
+
+  const res = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+    body: JSON.stringify({ channel: "C42", text: "hello" }),
+  });
+  assert.equal(res.status, 502);
+  assert.equal(await errorOf(res), "ratelimited");
+});
+
+test("posting requires identity and a well-formed body", async (t) => {
+  const r = await rig();
+  t.after(() => r.close());
+
+  const anonymous = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ channel: "C42", text: "hi" }),
+  });
+  assert.equal(anonymous.status, 403);
+
+  const empty = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+    body: JSON.stringify({ channel: "C42" }),
+  });
+  assert.equal(empty.status, 400);
+  assert.match(await errorOf(empty), /text is required/);
+  assert.equal(r.upstream.calls.length, 0, "Slack was never called");
+});
+
+test("an upload walks the external flow and lands in the named channel", async (t) => {
+  const responses = [
+    slackOk({ upload_url: "https://files.slack.com/upload/abc", file_id: "F77" }),
+    new Response("OK", { status: 200 }),
+    slackOk({ files: [{ id: "F77" }] }),
+  ];
+  const r = await rig(() => responses.shift()!);
+  t.after(() => r.close());
+
+  const res = await fetch(
+    `${r.url}/api/files?channel=C42&filename=report.csv&comment=here+you+go`,
+    {
+      method: "POST",
+      headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/octet-stream" },
+      body: Buffer.from("a,b\n1,2\n"),
+    },
+  );
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true, file_id: "F77", channel: "C42" });
+  assert.deepEqual(
+    r.upstream.calls.map((call) => call.url),
+    [
+      "https://slack.com/api/files.getUploadURLExternal",
+      "https://files.slack.com/upload/abc",
+      "https://slack.com/api/files.completeUploadExternal",
+    ],
+  );
+});
+
+test("an upload into a foreign channel is refused at the completion step", async (t) => {
+  const responses = [
+    slackOk({ upload_url: "https://files.slack.com/upload/abc", file_id: "F77" }),
+    new Response("OK", { status: 200 }),
+    slackError("not_in_channel"),
+  ];
+  const r = await rig(() => responses.shift()!);
+  t.after(() => r.close());
+
+  const res = await fetch(`${r.url}/api/files?channel=C99&filename=report.csv`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/octet-stream" },
+    body: Buffer.from("bytes"),
+  });
+  assert.equal(res.status, 403);
+  assert.equal(await errorOf(res), "not_in_channel");
+});
+
+test("an empty upload body is rejected before Slack is involved", async (t) => {
+  const r = await rig();
+  t.after(() => r.close());
+
+  const res = await fetch(`${r.url}/api/files?channel=C42&filename=report.csv`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/octet-stream" },
+  });
+  assert.equal(res.status, 400);
+  assert.equal(r.upstream.calls.length, 0);
+});
+
 test("the body is piped, not buffered", async (t) => {
   // A body that never ends until released: if the surface buffered, the
   // response headers would not arrive until it did.

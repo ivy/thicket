@@ -31,6 +31,11 @@ export interface AgentdConfig {
   attachmentsDir: string;
   /** netd's outbound proxy socket; the only route off this machine. */
   egressSocket: string;
+  /**
+   * The bridge's base URL on the tailnet, for the agent's Slack toolbelt.
+   * Absent means no toolbelt: the session gets no Slack tools at all.
+   */
+  bridgeBaseUrl?: string;
 }
 
 interface RawConfig {
@@ -45,6 +50,7 @@ interface RawConfig {
   max_sessions?: number;
   attachments_dir?: string;
   egress_socket?: string;
+  bridge_base_url?: string;
 }
 
 export function defaultConfigPath(): string {
@@ -81,6 +87,7 @@ export function loadConfig(path: string): AgentdConfig {
     maxSessions: raw.max_sessions,
     attachmentsDir: raw.attachments_dir ?? join(cacheDir(), "attachments"),
     egressSocket: raw.egress_socket ?? socketPath("netd-egress"),
+    ...(raw.bridge_base_url === undefined ? {} : { bridgeBaseUrl: raw.bridge_base_url }),
   };
 }
 

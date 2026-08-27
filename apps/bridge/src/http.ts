@@ -33,6 +33,23 @@ export function parsePeerTags(value: string | undefined): string[] {
 }
 
 /**
+ * Slack error codes that mean "this agent has no business there" — the
+ * answer to an authorization question, surfaced as a refusal the agent's
+ * model can understand. Everything else non-ok is the bridge's problem
+ * (credentials, rate limits, transport) and reads as a gateway error.
+ */
+const SLACK_REFUSALS = new Set([
+  "not_in_channel",
+  "channel_not_found",
+  "is_archived",
+  "restricted_action",
+  "cannot_dm_bot",
+]);
+
+/** Cap for an agent-supplied upload; Slack's own per-file cap is 1 GB. */
+const UPLOAD_LIMIT = "50mb";
+
+/**
  * The bridge's inbound surface: the reverse of the edge it normally uses,
  * so that an agent can read a file a human attached without ever holding a
  * Slack credential.
@@ -65,6 +82,149 @@ export function buildFileServer(options: FileServerOptions): express.Express {
     res.locals.agent = agent;
     next();
   };
+
+  /**
+   * A Web API call on the agent's own bot token. Whether the agent may
+   * address a channel is answered by Slack's membership state for that
+   * app — bridge-held ground truth the agent cannot assert its way past.
+   */
+  const slackCall = async (
+    agent: string,
+    method: string,
+    params: Record<string, string>,
+  ): Promise<{ ok: true; body: Record<string, unknown> } | { ok: false; error: string }> => {
+    const token = botTokenFor(agent);
+    if (token === undefined) {
+      return { ok: false, error: "no credential for this agent" };
+    }
+    logger.info("slack call", {
+      slack: {
+        method,
+        agent,
+        ...Object.fromEntries(
+          Object.entries(params).map(([key, value]) =>
+            key === "text" || key === "initial_comment" ? ["chars", value.length] : [key, value],
+          ),
+        ),
+      },
+    });
+    const response = await fetchImpl(`https://slack.com/api/${method}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded; charset=utf-8",
+        authorization: `Bearer ${token}`,
+      },
+      body: new URLSearchParams(params).toString(),
+    });
+    const body = (await response.json()) as { ok?: boolean; error?: string };
+    if (body.ok !== true) {
+      return { ok: false, error: String(body.error ?? `slack returned ${response.status}`) };
+    }
+    return { ok: true, body: body as Record<string, unknown> };
+  };
+
+  const refuseOrFail = (res: Response, agent: string, action: string, error: string): void => {
+    if (SLACK_REFUSALS.has(error)) {
+      logger.warn("refused agent slack action", { agent, action, error });
+      res.status(403).json({ error });
+    } else {
+      logger.warn("agent slack action failed", { agent, action, error });
+      res.status(502).json({ error });
+    }
+  };
+
+  app.post("/api/messages", identify, express.json(), (req, res) => {
+    const agent = res.locals.agent as string;
+    const body = req.body as { channel?: unknown; text?: unknown; thread_ts?: unknown };
+    if (typeof body.channel !== "string" || body.channel === "") {
+      res.status(400).json({ error: "channel is required" });
+      return;
+    }
+    if (typeof body.text !== "string" || body.text === "") {
+      res.status(400).json({ error: "text is required" });
+      return;
+    }
+    const threadTs = typeof body.thread_ts === "string" ? body.thread_ts : undefined;
+    void (async () => {
+      const result = await slackCall(agent, "chat.postMessage", {
+        channel: body.channel as string,
+        text: body.text as string,
+        ...(threadTs === undefined ? {} : { thread_ts: threadTs }),
+      });
+      if (!result.ok) {
+        refuseOrFail(res, agent, "post", result.error);
+        return;
+      }
+      res.status(200).json({ ok: true, channel: result.body.channel, ts: result.body.ts });
+    })().catch((err: unknown) => {
+      logger.warn("agent post failed", { agent, err: String(err) });
+      if (!res.headersSent) {
+        res.status(502).json({ error: "slack unreachable" });
+      }
+    });
+  });
+
+  app.post(
+    "/api/files",
+    identify,
+    express.raw({ type: () => true, limit: UPLOAD_LIMIT }),
+    (req, res) => {
+      const agent = res.locals.agent as string;
+      const channel = String(req.query.channel ?? "");
+      const filename = String(req.query.filename ?? "");
+      const threadTs = typeof req.query.thread_ts === "string" ? req.query.thread_ts : undefined;
+      const comment =
+        typeof req.query.comment === "string" && req.query.comment !== ""
+          ? req.query.comment
+          : undefined;
+      const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      if (channel === "" || filename === "") {
+        res.status(400).json({ error: "channel and filename are required" });
+        return;
+      }
+      if (bytes.length === 0) {
+        res.status(400).json({ error: "empty body: send the file bytes" });
+        return;
+      }
+      void (async () => {
+        // The external upload flow; files.upload itself is retired.
+        const ticket = await slackCall(agent, "files.getUploadURLExternal", {
+          filename,
+          length: String(bytes.length),
+        });
+        if (!ticket.ok) {
+          refuseOrFail(res, agent, "upload", ticket.error);
+          return;
+        }
+        const put = await fetchImpl(String(ticket.body.upload_url), {
+          method: "POST",
+          headers: { "content-type": "application/octet-stream" },
+          body: bytes,
+        });
+        if (!put.ok) {
+          logger.warn("upload bytes rejected", { agent, filename, status: put.status });
+          res.status(502).json({ error: `upload returned ${put.status}` });
+          return;
+        }
+        const done = await slackCall(agent, "files.completeUploadExternal", {
+          files: JSON.stringify([{ id: String(ticket.body.file_id), title: filename }]),
+          channel_id: channel,
+          ...(threadTs === undefined ? {} : { thread_ts: threadTs }),
+          ...(comment === undefined ? {} : { initial_comment: comment }),
+        });
+        if (!done.ok) {
+          refuseOrFail(res, agent, "upload", done.error);
+          return;
+        }
+        res.status(200).json({ ok: true, file_id: ticket.body.file_id, channel });
+      })().catch((err: unknown) => {
+        logger.warn("agent upload failed", { agent, filename, err: String(err) });
+        if (!res.headersSent) {
+          res.status(502).json({ error: "slack unreachable" });
+        }
+      });
+    },
+  );
 
   app.get("/files/:fileId", identify, (req, res) => {
     const agent = res.locals.agent as string;
