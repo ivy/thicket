@@ -100,7 +100,8 @@ class FakeSlackAdmin implements SlackAdminApi {
     // idempotency tests exercise the projection.
     // ...and actions is write-only: accepted on create/update, never
     // present in the export.
-    const { actions: _actions, ...agentView } = stored.features.agent_view;
+    const agentView = { ...stored.features.agent_view } as Record<string, unknown>;
+    delete agentView.actions;
     return {
       ...stored,
       features: { ...stored.features, agent_view: agentView },
