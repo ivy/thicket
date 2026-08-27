@@ -1,4 +1,4 @@
-import { request as httpRequest } from "node:http";
+import { Agent as HttpAgent, request as httpRequest } from "node:http";
 import { connect as netConnect, type Socket } from "node:net";
 import { Readable } from "node:stream";
 import { connect as tlsConnect } from "node:tls";
@@ -24,10 +24,13 @@ export function egressFetch(socketPath: string): typeof fetch {
     const port = url.port === "" ? (url.protocol === "http:" ? 80 : 443) : Number(url.port);
     const socket = await tunnel(socketPath, url.hostname, port, url.protocol === "https:");
     return await new Promise<Response>((resolve, reject) => {
+      // The tunnel is already open and single-use, so the request must be
+      // handed the socket rather than allowed to dial for itself.
+      const agent = new HttpAgent({ keepAlive: false });
+      agent.createConnection = () => socket;
       const req = httpRequest(
         {
-          createConnection: () => socket,
-          agent: false,
+          agent,
           method: init?.method ?? "GET",
           path: `${url.pathname}${url.search}`,
           headers: { host: url.host, ...headersOf(init) },

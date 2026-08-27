@@ -1,7 +1,7 @@
 ---
 id: "018"
 title: Materialize attachments into the agent's cache
-status: in-progress
+status: done
 component: packages/executor
 language: typescript
 depends_on: ["017"]
@@ -55,13 +55,13 @@ maintained and trusted.
 
 ## Acceptance criteria
 
-- [ ] An attached file lands in the agent's cache and its path reaches the
+- [x] An attached file lands in the agent's cache and its path reaches the
       model with type and size.
-- [ ] A hostile filename cannot escape the attachment directory.
-- [ ] Re-delivering the same attachment does not re-download it.
-- [ ] An agent configured to reject attachments never fetches, and says so.
-- [ ] A failed fetch degrades to a note in the prompt; the turn still answers.
-- [ ] Cache pruning bounds the directory without operator intervention.
+- [x] A hostile filename cannot escape the attachment directory.
+- [x] Re-delivering the same attachment does not re-download it.
+- [x] An agent configured to reject attachments never fetches, and says so.
+- [x] A failed fetch degrades to a note in the prompt; the turn still answers.
+- [x] Cache pruning bounds the directory without operator intervention.
 
 ## Out of scope
 
