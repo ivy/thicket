@@ -1,29 +1,31 @@
 import type { Message, Task, TaskState } from "@a2a-js/sdk";
 import type { AgentActivity } from "@thicket/executor";
 
+/**
+ * An upload attached to a Slack message. `downloadUrl` is Slack-private:
+ * it needs the bot token, so only the bridge can ever redeem it.
+ */
+export interface SlackFile {
+  id: string;
+  name: string;
+  mimetype: string;
+  size: number;
+  downloadUrl: string;
+}
+
+interface MessageEvent {
+  channel: string;
+  threadTs: string;
+  text: string;
+  messageTs: string;
+  files: SlackFile[];
+}
+
 /** Slack events the bridge acts on, already unwrapped from envelopes. */
 export type InboundEvent =
-  | {
-      kind: "dm";
-      channel: string;
-      threadTs: string;
-      text: string;
-      messageTs: string;
-    }
-  | {
-      kind: "mention";
-      channel: string;
-      threadTs: string;
-      text: string;
-      messageTs: string;
-    }
-  | {
-      kind: "thread_message";
-      channel: string;
-      threadTs: string;
-      text: string;
-      messageTs: string;
-    }
+  | ({ kind: "dm" } & MessageEvent)
+  | ({ kind: "mention" } & MessageEvent)
+  | ({ kind: "thread_message" } & MessageEvent)
   | {
       kind: "session_stopped";
       channel: string;

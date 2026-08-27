@@ -69,7 +69,13 @@ importers:
       '@thicket/roster':
         specifier: workspace:*
         version: link:../../packages/roster
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
     devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
       '@types/node':
         specifier: ^22.17.0
         version: 22.20.1

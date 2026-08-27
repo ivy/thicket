@@ -1,17 +1,22 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { createServer } from "node:http";
+import { dirname, join } from "node:path";
 
 import { WebClient } from "@slack/web-api";
-import { agentUrl, configDir, parseRoster, stateDir } from "@thicket/roster";
+import { agentUrl, configDir, parseRoster, socketPath, stateDir } from "@thicket/roster";
 
 import { BridgeEngine, type EngineLogger } from "./engine.js";
 import { RemoteAgentClient } from "./a2a-client.js";
+import { buildFileServer } from "./http.js";
 import { WebSlackApi } from "./slack-api.js";
 import { SlackSocketConnection } from "./socket.js";
 import { ConnectionSupervisor } from "./supervisor.js";
 import { BridgeState } from "./state.js";
 
 const QUEUE_FLUSH_INTERVAL_MS = 30_000;
+const FILE_PRUNE_INTERVAL_MS = 6 * 60 * 60_000;
+/** Matches the agent-side attachment cache's retention. */
+const FILE_RETENTION_MS = 30 * 24 * 60 * 60_000;
 
 interface BridgeAgentConfig {
   app_token: string;
@@ -22,6 +27,13 @@ interface BridgeConfig {
   agents_file?: string;
   db_path?: string;
   tailnet_domain?: string;
+  /**
+   * Base URL agents reach this bridge on, served by its own netd. Absent
+   * means no file transfer: attachments are declined in-thread.
+   */
+  file_base_url?: string;
+  /** Unix socket the file surface listens on; netd's upstream. */
+  socket_path?: string;
   agents: Record<string, BridgeAgentConfig>;
 }
 
@@ -35,6 +47,44 @@ function jsonLogger(): EngineLogger {
     info: (msg, fields) => write("info", msg, fields),
     warn: (msg, fields) => write("warn", msg, fields),
   };
+}
+
+/**
+ * The file surface, bound to a unix socket for its own netd to front. A
+ * TCP override exists for development, where there is no tailnet and the
+ * peer-tag header comes from a stand-in proxy instead.
+ */
+async function startFileServer(
+  config: BridgeConfig,
+  roster: ReturnType<typeof parseRoster>,
+  state: BridgeState,
+  logger: EngineLogger,
+): Promise<{ close(): void } | undefined> {
+  if (config.file_base_url === undefined) {
+    logger.info("file surface disabled: no file_base_url configured");
+    return undefined;
+  }
+  const agentByTag = new Map<string, string>();
+  for (const [name, entry] of Object.entries(roster.agents)) {
+    if (config.agents[name] !== undefined) {
+      agentByTag.set(entry.tag, name);
+    }
+  }
+  const app = buildFileServer({
+    state,
+    agentByTag,
+    botTokenFor: (agent) => config.agents[agent]?.bot_token,
+    logger,
+  });
+  const server = createServer(app);
+  const path = config.socket_path ?? socketPath("bridge");
+  mkdirSync(dirname(path), { recursive: true });
+  rmSync(path, { force: true });
+  await new Promise<void>((resolve) => server.listen(path, () => resolve()));
+  // Only netd, running as this user, may connect.
+  chmodSync(path, 0o600);
+  logger.info("file surface listening", { addr: path });
+  return { close: () => server.close() };
 }
 
 export async function run(
@@ -70,10 +120,13 @@ export async function run(
       slack: new WebSlackApi(new WebClient(agentConfig.bot_token), logger),
       state,
       logger,
+      ...(config.file_base_url === undefined ? {} : { fileBaseUrl: config.file_base_url }),
     });
     engines.set(name, engine);
     await engine.start();
   }
+
+  const fileServer = await startFileServer(config, roster, state, logger);
 
   const supervisor = new ConnectionSupervisor({
     agents: [...engines.keys()],
@@ -101,8 +154,17 @@ export async function run(
   }, QUEUE_FLUSH_INTERVAL_MS);
   flushTimer.unref();
 
+  const pruneTimer = setInterval(() => {
+    const dropped = state.pruneFiles(FILE_RETENTION_MS);
+    if (dropped > 0) {
+      logger.info("pruned file descriptors", { count: dropped });
+    }
+  }, FILE_PRUNE_INTERVAL_MS);
+  pruneTimer.unref();
+
   const shutdown = () => {
     void supervisor.stop().then(() => {
+      fileServer?.close();
       state.close();
       process.exit(0);
     });

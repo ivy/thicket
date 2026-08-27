@@ -10,6 +10,27 @@ export interface InFlightTask {
   streamTs: string | null;
 }
 
+function parseIds(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface RecordedFile {
+  fileId: string;
+  agent: string;
+  channel: string;
+  threadTs: string;
+  name: string;
+  mimetype: string;
+  size: number;
+  /** Slack-private download URL; redeemable only with the bot token. */
+  url: string;
+}
+
 export interface QueuedRequest {
   id: number;
   agent: string;
@@ -17,6 +38,8 @@ export interface QueuedRequest {
   threadTs: string;
   text: string;
   messageTs: string;
+  /** Attachments already recorded in `files`, referred to by id. */
+  fileIds: string[];
 }
 
 /**
@@ -50,6 +73,17 @@ export class BridgeState {
         context_id TEXT NOT NULL,
         PRIMARY KEY (channel, thread_ts)
       );
+      CREATE TABLE IF NOT EXISTS files (
+        file_id    TEXT PRIMARY KEY,
+        agent      TEXT NOT NULL,
+        channel    TEXT NOT NULL,
+        thread_ts  TEXT NOT NULL,
+        name       TEXT NOT NULL,
+        mimetype   TEXT NOT NULL,
+        size       INTEGER NOT NULL,
+        url        TEXT NOT NULL,
+        created_ms INTEGER NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS queued (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         agent      TEXT NOT NULL,
@@ -60,6 +94,19 @@ export class BridgeState {
         created_ms INTEGER NOT NULL
       );
     `);
+    this.addColumn("queued", "file_ids", "TEXT NOT NULL DEFAULT '[]'");
+  }
+
+  /**
+   * CREATE TABLE IF NOT EXISTS cannot widen a table an earlier version
+   * created, so added columns are applied separately and idempotently.
+   */
+  private addColumn(table: string, column: string, definition: string): void {
+    const existing = this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (existing.some((row) => row.name === column)) {
+      return;
+    }
+    this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 
   close(): void {
@@ -141,6 +188,72 @@ export class BridgeState {
     this.db.prepare("DELETE FROM tasks WHERE task_id = ?").run(taskId);
   }
 
+  /** Remember an upload so the agent it was sent to can fetch it later. */
+  recordFile(file: RecordedFile): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO files
+           (file_id, agent, channel, thread_ts, name, mimetype, size, url, created_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        file.fileId,
+        file.agent,
+        file.channel,
+        file.threadTs,
+        file.name,
+        file.mimetype,
+        file.size,
+        file.url,
+        Date.now(),
+      );
+  }
+
+  /**
+   * The authorization check behind the file surface: an agent may fetch a
+   * file only if that file was uploaded to one of its own threads, so the
+   * agent name is part of the lookup rather than a test applied after it.
+   */
+  fileFor(agent: string, fileId: string): RecordedFile | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT file_id, agent, channel, thread_ts, name, mimetype, size, url
+           FROM files WHERE agent = ? AND file_id = ?`,
+      )
+      .get(agent, fileId) as
+      | {
+          file_id: string;
+          agent: string;
+          channel: string;
+          thread_ts: string;
+          name: string;
+          mimetype: string;
+          size: number;
+          url: string;
+        }
+      | undefined;
+    return row === undefined
+      ? undefined
+      : {
+          fileId: row.file_id,
+          agent: row.agent,
+          channel: row.channel,
+          threadTs: row.thread_ts,
+          name: row.name,
+          mimetype: row.mimetype,
+          size: row.size,
+          url: row.url,
+        };
+  }
+
+  /** Forget descriptors older than the agent-side cache keeps files. */
+  pruneFiles(olderThanMs: number): number {
+    const result = this.db
+      .prepare("DELETE FROM files WHERE created_ms < ?")
+      .run(Date.now() - olderThanMs);
+    return Number(result.changes);
+  }
+
   /** The contextId to use for a thread: agent-minted override, if any. */
   contextFor(channel: string, threadTs: string): string | undefined {
     const row = this.db
@@ -165,8 +278,8 @@ export class BridgeState {
   enqueue(request: Omit<QueuedRequest, "id">): void {
     this.db
       .prepare(
-        `INSERT INTO queued (agent, channel, thread_ts, text, message_ts, created_ms)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO queued (agent, channel, thread_ts, text, message_ts, file_ids, created_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         request.agent,
@@ -174,6 +287,7 @@ export class BridgeState {
         request.threadTs,
         request.text,
         request.messageTs,
+        JSON.stringify(request.fileIds),
         Date.now(),
       );
   }
@@ -181,7 +295,8 @@ export class BridgeState {
   queuedFor(agent: string): QueuedRequest[] {
     const rows = this.db
       .prepare(
-        "SELECT id, agent, channel, thread_ts, text, message_ts FROM queued WHERE agent = ? ORDER BY id",
+        `SELECT id, agent, channel, thread_ts, text, message_ts, file_ids
+           FROM queued WHERE agent = ? ORDER BY id`,
       )
       .all(agent) as {
       id: number;
@@ -190,6 +305,7 @@ export class BridgeState {
       thread_ts: string;
       text: string;
       message_ts: string;
+      file_ids: string;
     }[];
     return rows.map((row) => ({
       id: row.id,
@@ -198,6 +314,7 @@ export class BridgeState {
       threadTs: row.thread_ts,
       text: row.text,
       messageTs: row.message_ts,
+      fileIds: parseIds(row.file_ids),
     }));
   }
 

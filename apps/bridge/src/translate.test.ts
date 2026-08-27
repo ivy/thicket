@@ -18,6 +18,7 @@ test("a DM becomes a dm event rooted at its own ts", () => {
     threadTs: "1.1",
     text: "hello",
     messageTs: "1.1",
+    files: [],
   });
 });
 
@@ -52,7 +53,14 @@ test("a mention threads under the message it replies to", () => {
       thread_ts: "2.0",
       text: "<@U1> look",
     }),
-    { kind: "mention", channel: "C1", threadTs: "2.0", text: "<@U1> look", messageTs: "2.2" },
+    {
+      kind: "mention",
+      channel: "C1",
+      threadTs: "2.0",
+      text: "<@U1> look",
+      messageTs: "2.2",
+      files: [],
+    },
   );
 });
 
@@ -90,4 +98,53 @@ test("a session stop is read from either layout, and needs both coordinates", ()
 
 test("unknown event types are ignored", () => {
   assert.equal(translateSlackEvent({ type: "reaction_added" }), undefined);
+});
+
+test("uploads are carried with the fields the bridge needs to serve them", () => {
+  const event = translateSlackEvent({
+    ...DM,
+    subtype: "file_share",
+    files: [
+      {
+        id: "F1",
+        name: "quarterly.csv",
+        mimetype: "text/csv",
+        size: 2048,
+        url_private: "https://files.slack.com/view/F1",
+        url_private_download: "https://files.slack.com/download/F1",
+      },
+    ],
+  });
+  assert.deepEqual(event?.kind === "dm" ? event.files : [], [
+    {
+      id: "F1",
+      name: "quarterly.csv",
+      mimetype: "text/csv",
+      size: 2048,
+      // the download form, not the viewer page
+      downloadUrl: "https://files.slack.com/download/F1",
+    },
+  ]);
+});
+
+test("a file with no retrievable bytes is skipped, not half-recorded", () => {
+  const event = translateSlackEvent({
+    ...DM,
+    subtype: "file_share",
+    files: [
+      { id: "F1", name: "still-uploading.zip" },
+      { name: "no-id.txt", url_private_download: "https://files.slack.com/download/F2" },
+      "not an object",
+      { id: "F3", url_private: "https://files.slack.com/view/F3" },
+    ],
+  });
+  const files = event?.kind === "dm" ? event.files : [];
+  assert.deepEqual(
+    files.map((f) => f.id),
+    ["F3"],
+  );
+  // Missing name and mimetype fall back rather than becoming "undefined".
+  assert.equal(files[0]?.name, "F3");
+  assert.equal(files[0]?.mimetype, "application/octet-stream");
+  assert.equal(files[0]?.size, 0);
 });

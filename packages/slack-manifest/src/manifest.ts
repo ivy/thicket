@@ -31,6 +31,9 @@ export const BOT_SCOPES = [
   "im:history",
   "app_mentions:read",
   "channels:history",
+  // Redeeming url_private_download on a user's upload; the bridge is the
+  // only holder of the token that can.
+  "files:read",
 ] as const;
 
 export interface SlackSuggestedPrompt {

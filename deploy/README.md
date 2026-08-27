@@ -111,6 +111,39 @@ pool is the point).
 The bridge account instead installs `thicket-bridge.service` (plus its own
 `thicket-netd.service`) and enables both.
 
+### The bridge's netd faces inward too
+
+The bridge's netd was already there for egress. Attachments also need the
+reverse: an agent fetches the bytes of a file a human uploaded, because the
+bot token that redeems Slack's private URL lives only in the bridge. So point
+that netd's upstream at the bridge instead of at an agentd that does not exist
+in this account, in `~/.config/thicket/netd.json`:
+
+```json
+{
+  "hostname": "thicket-bridge",
+  "tag": "tag:thicket-bridge",
+  "upstream_socket": "/run/user/1001/thicket/bridge.sock"
+}
+```
+
+and tell the bridge the address agents will reach it on, in
+`~/.config/thicket/bridge.json`:
+
+```json
+{ "file_base_url": "https://thicket-bridge.tailXXXX.ts.net" }
+```
+
+Omit `file_base_url` and the file surface never binds: attachments are
+declined in-thread rather than turned into links nothing can follow.
+
+This needs an ACL edge that did not exist before — agents dial the bridge,
+where previously only the bridge dialed agents. Authorization is still a tag
+read plus a lookup in the bridge's own state, so an agent can fetch only files
+uploaded to its own threads, and no token is minted or distributed. Note that
+`thicket-netd.service` carries `Wants=thicket-agentd.socket`; in the bridge
+account that unit is absent, which systemd tolerates.
+
 ## 7. Verify
 
 ```sh

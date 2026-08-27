@@ -10,6 +10,7 @@ import {
   type AgentClient,
   type InboundEvent,
   type SlackApi,
+  type SlackFile,
   type SlackSessionStatus,
 } from "./types.js";
 
@@ -25,6 +26,13 @@ export interface EngineOptions {
   slack: SlackApi;
   state: BridgeState;
   logger?: EngineLogger;
+  /**
+   * Base URL agents can reach this bridge on, e.g.
+   * https://thicket-bridge.tail1234.ts.net. Attachments are referred to
+   * beneath it; without one there is nowhere to point, so they are
+   * declined in-thread rather than linked into the void.
+   */
+  fileBaseUrl?: string;
 }
 
 const TERMINAL = new Set([
@@ -52,6 +60,18 @@ function textPart(text: string) {
     mediaType: "text/plain",
     filename: "",
     metadata: {},
+  };
+}
+
+/** Metadata key carrying an attachment's byte count alongside its url part. */
+export const META_FILE_SIZE = "thicket.fileSize";
+
+function filePart(url: string, file: SlackFile) {
+  return {
+    content: { $case: "url" as const, value: url },
+    mediaType: file.mimetype,
+    filename: file.name,
+    metadata: { [META_FILE_SIZE]: file.size },
   };
 }
 
@@ -92,6 +112,7 @@ export class BridgeEngine {
   private readonly activityOff = new Set<string>();
   /** Threads whose prose status line was abandoned after a rejection. */
   private readonly noteOff = new Set<string>();
+  private readonly fileBaseUrl: string | undefined;
   constructor(options: EngineOptions) {
     this.agent = options.agent;
     this.queueing = options.queueing;
@@ -99,6 +120,7 @@ export class BridgeEngine {
     this.slack = options.slack;
     this.state = options.state;
     this.logger = options.logger ?? { info: () => {}, warn: () => {} };
+    this.fileBaseUrl = options.fileBaseUrl?.replace(/\/+$/, "");
   }
 
   /** Reattach to tasks recorded by a previous bridge process. */
@@ -128,21 +150,72 @@ export class BridgeEngine {
         return;
       }
       case "dm":
-      case "mention":
-        await this.trigger(event.channel, event.threadTs, event.text, event.messageTs);
+      case "mention": {
+        const files = await this.acceptFiles(event);
+        await this.trigger(event.channel, event.threadTs, event.text, event.messageTs, files);
         return;
+      }
       case "thread_message": {
         if (!this.state.isEngaged(event.channel, event.threadTs)) {
           return; // not our conversation
         }
+        const files = await this.acceptFiles(event);
         // Context for the agent, no turn: delivered with shouldQuery:false
         // semantics via metadata; no status change, no reply expected.
         await this.client.send(
-          this.buildMessage(event.channel, event.threadTs, event.text, event.messageTs, false),
+          this.buildMessage(
+            event.channel,
+            event.threadTs,
+            event.text,
+            event.messageTs,
+            false,
+            files,
+          ),
         );
         return;
       }
     }
+  }
+
+  /**
+   * Record uploads so the agent can fetch them, before anything else can
+   * fail — a queued or retried turn refers to them by id afterwards.
+   * Returns the ids that were accepted.
+   */
+  private async acceptFiles(event: {
+    channel: string;
+    threadTs: string;
+    files: SlackFile[];
+  }): Promise<string[]> {
+    if (event.files.length === 0) {
+      return [];
+    }
+    if (this.fileBaseUrl === undefined) {
+      this.logger.warn("attachment declined: no reachable bridge address", {
+        agent: this.agent,
+        count: event.files.length,
+      });
+      await this.slack.postMessage(
+        event.channel,
+        event.threadTs,
+        `I can't read attachments yet — ${this.agent} has no reachable address configured for file transfer. ` +
+          `I'll answer what I can from your message.`,
+      );
+      return [];
+    }
+    for (const file of event.files) {
+      this.state.recordFile({
+        fileId: file.id,
+        agent: this.agent,
+        channel: event.channel,
+        threadTs: event.threadTs,
+        name: file.name,
+        mimetype: file.mimetype,
+        size: file.size,
+        url: file.downloadUrl,
+      });
+    }
+    return event.files.map((file) => file.id);
   }
 
   /** Queue-or-run per the roster's queueing policy. */
@@ -151,16 +224,17 @@ export class BridgeEngine {
     threadTs: string,
     text: string,
     messageTs: string,
+    fileIds: string[],
   ): Promise<void> {
     if (this.queueing === "harness") {
       // The harness queues concurrent turns itself; send without waiting.
-      return this.runTurn(channel, threadTs, text, messageTs);
+      return this.runTurn(channel, threadTs, text, messageTs, fileIds);
     }
     const key = `${channel}:${threadTs}`;
     const prev = this.chains.get(key) ?? Promise.resolve();
     const next = prev.then(
-      () => this.runTurn(channel, threadTs, text, messageTs),
-      () => this.runTurn(channel, threadTs, text, messageTs),
+      () => this.runTurn(channel, threadTs, text, messageTs, fileIds),
+      () => this.runTurn(channel, threadTs, text, messageTs, fileIds),
     );
     this.chains.set(key, next);
     return next;
@@ -171,6 +245,7 @@ export class BridgeEngine {
     threadTs: string,
     text: string,
     messageTs: string,
+    fileIds: string[],
   ): Promise<void> {
     const contextId = this.contextIdFor(channel, threadTs);
     // Slack takes a session title only when the session is created, so the
@@ -190,11 +265,11 @@ export class BridgeEngine {
     try {
       card = await this.client.fetchCard();
     } catch (err) {
-      await this.unreachable(channel, threadTs, text, messageTs, err);
+      await this.unreachable(channel, threadTs, text, messageTs, fileIds, err);
       return;
     }
 
-    const message = this.buildMessage(channel, threadTs, text, messageTs, true);
+    const message = this.buildMessage(channel, threadTs, text, messageTs, true, fileIds);
     try {
       if (card.streaming) {
         await this.pumpTracked(this.client.stream(message), channel, threadTs, contextId);
@@ -218,10 +293,11 @@ export class BridgeEngine {
     threadTs: string,
     text: string,
     messageTs: string,
+    fileIds: string[],
     err: unknown,
   ): Promise<void> {
     this.logger.warn("agent unreachable; queueing", { agent: this.agent, err: String(err) });
-    this.state.enqueue({ agent: this.agent, channel, threadTs, text, messageTs });
+    this.state.enqueue({ agent: this.agent, channel, threadTs, text, messageTs, fileIds });
     await this.slack.postMessage(
       channel,
       threadTs,
@@ -249,7 +325,13 @@ export class BridgeEngine {
     for (const request of queued) {
       this.state.dequeue(request.id);
       delivered += 1;
-      await this.trigger(request.channel, request.threadTs, request.text, request.messageTs);
+      await this.trigger(
+        request.channel,
+        request.threadTs,
+        request.text,
+        request.messageTs,
+        request.fileIds,
+      );
     }
     return delivered;
   }
@@ -266,13 +348,28 @@ export class BridgeEngine {
     text: string,
     messageTs: string,
     shouldQuery: boolean,
+    fileIds: string[],
   ): Message {
+    const files = fileIds
+      .map((id) => this.state.fileFor(this.agent, id))
+      .filter((file) => file !== undefined);
     return {
       messageId: `slack-${channel}-${messageTs}`,
       contextId: this.contextIdFor(channel, threadTs),
       taskId: "",
       role: 1,
-      parts: [textPart(text)],
+      parts: [
+        textPart(text),
+        ...files.map((file) =>
+          filePart(`${this.fileBaseUrl}/files/${encodeURIComponent(file.fileId)}`, {
+            id: file.fileId,
+            name: file.name,
+            mimetype: file.mimetype,
+            size: file.size,
+            downloadUrl: "",
+          }),
+        ),
+      ],
       metadata: shouldQuery ? {} : { [META_SHOULD_QUERY]: false },
       extensions: [],
       referenceTaskIds: [],

@@ -1,4 +1,39 @@
-import type { InboundEvent } from "./types.js";
+import type { InboundEvent, SlackFile } from "./types.js";
+
+/**
+ * Slack sends several URL variants per file; url_private_download is the
+ * one that returns the bytes rather than a viewer page. Files still being
+ * uploaded, or external ones Slack only links to, have no bytes to serve
+ * and are skipped rather than half-recorded.
+ */
+function parseFiles(value: unknown): SlackFile[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const files: SlackFile[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "object" || raw === null) {
+      continue;
+    }
+    const file = raw as Record<string, unknown>;
+    const id = file.id;
+    const downloadUrl = file.url_private_download ?? file.url_private;
+    if (typeof id !== "string" || typeof downloadUrl !== "string") {
+      continue;
+    }
+    files.push({
+      id,
+      name: typeof file.name === "string" && file.name !== "" ? file.name : id,
+      mimetype:
+        typeof file.mimetype === "string" && file.mimetype !== ""
+          ? file.mimetype
+          : "application/octet-stream",
+      size: typeof file.size === "number" ? file.size : 0,
+      downloadUrl,
+    });
+  }
+  return files;
+}
 
 /**
  * Unwraps a Slack Events API payload (as delivered over Socket Mode) into
@@ -16,6 +51,7 @@ export function translateSlackEvent(event: Record<string, unknown>): InboundEven
       threadTs: String(event.thread_ts ?? ts),
       text: String(event.text ?? ""),
       messageTs: ts,
+      files: parseFiles(event.files),
     };
   }
   if (type === "message") {
@@ -30,17 +66,18 @@ export function translateSlackEvent(event: Record<string, unknown>): InboundEven
     const channel = String(event.channel ?? "");
     const ts = String(event.ts ?? "");
     const threadTs = String(event.thread_ts ?? ts);
+    const common = {
+      channel,
+      threadTs,
+      text: String(event.text ?? ""),
+      messageTs: ts,
+      files: parseFiles(event.files),
+    };
     if (event.channel_type === "im") {
-      return { kind: "dm", channel, threadTs, text: String(event.text ?? ""), messageTs: ts };
+      return { kind: "dm", ...common };
     }
     if (event.thread_ts !== undefined) {
-      return {
-        kind: "thread_message",
-        channel,
-        threadTs,
-        text: String(event.text ?? ""),
-        messageTs: ts,
-      };
+      return { kind: "thread_message", ...common };
     }
     return undefined; // top-level channel chatter without a mention
   }

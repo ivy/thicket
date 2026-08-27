@@ -48,7 +48,8 @@
         "chat:write",
         "im:history",
         "app_mentions:read",
-        "channels:history"
+        "channels:history",
+        "files:read"
       ]
     }
   },

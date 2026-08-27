@@ -216,7 +216,10 @@ interface Rig {
   warnings: string[];
 }
 
-function rig(behavior: StubBehavior, options: { queueing?: "harness" | "bridge"; dbPath?: string } = {}): Rig {
+function rig(
+  behavior: StubBehavior,
+  options: { queueing?: "harness" | "bridge"; dbPath?: string; fileBaseUrl?: string } = {},
+): Rig {
   const slack = new FakeSlack();
   const client = new StubClient(behavior);
   const state = new BridgeState(options.dbPath ?? ":memory:");
@@ -228,6 +231,7 @@ function rig(behavior: StubBehavior, options: { queueing?: "harness" | "bridge";
     slack,
     state,
     logger: { info: () => {}, warn: (msg) => warnings.push(msg) },
+    ...(options.fileBaseUrl === undefined ? {} : { fileBaseUrl: options.fileBaseUrl }),
   });
   return { engine, slack, client, state, warnings };
 }
@@ -236,7 +240,7 @@ const CH = "C123";
 const TH = "1724650000.000100";
 
 function dm(text: string, ts = "1724650001.000001") {
-  return { kind: "dm" as const, channel: CH, threadTs: TH, text, messageTs: ts };
+  return { kind: "dm" as const, channel: CH, threadTs: TH, text, messageTs: ts, files: [] };
 }
 
 // ---------------------------------------------------------------- status map
@@ -500,6 +504,109 @@ test("session titles are flattened and clipped to Slack's limit", () => {
   assert.ok(long.endsWith("…"));
 });
 
+// ------------------------------------------------------------- attachments
+
+const UPLOAD = {
+  id: "F1",
+  name: "quarterly.csv",
+  mimetype: "text/csv",
+  size: 2048,
+  downloadUrl: "https://files.slack.com/download/F1",
+};
+
+function dmWithFile(text = "what do you make of this?") {
+  return { ...dm(text), files: [UPLOAD] };
+}
+
+test("an upload is recorded and referred to by url, never by bytes", async () => {
+  const r = rig(
+    { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
+    { fileBaseUrl: "https://thicket-bridge.example.ts.net/" },
+  );
+  await r.engine.handleEvent(dmWithFile());
+
+  const recorded = r.state.fileFor("hearth", "F1");
+  assert.equal(recorded?.url, UPLOAD.downloadUrl, "the private URL stays bridge-side");
+  assert.equal(recorded?.threadTs, TH);
+
+  const parts = r.client.streamed[0]?.parts ?? [];
+  assert.deepEqual(
+    parts.map((p) => p.content?.$case),
+    ["text", "url"],
+    "text plus one reference; no raw bytes",
+  );
+  const file = parts[1]!;
+  assert.equal(
+    file.content?.$case === "url" ? file.content.value : "",
+    // The trailing slash on the configured base must not double up.
+    "https://thicket-bridge.example.ts.net/files/F1",
+  );
+  assert.equal(file.filename, "quarterly.csv");
+  assert.equal(file.mediaType, "text/csv");
+  assert.equal(file.metadata?.["thicket.fileSize"], 2048);
+  r.state.close();
+});
+
+test("with no reachable address, attachments are declined in the thread", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  await r.engine.handleEvent(dmWithFile("read this"));
+
+  assert.ok(
+    r.slack.posts().some((p) => /can't read attachments/i.test(p)),
+    "the user is told, rather than handed a dead link",
+  );
+  assert.equal(r.state.fileFor("hearth", "F1"), undefined);
+  const parts = r.client.streamed[0]?.parts ?? [];
+  assert.deepEqual(parts.map((p) => p.content?.$case), ["text"]);
+  assert.equal(r.client.streamed.length, 1, "the turn still runs on the text");
+  r.state.close();
+});
+
+test("an upload to an unreachable agent survives the queue", async () => {
+  const r = rig(
+    {
+      reachable: false,
+      script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+    },
+    { fileBaseUrl: "https://thicket-bridge.example.ts.net" },
+  );
+  await r.engine.handleEvent(dmWithFile());
+  assert.deepEqual(r.state.queuedFor("hearth")[0]?.fileIds, ["F1"]);
+
+  r.client.behavior.reachable = true;
+  await r.engine.flushQueue();
+  const parts = r.client.streamed[0]?.parts ?? [];
+  assert.deepEqual(
+    parts.map((p) => p.content?.$case),
+    ["text", "url"],
+    "the attachment is still referred to after the wait",
+  );
+  r.state.close();
+});
+
+test("a context-only message carries its attachments too", async () => {
+  const r = rig(
+    { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
+    { fileBaseUrl: "https://thicket-bridge.example.ts.net" },
+  );
+  await r.engine.handleEvent(dm("hello")); // engage the thread
+  await r.engine.handleEvent({
+    kind: "thread_message",
+    channel: CH,
+    threadTs: TH,
+    text: "and here's the log",
+    messageTs: "1724650005.000001",
+    files: [{ ...UPLOAD, id: "F2" }],
+  });
+
+  const parts = r.client.sent[0]?.parts ?? [];
+  assert.deepEqual(parts.map((p) => p.content?.$case), ["text", "url"]);
+  assert.equal(r.client.sent[0]?.metadata?.[META_SHOULD_QUERY], false);
+  r.state.close();
+});
+
 // ------------------------------------------------------------- stop button
 
 test("agent_session_stopped cancels the in-flight task on that thread", async () => {
@@ -526,6 +633,7 @@ test("non-mention message in an engaged thread: shouldQuery false, no turn", asy
     threadTs: TH,
     text: "fyi the deploy window is Friday",
     messageTs: "1724650002.000001",
+    files: [],
   });
 
   assert.equal(r.client.sent.length, 1, "delivered via blocking send");
@@ -543,6 +651,7 @@ test("thread message in a non-engaged thread is ignored", async () => {
     threadTs: "9999.0001",
     text: "unrelated chatter",
     messageTs: "9999.0002",
+    files: [],
   });
   assert.equal(r.client.sent.length, 0);
   assert.equal(r.slack.calls.length, 0);
