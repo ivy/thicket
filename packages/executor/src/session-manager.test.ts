@@ -331,7 +331,7 @@ test("subprocess env contains only what was passed, including PATH and HOME", as
 
   const env = cli.processes[0]?.options.env;
   assert.ok(env, "env explicitly set (SDK replaces, not merges)");
-  assert.deepEqual(Object.keys(env).sort(), ["HOME", "PATH"]);
+  assert.deepEqual(Object.keys(env).sort(), ["HOME", "LOGNAME", "PATH", "USER"]);
   assert.equal(env.PATH, process.env.PATH);
   assert.equal(env.HOME, process.env.HOME);
   assert.equal(cli.processes[0]?.options.cwd, "/home/hearth");

@@ -44,13 +44,23 @@ export interface SessionManagerOptions {
 const DEFAULT_MAX_SESSIONS = 8;
 
 function defaultEnv(): Record<string, string | undefined> {
-  return { PATH: process.env.PATH, HOME: process.env.HOME };
+  // USER/LOGNAME are required on macOS: the CLI's keychain credential
+  // lookup fails without them (observed: "Not logged in" with only
+  // PATH+HOME). They are identity, not secrets.
+  return {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    USER: process.env.USER,
+    LOGNAME: process.env.LOGNAME,
+  };
 }
 
 async function defaultSessionExists(sessionId: string): Promise<boolean> {
   try {
-    await getSessionInfo(sessionId);
-    return true;
+    // A missing session resolves undefined rather than throwing (observed
+    // against @anthropic-ai/claude-agent-sdk 0.3.247), so check the value.
+    const info = await getSessionInfo(sessionId);
+    return info !== undefined && info !== null;
   } catch {
     return false;
   }

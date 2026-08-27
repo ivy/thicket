@@ -85,6 +85,9 @@ export function sessionEnv(config: AgentdConfig): Record<string, string | undefi
   const env: Record<string, string | undefined> = {
     PATH: process.env.PATH,
     HOME: process.env.HOME,
+    // Required for macOS keychain credential lookup in the CLI.
+    USER: process.env.USER,
+    LOGNAME: process.env.LOGNAME,
   };
   for (const name of config.envPassthrough) {
     env[name] = process.env[name];
