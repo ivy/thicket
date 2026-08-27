@@ -1,0 +1,68 @@
+# Test fixture: four agents exercising defaults, skills, and every enum value.
+agents:
+  hearth:
+    host: home
+    user: hearth
+    description: >-
+      Personal data: calendar, todo list, Obsidian vault, email triage.
+    tag: tag:thicket-hearth
+    icon: ":herb:"
+    skills:
+      - id: email-triage
+        name: Email triage
+        description: Reads and sorts the inbox, drafts replies.
+        tags: [email, personal]
+        examples:
+          - "What needs a reply today?"
+          - "Summarize anything from my landlord this week."
+    harness:
+      type: claude-agent-sdk
+      cwd: /home/hearth
+      model: claude-opus-5
+      sessionTtlSeconds: 300
+    context: native
+    queueing: harness
+
+  forge:
+    host: workshop
+    user: forge
+    description: Builds and maintains the CI fleet.
+    tag: tag:thicket-forge
+    icon: ":hammer:"
+    skills:
+      - id: ci-triage
+        name: CI triage
+        description: Investigates red builds and proposes fixes.
+        tags: [ci]
+        examples:
+          - "Why is main red?"
+    harness:
+      type: claude-agent-sdk
+      cwd: /home/forge
+      model: claude-sonnet-5
+    context: replay
+    queueing: bridge
+
+  scribe:
+    host: home
+    user: scribe
+    description: Writes and edits documentation on request.
+    tag: tag:thicket-scribe
+    harness:
+      type: claude-agent-sdk
+      cwd: /home/scribe
+      model: claude-sonnet-5
+      sessionTtlSeconds: 600
+
+  lookout:
+    host: workshop
+    user: lookout
+    description: Watches feeds and dashboards; raises alerts.
+    tag: tag:thicket-lookout
+    icon: ":eyes:"
+    skills: []
+    harness:
+      type: claude-agent-sdk
+      cwd: /home/lookout
+      model: claude-haiku-4-5-20251001
+      sessionTtlSeconds: 120

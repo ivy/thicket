@@ -1,7 +1,7 @@
 ---
 id: "002"
 title: Roster schema and AgentCard generation
-status: in-progress
+status: done
 component: packages/roster
 language: typescript
 depends_on: ["001"]
@@ -67,16 +67,16 @@ defaults; do not hardcode `~/.config`.
 
 ## Acceptance criteria
 
-- [ ] A fixture `agents.yaml` covering four agents parses and produces four valid
+- [x] A fixture `agents.yaml` covering four agents parses and produces four valid
       `AgentCard` objects.
-- [ ] Invalid config fails with a message naming the offending path
+- [x] Invalid config fails with a message naming the offending path
       (e.g. `agents.hearth.skills[0].id`), not a bare zod dump.
-- [ ] Duplicate agent names, duplicate tags, and duplicate `(host, user)` pairs are
+- [x] Duplicate agent names, duplicate tags, and duplicate `(host, user)` pairs are
       rejected.
-- [ ] Round-trip test: generated cards parse back as `AgentCard` via the SDK's types.
-- [ ] Path helpers respect `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, and `XDG_RUNTIME_DIR`
+- [x] Round-trip test: generated cards parse back as `AgentCard` via the SDK's types.
+- [x] Path helpers respect `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, and `XDG_RUNTIME_DIR`
       when set, and fall back correctly when not.
-- [ ] `context` and `queueing` default to `native` and `harness` when omitted.
+- [x] `context` and `queueing` default to `native` and `harness` when omitted.
 
 ## Out of scope
 

@@ -1,8 +1,12 @@
 # Roster of thicket agents. Source of truth for identity, Slack apps, and
-# tailnet provisioning. Task 002 defines the authoritative schema; this is a
-# one-agent example so the scaffold has something to point at.
+# tailnet provisioning. Schema: packages/roster/src/schema.ts.
 agents:
-  - name: example
-    description: Example agent used to exercise the toolchain.
+  example:
     host: thicket-host
     user: thicket-example
+    description: Example agent used to exercise the toolchain.
+    tag: tag:thicket-example
+    harness:
+      type: claude-agent-sdk
+      cwd: /home/thicket-example
+      model: claude-sonnet-5
