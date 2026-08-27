@@ -1,7 +1,7 @@
 ---
 id: "006"
 title: Session manager — hot/cold Claude Code sessions
-status: todo
+status: in-progress
 component: packages/executor
 language: typescript
 depends_on: ["002"]
