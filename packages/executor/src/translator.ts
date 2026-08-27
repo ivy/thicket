@@ -1,0 +1,433 @@
+import type {
+  SDKAssistantMessage,
+  SDKMessage,
+  SDKPartialAssistantMessage,
+  SDKResultMessage,
+} from "@anthropic-ai/claude-agent-sdk";
+import { Role, TaskState } from "@a2a-js/sdk";
+import type { Artifact, Message, TaskStatus } from "@a2a-js/sdk";
+import { AgentEvent } from "@a2a-js/sdk/server";
+import type { AgentExecutionEvent } from "@a2a-js/sdk/server";
+
+import {
+  META_FOLDED_MESSAGE_IDS,
+  META_QUEUED_TURN_COUNT,
+  type PendingSend,
+} from "./types.js";
+
+export const ASSISTANT_TEXT_ARTIFACT_ID = "assistant-text";
+
+export interface TranslatorOptions {
+  publish: (event: AgentExecutionEvent) => void;
+  /** Injectable clock so golden tests are deterministic. */
+  now?: () => string;
+  /** Diagnostic sink for frames the translator cannot act on. */
+  onWarning?: (message: string) => void;
+}
+
+interface OpenTurn {
+  send: PendingSend;
+  /** Text already emitted as artifact chunks (concatenated). */
+  emittedText: string;
+  /** Held-back chunk, flushed by the next chunk or the result. */
+  pendingChunk: string | null;
+  chunksEmitted: number;
+  /** Set when stream deltas carried text, so complete-message frames are not double-counted. */
+  sawStreamText: boolean;
+  interrupted: boolean;
+  terminalEmitted: boolean;
+}
+
+interface SendWaiter {
+  resolve: () => void;
+  promise: Promise<void>;
+}
+
+/**
+ * Folds a Claude Agent SDK frame stream into A2A task events.
+ *
+ * Turn boundaries are not message boundaries: sends may coalesce, so one
+ * A2A Task is derived per turn *result*, bound to the send whose uuid the
+ * turn's first reply frame echoes, and the folded sends are recorded on
+ * the terminal status event.
+ */
+export class TurnTranslator {
+  private readonly publish: (event: AgentExecutionEvent) => void;
+  private readonly now: () => string;
+  private readonly onWarning: (message: string) => void;
+
+  private pending: PendingSend[] = [];
+  private turn: OpenTurn | null = null;
+  private caps: string[] | undefined;
+  private readonly waiters = new Map<string, SendWaiter>();
+  /** Task ids whose cancellation was requested via interrupt. */
+  private readonly cancelRequested = new Set<string>();
+  private ended = false;
+
+  constructor(options: TranslatorOptions) {
+    this.publish = options.publish;
+    this.now = options.now ?? (() => new Date().toISOString());
+    this.onWarning = options.onWarning ?? (() => {});
+  }
+
+  /** Capabilities advertised on the last system/init frame, if any. */
+  get capabilities(): string[] | undefined {
+    return this.caps;
+  }
+
+  /** The task id of the currently open turn, if a turn is open. */
+  get openTaskId(): string | undefined {
+    return this.turn?.send.taskId;
+  }
+
+  registerSend(send: PendingSend): Promise<void> {
+    if (this.ended) {
+      throw new Error("stream already ended");
+    }
+    this.pending.push(send);
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => {
+      resolve = r;
+    });
+    this.waiters.set(send.uuid, { resolve, promise });
+    return promise;
+  }
+
+  /** Marks a task as cancel-requested so its result maps to canceled. */
+  markCancelRequested(taskId: string): void {
+    this.cancelRequested.add(taskId);
+    if (this.turn && this.turn.send.taskId === taskId) {
+      this.turn.interrupted = true;
+    }
+  }
+
+  /**
+   * Records that a terminal event for this task was published outside the
+   * translator (cancelTask does this), so the turn's eventual result frame
+   * does not emit a second terminal.
+   */
+  markTerminalEmitted(taskId: string): void {
+    if (this.turn !== null && this.turn.send.taskId === taskId) {
+      this.turn.terminalEmitted = true;
+    }
+  }
+
+  handleFrame(frame: SDKMessage): void {
+    switch (frame.type) {
+      case "system":
+        if (frame.subtype === "init") {
+          this.caps = frame.capabilities;
+        }
+        return;
+      case "stream_event":
+        this.handleStreamEvent(frame);
+        return;
+      case "assistant":
+        this.handleAssistant(frame);
+        return;
+      case "result":
+        this.handleResult(frame);
+        return;
+      default:
+        // The SDKMessage union is an open set; anything else is not a
+        // turn-shaping signal for A2A translation.
+        return;
+    }
+  }
+
+  /**
+   * The frame stream ended. A turn without a result — crashed subprocess,
+   * closed pipe — must fail loudly, never stay in `working`; sends that
+   * never got a turn fail too.
+   */
+  endStream(reason = "session stream ended without a result"): void {
+    if (this.ended) {
+      return;
+    }
+    this.ended = true;
+    if (this.turn !== null && !this.turn.terminalEmitted) {
+      this.flushText(this.turn, true);
+      this.emitStatus(this.turn.send, TaskState.TASK_STATE_FAILED, {
+        message: this.agentMessage(this.turn.send, reason),
+        metadata: {},
+      });
+      this.turn.terminalEmitted = true;
+      this.resolveWaiter(this.turn.send.uuid);
+      this.turn = null;
+    }
+    for (const send of this.pending) {
+      this.publish(
+        AgentEvent.task(this.taskShell(send, TaskState.TASK_STATE_FAILED, this.agentMessage(send, reason))),
+      );
+      this.resolveWaiter(send.uuid);
+    }
+    this.pending = [];
+  }
+
+  private handleStreamEvent(frame: SDKPartialAssistantMessage): void {
+    if (frame.parent_tool_use_id !== null) {
+      return; // subagent traffic
+    }
+    if (this.turn === null && frame.user_message_uuid !== undefined) {
+      this.openTurn(frame.user_message_uuid);
+    }
+    const event = frame.event as { type?: string; delta?: { type?: string; text?: string } };
+    if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+      if (this.turn === null) {
+        this.openTurn(undefined);
+      }
+      if (this.turn !== null && typeof event.delta.text === "string") {
+        this.turn.sawStreamText = true;
+        this.pushText(this.turn, event.delta.text);
+      }
+    }
+  }
+
+  private handleAssistant(frame: SDKAssistantMessage): void {
+    if (frame.parent_tool_use_id !== null) {
+      return; // subagent traffic
+    }
+    if (this.turn === null) {
+      this.openTurn(frame.user_message_uuid);
+    }
+    if (this.turn === null) {
+      return;
+    }
+    if (frame.aborted === true) {
+      this.turn.interrupted = true;
+    }
+    if (this.turn.sawStreamText) {
+      return; // streamed deltas already carried this text
+    }
+    const content = frame.message.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (
+          typeof block === "object" &&
+          block !== null &&
+          (block as { type?: string }).type === "text" &&
+          typeof (block as { text?: string }).text === "string"
+        ) {
+          this.pushText(this.turn, (block as { text: string }).text);
+        }
+      }
+    }
+  }
+
+  private handleResult(frame: SDKResultMessage): void {
+    if (this.turn === null) {
+      // A turn can produce no reply frames at all; the result still
+      // carries the join key.
+      this.openTurn(frame.user_message_uuid);
+    }
+    const turn = this.turn;
+    if (turn === null) {
+      this.onWarning(`result frame ${frame.uuid} matched no pending send; dropped`);
+      return;
+    }
+
+    const queued = frame.queued_turn_count ?? 0;
+    const folded = this.takeFolded(turn.send, queued);
+    this.flushText(turn, true);
+
+    if (!turn.terminalEmitted) {
+      const { state, message } = this.terminalStateFor(frame, turn);
+      const metadata: Record<string, unknown> = {
+        [META_QUEUED_TURN_COUNT]: queued,
+        [META_FOLDED_MESSAGE_IDS]: folded.map((send) => send.messageId),
+      };
+      this.emitStatus(turn.send, state, { message, metadata });
+      turn.terminalEmitted = true;
+    }
+    for (const send of folded) {
+      this.resolveWaiter(send.uuid);
+    }
+    this.cancelRequested.delete(turn.send.taskId);
+    this.turn = null;
+  }
+
+  private terminalStateFor(
+    frame: SDKResultMessage,
+    turn: OpenTurn,
+  ): { state: TaskState; message: Message | undefined } {
+    if (turn.interrupted || this.cancelRequested.has(turn.send.taskId)) {
+      return {
+        state: TaskState.TASK_STATE_CANCELED,
+        message: this.agentMessage(turn.send, "turn interrupted"),
+      };
+    }
+    if (frame.subtype === "success") {
+      if (frame.is_error) {
+        return {
+          state: TaskState.TASK_STATE_FAILED,
+          message: this.agentMessage(turn.send, frame.result),
+        };
+      }
+      if (frame.deferred_tool_use !== undefined) {
+        // The agent asked and stopped: interrupted state, not terminal.
+        return {
+          state: TaskState.TASK_STATE_INPUT_REQUIRED,
+          message: this.agentMessage(turn.send, frame.result),
+        };
+      }
+      return {
+        state: TaskState.TASK_STATE_COMPLETED,
+        message: this.agentMessage(turn.send, frame.result),
+      };
+    }
+    const detail = frame.errors.length > 0 ? frame.errors.join("; ") : frame.subtype;
+    return {
+      state: TaskState.TASK_STATE_FAILED,
+      message: this.agentMessage(turn.send, detail),
+    };
+  }
+
+  /**
+   * Which sends this turn consumed. The result's queued_turn_count says how
+   * many sends are still waiting, so everything registered beyond that
+   * count was coalesced into this turn. The primary is always included.
+   */
+  private takeFolded(primary: PendingSend, queuedTurnCount: number): PendingSend[] {
+    const rest = this.pending.filter((send) => send.uuid !== primary.uuid);
+    const foldedExtra = Math.max(0, rest.length - queuedTurnCount);
+    const folded = [primary, ...rest.slice(0, foldedExtra)];
+    this.pending = rest.slice(foldedExtra);
+    return folded;
+  }
+
+  private openTurn(userMessageUuid: string | undefined): void {
+    let send: PendingSend | undefined;
+    if (userMessageUuid !== undefined) {
+      send = this.pending.find((candidate) => candidate.uuid === userMessageUuid);
+      if (send === undefined) {
+        this.onWarning(
+          `turn bound to unknown user_message_uuid ${userMessageUuid}; ignoring frames until a known turn starts`,
+        );
+        return;
+      }
+    } else {
+      // Older producers omit the stamp entirely; fall back to FIFO order.
+      send = this.pending[0];
+      if (send === undefined) {
+        return; // unsolicited turn (scheduled/meta); nothing to translate
+      }
+    }
+    this.turn = {
+      send,
+      emittedText: "",
+      pendingChunk: null,
+      chunksEmitted: 0,
+      sawStreamText: false,
+      interrupted: this.cancelRequested.has(send.taskId),
+      terminalEmitted: false,
+    };
+    this.publish(AgentEvent.task(this.taskShell(send, TaskState.TASK_STATE_WORKING)));
+  }
+
+  /**
+   * Chunk emission holds one chunk back so the final chunk can carry
+   * lastChunk: true without a trailing empty frame; concatenating emitted
+   * chunks reproduces the assistant text exactly.
+   */
+  private pushText(turn: OpenTurn, text: string): void {
+    if (text === "") {
+      return;
+    }
+    if (turn.pendingChunk !== null) {
+      this.emitChunk(turn, turn.pendingChunk, false);
+    }
+    turn.pendingChunk = text;
+  }
+
+  private flushText(turn: OpenTurn, last: boolean): void {
+    if (turn.pendingChunk !== null) {
+      this.emitChunk(turn, turn.pendingChunk, last);
+      turn.pendingChunk = null;
+    }
+  }
+
+  private emitChunk(turn: OpenTurn, text: string, lastChunk: boolean): void {
+    const artifact: Artifact = {
+      artifactId: ASSISTANT_TEXT_ARTIFACT_ID,
+      name: "assistant-text",
+      description: "",
+      parts: [
+        {
+          content: { $case: "text", value: text },
+          mediaType: "text/plain",
+          filename: "",
+          metadata: {},
+        },
+      ],
+      metadata: {},
+      extensions: [],
+    };
+    this.publish(
+      AgentEvent.artifactUpdate({
+        taskId: turn.send.taskId,
+        contextId: turn.send.contextId,
+        artifact,
+        append: turn.chunksEmitted > 0,
+        lastChunk,
+        metadata: {},
+      }),
+    );
+    turn.chunksEmitted += 1;
+    turn.emittedText += text;
+  }
+
+  private emitStatus(
+    send: PendingSend,
+    state: TaskState,
+    extra: { message: Message | undefined; metadata: Record<string, unknown> },
+  ): void {
+    this.publish(
+      AgentEvent.statusUpdate({
+        taskId: send.taskId,
+        contextId: send.contextId,
+        status: this.status(state, extra.message),
+        metadata: extra.metadata,
+      }),
+    );
+  }
+
+  private status(state: TaskState, message?: Message): TaskStatus {
+    return { state, message, timestamp: this.now() };
+  }
+
+  private taskShell(send: PendingSend, state: TaskState, message?: Message) {
+    return {
+      id: send.taskId,
+      contextId: send.contextId,
+      status: this.status(state, message),
+      artifacts: [],
+      history: send.message !== undefined ? [send.message] : [],
+      metadata: {},
+    };
+  }
+
+  private agentMessage(send: PendingSend, text: string): Message {
+    return {
+      messageId: `${send.taskId}-status-${this.now()}`,
+      contextId: send.contextId,
+      taskId: send.taskId,
+      role: Role.ROLE_AGENT,
+      parts: [
+        {
+          content: { $case: "text", value: text },
+          mediaType: "text/plain",
+          filename: "",
+          metadata: {},
+        },
+      ],
+      metadata: {},
+      extensions: [],
+      referenceTaskIds: [],
+    };
+  }
+
+  private resolveWaiter(uuid: string): void {
+    this.waiters.get(uuid)?.resolve();
+    this.waiters.delete(uuid);
+  }
+}

@@ -1,7 +1,7 @@
 ---
 id: "005"
 title: Executor — Agent SDK stream to A2A task events
-status: in-progress
+status: done
 component: packages/executor
 language: typescript
 depends_on: ["002"]
@@ -77,23 +77,23 @@ a hung task. Never leave a task in `working` when the stream ends.
 
 ## Acceptance criteria
 
-- [ ] Golden tests over recorded `SDKMessage` streams (fixtures checked in) produce the
+- [x] Golden tests over recorded `SDKMessage` streams (fixtures checked in) produce the
       expected sequence of A2A events. Fixtures cover at minimum: a plain turn, a turn
       with tool use, a streaming text turn, an error result, an interrupted turn, and
       two sends coalescing into one turn.
-- [ ] The coalescing fixture yields **one** task, and that task records both inbound
+- [x] The coalescing fixture yields **one** task, and that task records both inbound
       message IDs.
-- [ ] `user_message_uuid` is read from the first reply frame; a fixture where later
+- [x] `user_message_uuid` is read from the first reply frame; a fixture where later
       frames omit it still binds correctly.
-- [ ] `queued_turn_count` from the result appears in the terminal status event.
-- [ ] Artifact events set `append`/`lastChunk` such that concatenating chunks
+- [x] `queued_turn_count` from the result appears in the terminal status event.
+- [x] Artifact events set `append`/`lastChunk` such that concatenating chunks
       reconstructs the full assistant text exactly.
-- [ ] `cancelTask` on a CLI advertising `interrupt_cancel_queued_v1` cancels queued
+- [x] `cancelTask` on a CLI advertising `interrupt_cancel_queued_v1` cancels queued
       sends; on one that does not, the executor reports what remains queued rather than
       claiming everything stopped.
-- [ ] A stream that ends without a result yields `failed`, never a task stuck in
+- [x] A stream that ends without a result yields `failed`, never a task stuck in
       `working`.
-- [ ] No test in this package spawns a subprocess or opens a socket.
+- [x] No test in this package spawns a subprocess or opens a socket.
 
 ## Out of scope
 
