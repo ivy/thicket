@@ -1,7 +1,7 @@
 ---
 id: "014"
 title: Honor shouldQuery metadata end to end
-status: todo
+status: in-progress
 component: packages/executor
 language: typescript
 depends_on: ["005", "008", "009"]
