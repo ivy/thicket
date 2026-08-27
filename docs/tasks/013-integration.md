@@ -1,7 +1,7 @@
 ---
 id: "013"
 title: End-to-end integration and first agent
-status: todo
+status: in-progress
 component: .
 language: typescript
 depends_on: ["008", "009", "011", "012"]
