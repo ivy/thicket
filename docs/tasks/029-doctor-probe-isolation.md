@@ -1,7 +1,7 @@
 ---
 id: "029"
 title: thicket doctor must survive a failing probe
-status: in-progress
+status: done
 component: apps/cli
 language: typescript
 depends_on: ["010"]
@@ -33,12 +33,32 @@ exactly the situations it exists for.
 
 ## Acceptance criteria
 
-- [ ] With a probe that throws, `runDoctor` still returns results for every
+- [x] With a probe that throws, `runDoctor` still returns results for every
       other check.
-- [ ] A missing tailscale binary produces a readable FAIL line for the
+- [x] A missing tailscale binary produces a readable FAIL line for the
       tailnet check and the run continues.
-- [ ] Observed on the dev rig: `thicket doctor` reports the bridge health
+- [x] Observed on the dev rig: `thicket doctor` reports the bridge health
       check even though tailscale is absent.
+
+## What verification established (2026-08-27)
+
+Every probe call now goes through an `attempt` wrapper: a throw becomes a
+failed check whose message starts "cannot check", `spawn X ENOENT` is
+prettified to "\`X\` is not installed on this host", and the run
+continues. `realProbes.lingeringEnabled` no longer swallows errors into a
+false "no lingering" — cannot-check is the honest answer on a host
+without loginctl. Live on the rig (no tailscale, no loginctl):
+
+```
+FAIL [tailnet]: cannot check: `tailscale` is not installed on this host
+FAIL [lingering] hearth: cannot check: `loginctl` is not installed on this host
+ok   [bridge] hearth: Socket Mode connection up
+ok   [workspace]: workspace app usage 0/10
+```
+
+exit 1, full report. The same run surfaced that the card check has never
+been wired to a roster (`realProbes()` called bare in bin.ts) — filed as
+task 033 rather than fixed here.
 
 ## Out of scope
 

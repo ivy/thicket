@@ -169,3 +169,44 @@ test("formatResults marks failures loudly and names the agent", async () => {
   assert.ok(lines.some((l) => l.startsWith("FAIL [lingering] hearth:")));
   assert.ok(lines.some((l) => l.startsWith("ok ")));
 });
+
+test("a throwing probe becomes a failed check and every other check still runs", async () => {
+  const probes = healthyProbes();
+  probes.tailnetNodes = async () => {
+    throw new Error("spawn tailscale ENOENT");
+  };
+  probes.lingeringEnabled = async () => {
+    throw new Error("spawn loginctl ENOENT");
+  };
+  const results = await runDoctor(ROSTER, probes);
+
+  const tailnet = results.filter((r) => r.check === "tailnet");
+  assert.equal(tailnet.length, 1, "one probe-failure row, not one per agent");
+  assert.equal(tailnet[0]!.ok, false);
+  assert.match(tailnet[0]!.message, /cannot check: `tailscale` is not installed on this host/);
+
+  const lingering = results.filter((r) => r.check === "lingering");
+  assert.equal(lingering.length, 2, "still one row per agent");
+  assert.ok(lingering.every((r) => !r.ok && /`loginctl` is not installed/.test(r.message)));
+
+  for (const check of ["card", "slack", "bridge", "workspace"]) {
+    assert.ok(
+      results.some((r) => r.check === check),
+      `${check} still ran`,
+    );
+  }
+  assert.equal(doctorExitCode(results), 1);
+});
+
+test("a probe that throws something other than ENOENT reports the error itself", async () => {
+  const probes = healthyProbes();
+  probes.workspaceAppUsage = async () => {
+    throw new Error("network is down");
+  };
+  const results = await runDoctor(ROSTER, probes);
+  const workspace = results.find((r) => r.check === "workspace");
+  assert.ok(workspace);
+  assert.equal(workspace.ok, false);
+  assert.match(workspace.message, /cannot check: network is down/);
+  assert.ok(results.some((r) => r.check === "bridge" && r.ok), "later checks unaffected");
+});

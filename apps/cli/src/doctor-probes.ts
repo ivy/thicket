@@ -81,16 +81,14 @@ export function realProbes(options: {
     },
 
     async lingeringEnabled(_agent, user) {
-      try {
-        const { stdout } = await execFileAsync("loginctl", [
-          "show-user",
-          user,
-          "--property=Linger",
-        ]);
-        return stdout.trim() === "Linger=yes";
-      } catch {
-        return false;
-      }
+      // Throws when loginctl is absent (macOS, containers): "cannot
+      // check" is the honest report there, not "no lingering".
+      const { stdout } = await execFileAsync("loginctl", [
+        "show-user",
+        user,
+        "--property=Linger",
+      ]);
+      return stdout.trim() === "Linger=yes";
     },
   };
 }

@@ -26,6 +26,31 @@ export interface BridgeHealth {
 /** Two missed heartbeats: the bridge is down or wedged, not merely busy. */
 const BRIDGE_HEALTH_STALE_MS = 60_000;
 
+/**
+ * "Cannot check" is a diagnosis, not a crash. A missing binary is the
+ * normal case on a development host and deserves a sentence, not a stack
+ * trace — and one dead probe must never take the rest of the report down
+ * with it.
+ */
+function describeProbeError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const missing = /spawn (\S+) ENOENT/.exec(message);
+  if (missing !== null) {
+    return `cannot check: \`${missing[1]}\` is not installed on this host`;
+  }
+  return `cannot check: ${message}`;
+}
+
+type Probed<T> = { ok: true; value: T } | { ok: false; error: string };
+
+async function attempt<T>(fn: () => Promise<T>): Promise<Probed<T>> {
+  try {
+    return { ok: true, value: await fn() };
+  } catch (err) {
+    return { ok: false, error: describeProbeError(err) };
+  }
+}
+
 export interface CheckResult {
   check: string;
   agent?: string;
@@ -47,23 +72,30 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
   // rejected by the schema); record it so the report says so explicitly.
   push("roster", true, `roster parses: ${Object.keys(roster.agents).length} agents`);
 
-  const nodes = await probes.tailnetNodes();
-  const byHostname = new Map(nodes.map((node) => [node.hostname, node]));
+  const nodesProbe = await attempt(() => probes.tailnetNodes());
+  if (!nodesProbe.ok) {
+    push("tailnet", false, nodesProbe.error);
+  }
+  const byHostname = new Map(
+    (nodesProbe.ok ? nodesProbe.value : []).map((node) => [node.hostname, node]),
+  );
 
   for (const [agent, entry] of Object.entries(roster.agents)) {
-    const expectedNode = nodeName(entry);
-    const node = byHostname.get(expectedNode);
-    if (node === undefined) {
-      push("tailnet", false, `no tailnet node named ${expectedNode}`, agent);
-    } else if (!node.tags.includes(entry.tag)) {
-      push(
-        "tailnet",
-        false,
-        `tailnet node ${expectedNode} is missing tag ${entry.tag} (has: ${node.tags.join(", ") || "none"})`,
-        agent,
-      );
-    } else {
-      push("tailnet", true, `node ${expectedNode} carries ${entry.tag}`, agent);
+    if (nodesProbe.ok) {
+      const expectedNode = nodeName(entry);
+      const node = byHostname.get(expectedNode);
+      if (node === undefined) {
+        push("tailnet", false, `no tailnet node named ${expectedNode}`, agent);
+      } else if (!node.tags.includes(entry.tag)) {
+        push(
+          "tailnet",
+          false,
+          `tailnet node ${expectedNode} is missing tag ${entry.tag} (has: ${node.tags.join(", ") || "none"})`,
+          agent,
+        );
+      } else {
+        push("tailnet", true, `node ${expectedNode} carries ${entry.tag}`, agent);
+      }
     }
 
     try {
@@ -87,19 +119,23 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
       );
     }
 
-    const app = await probes.slackApp(agent);
-    if (app === undefined) {
+    const appProbe = await attempt(() => probes.slackApp(agent));
+    if (!appProbe.ok) {
+      push("slack", false, appProbe.error, agent);
+    } else if (appProbe.value === undefined) {
       push("slack", false, "no Slack app provisioned — run thicket provision", agent);
-    } else if (!app.installed) {
+    } else if (!appProbe.value.installed) {
       push("slack", false, "Slack app exists but is not installed to the workspace", agent);
-    } else if (!app.socketMode) {
+    } else if (!appProbe.value.socketMode) {
       push("slack", false, "Slack app installed but Socket Mode is disabled", agent);
     } else {
       push("slack", true, "Slack app installed with Socket Mode", agent);
     }
 
-    const lingering = await probes.lingeringEnabled(agent, entry.user);
-    if (!lingering) {
+    const lingeringProbe = await attempt(() => probes.lingeringEnabled(agent, entry.user));
+    if (!lingeringProbe.ok) {
+      push("lingering", false, lingeringProbe.error, agent);
+    } else if (!lingeringProbe.value) {
       push(
         "lingering",
         false,
@@ -111,8 +147,11 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
     }
   }
 
-  const health = await probes.bridgeHealth();
-  if (health === undefined) {
+  const healthProbe = await attempt(() => probes.bridgeHealth());
+  const health = healthProbe.ok ? healthProbe.value : undefined;
+  if (!healthProbe.ok) {
+    push("bridge", false, healthProbe.error);
+  } else if (health === undefined) {
     push(
       "bridge",
       true,
@@ -142,15 +181,21 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
     }
   }
 
-  const usage = await probes.workspaceAppUsage();
-  if (usage.installed >= usage.cap) {
+  const usageProbe = await attempt(() => probes.workspaceAppUsage());
+  if (!usageProbe.ok) {
+    push("workspace", false, usageProbe.error);
+  } else if (usageProbe.value.installed >= usageProbe.value.cap) {
     push(
       "workspace",
       false,
-      `workspace is at its app cap (${usage.installed}/${usage.cap} installed) — installing another agent will fail`,
+      `workspace is at its app cap (${usageProbe.value.installed}/${usageProbe.value.cap} installed) — installing another agent will fail`,
     );
   } else {
-    push("workspace", true, `workspace app usage ${usage.installed}/${usage.cap}`);
+    push(
+      "workspace",
+      true,
+      `workspace app usage ${usageProbe.value.installed}/${usageProbe.value.cap}`,
+    );
   }
 
   return results;
