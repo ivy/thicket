@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { dirname, join } from "node:path";
 
 import { DefaultRequestHandler } from "@a2a-js/sdk/server";
 
@@ -14,9 +15,12 @@ import { buildToolbelt, TOOLBELT_ALLOWED_TOOLS } from "./toolbelt.js";
 import { createLogger, type Logger } from "./logger.js";
 import { buildServer } from "./server.js";
 import { SqliteTaskStore } from "./store/sqlite-task-store.js";
+import { JournalStore } from "./store/journal.js";
 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
 const ATTACHMENT_PRUNE_INTERVAL_MS = 6 * 60 * 60_000;
+/** Journal rows older than this are pruned; bounded without an operator. */
+const JOURNAL_RETENTION_MS = 90 * 24 * 60 * 60_000;
 
 export async function run(
   configPath: string = process.env.THICKET_AGENTD_CONFIG ?? defaultConfigPath(),
@@ -79,10 +83,19 @@ export async function run(
           fetchImpl: egressFetch(config.egressSocket),
         })
       : undefined;
+  // The journal lives beside the task store: same account, same lifecycle.
+  const journal = new JournalStore(join(dirname(config.dbPath), "journal.db"));
   const executor = new ClaudeAgentExecutor({
     sessions,
     onWarning: (msg) => logger.warn(msg),
     ...(attachments === undefined ? {} : { attachments }),
+    onTurnResult: (record) => {
+      try {
+        journal.record({ ts: new Date().toISOString(), agent: config.agent, ...record });
+      } catch (err) {
+        logger.warn("journal write failed", { taskId: record.taskId, err: String(err) });
+      }
+    },
   });
   const handler = new DefaultRequestHandler(card, store, executor);
 
@@ -105,6 +118,14 @@ export async function run(
         logger.info("pruned attachment cache", { count: dropped });
       }
     });
+    try {
+      const dropped = journal.prune(JOURNAL_RETENTION_MS);
+      if (dropped > 0) {
+        logger.info("pruned journal", { count: dropped });
+      }
+    } catch (err) {
+      logger.warn("journal prune failed", { err: String(err) });
+    }
   }, ATTACHMENT_PRUNE_INTERVAL_MS);
   pruneTimer.unref();
 
@@ -123,6 +144,7 @@ export async function run(
     server.close(() => {
       void sessions.shutdown().then(() => {
         store.close();
+        journal.close();
         logger.info("shutdown complete");
         process.exit(0);
       });

@@ -17,7 +17,7 @@ import {
   type AttachmentStore,
   type StoredAttachment,
 } from "./attachments.js";
-import { TurnTranslator } from "./translator.js";
+import { TurnTranslator, type TurnAccounting } from "./translator.js";
 import {
   META_CANCELLED,
   META_CONTEXT_ONLY,
@@ -41,6 +41,8 @@ export interface ClaudeAgentExecutorOptions {
    * refuses attachments, per its roster policy.
    */
   attachments?: AttachmentStore;
+  /** Per-turn accounting sink (the journal, task 025). */
+  onTurnResult?: (record: TurnAccounting) => void;
 }
 
 interface ContextState {
@@ -67,6 +69,7 @@ export class ClaudeAgentExecutor implements AgentExecutor {
   private readonly now: () => string;
   private readonly onWarning: (message: string) => void;
   private readonly attachments: AttachmentStore | undefined;
+  private readonly onTurnResult: ((record: TurnAccounting) => void) | undefined;
 
   private readonly contexts = new Map<string, ContextState>();
   private readonly busByTask = new Map<string, ExecutionEventBus>();
@@ -78,6 +81,7 @@ export class ClaudeAgentExecutor implements AgentExecutor {
     this.now = options.now ?? (() => new Date().toISOString());
     this.onWarning = options.onWarning ?? (() => {});
     this.attachments = options.attachments;
+    this.onTurnResult = options.onTurnResult;
   }
 
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
@@ -251,6 +255,7 @@ export class ClaudeAgentExecutor implements AgentExecutor {
       publish: (event) => this.route(event),
       now: this.now,
       onWarning: this.onWarning,
+      ...(this.onTurnResult === undefined ? {} : { onTurnResult: this.onTurnResult }),
     });
     const pump = (async () => {
       try {

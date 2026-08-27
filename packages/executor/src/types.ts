@@ -58,6 +58,9 @@ export const META_QUEUE_STATE = "queue_state";
 export const META_SHOULD_QUERY = "thicket.shouldQuery";
 /** Maps onto SDKUserMessage.priority: "now" | "next" | "later". */
 export const META_PRIORITY = "thicket.priority";
+/** What caused the turn: absent means a human ("human"); routines and
+ * delegation stamp their own values, and the journal records it. */
+export const META_TRIGGER = "thicket.trigger";
 /** Stamped on the synthetic task acknowledging a context-only message. */
 export const META_CONTEXT_ONLY = "thicket.contextOnly";
 /**

@@ -16,6 +16,7 @@ function usage(): never {
     "usage: thicket provision [--dry-run] [--agent NAME]\n" +
       "       thicket doctor\n" +
       "       thicket fleet\n" +
+      "       thicket journal [--cost] [--failures] [--trigger T] [--days N] [--limit N] [--db PATH]\n" +
       "       thicket mcp\n" +
       "       thicket slack-test-mcp   (development: drives Slack as you)\n",
   );
@@ -136,6 +137,19 @@ async function main(): Promise<void> {
     const server = buildSlackTestServer({ client: new SlackTestClient({ token }) });
     await server.connect(new StdioServerTransport());
     return; // serves until stdio closes
+  }
+
+  if (command === "journal") {
+    const { parseJournalArgs, runJournal } = await import("./journal.js");
+    const parsed = parseJournalArgs(rest);
+    if (parsed === undefined) {
+      usage();
+    }
+    const { lines, exitCode } = runJournal(parsed.query, parsed.db);
+    for (const line of lines) {
+      process.stdout.write(line + "\n");
+    }
+    process.exit(exitCode);
   }
 
   if (command === "doctor") {

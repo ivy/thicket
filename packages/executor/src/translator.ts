@@ -21,10 +21,24 @@ import {
   META_FOLDED_INTO,
   META_FOLDED_MESSAGE_IDS,
   META_QUEUED_TURN_COUNT,
+  META_TRIGGER,
   type PendingSend,
 } from "./types.js";
 
 export const ASSISTANT_TEXT_ARTIFACT_ID = "assistant-text";
+
+function stateName(state: TaskState): TurnAccounting["state"] {
+  switch (state) {
+    case TaskState.TASK_STATE_COMPLETED:
+      return "completed";
+    case TaskState.TASK_STATE_CANCELED:
+      return "canceled";
+    case TaskState.TASK_STATE_INPUT_REQUIRED:
+      return "input-required";
+    default:
+      return "failed";
+  }
+}
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === "object" && value !== null
@@ -38,6 +52,35 @@ export interface TranslatorOptions {
   now?: () => string;
   /** Diagnostic sink for frames the translator cannot act on. */
   onWarning?: (message: string) => void;
+  /** Called once per settled turn with its accounting (task 025). */
+  onTurnResult?: (record: TurnAccounting) => void;
+}
+
+/**
+ * One turn's accounting, assembled from the result frame. Cost and token
+ * fields are per-turn deltas: the SDK reports running totals per
+ * subprocess generation, so the baseline resets on every system/init
+ * frame. Metadata only, by decision — no prompt or reply text.
+ */
+export interface TurnAccounting {
+  taskId: string;
+  contextId: string;
+  /** What triggered the turn: message metadata's thicket.trigger, else "human". */
+  trigger: string;
+  state: "completed" | "failed" | "canceled" | "input-required";
+  durationMs: number;
+  durationApiMs: number;
+  costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  /** Distinct tool names the turn used, in first-use order. */
+  toolsUsed: string[];
+  /** Tool names whose use was denied. */
+  permissionDenials: string[];
+  error?: string;
+  queuedTurnCount: number;
 }
 
 interface OpenTurn {
@@ -54,6 +97,8 @@ interface OpenTurn {
   sawStreamText: boolean;
   /** Open tool cards: tool_use_id -> title, awaiting their tool_result. */
   openTools: Map<string, string>;
+  /** Distinct tool names used this turn, for the journal. */
+  toolNames: Set<string>;
   activityEmitted: number;
   interrupted: boolean;
   terminalEmitted: boolean;
@@ -78,6 +123,13 @@ export class TurnTranslator {
   private readonly onWarning: (message: string) => void;
 
   private pending: PendingSend[] = [];
+  private readonly onTurnResult: ((record: TurnAccounting) => void) | undefined;
+  /**
+   * Running totals as of the last result, per subprocess generation.
+   * total_cost_usd and usage are cumulative within a generation (observed
+   * and documented by the SDK); per-turn numbers are deltas against this.
+   */
+  private cumulative = { cost: 0, input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
   private seqCounter = 0;
   private readonly seqOf = new Map<string, number>();
   private turn: OpenTurn | null = null;
@@ -91,6 +143,7 @@ export class TurnTranslator {
     this.publish = options.publish;
     this.now = options.now ?? (() => new Date().toISOString());
     this.onWarning = options.onWarning ?? (() => {});
+    this.onTurnResult = options.onTurnResult;
   }
 
   /** Capabilities advertised on the last system/init frame, if any. */
@@ -141,6 +194,9 @@ export class TurnTranslator {
       case "system":
         if (frame.subtype === "init") {
           this.caps = frame.capabilities;
+          // A new subprocess generation: its running cost/usage totals
+          // start over, so the delta baseline must too.
+          this.cumulative = { cost: 0, input: 0, output: 0, cacheRead: 0, cacheCreation: 0 };
         }
         return;
       case "stream_event":
@@ -172,6 +228,9 @@ export class TurnTranslator {
       return;
     }
     this.ended = true;
+    // The open turn's send is usually still in `pending` (only a result
+    // removes it); track it so the loop below does not journal it twice.
+    let recordedUuid: string | undefined;
     if (this.turn !== null && !this.turn.terminalEmitted) {
       this.closeOpenActivities(this.turn, "failed");
       this.flushText(this.turn, true);
@@ -180,6 +239,8 @@ export class TurnTranslator {
         metadata: {},
       });
       this.turn.terminalEmitted = true;
+      this.safeRecord(this.deadTurnRecord(this.turn.send, [...this.turn.toolNames], reason));
+      recordedUuid = this.turn.send.uuid;
       this.resolveWaiter(this.turn.send.uuid);
       this.turn = null;
     }
@@ -187,6 +248,11 @@ export class TurnTranslator {
       this.publish(
         AgentEvent.task(this.taskShell(send, TaskState.TASK_STATE_FAILED, this.agentMessage(send, reason))),
       );
+      // A send that never got a turn still journals: a routine that dies
+      // before producing anything must not be invisible.
+      if (send.uuid !== recordedUuid) {
+        this.safeRecord(this.deadTurnRecord(send, [], reason));
+      }
       this.resolveWaiter(send.uuid);
     }
     this.pending = [];
@@ -290,6 +356,7 @@ export class TurnTranslator {
     const described = describeToolUse(name, block.input);
     const card = activity(id, "running", described);
     turn.openTools.set(id, card.title);
+    turn.toolNames.add(name);
     // Text already buffered belongs ahead of the card it precedes.
     this.flushText(turn, false);
     this.emitActivity(turn, card);
@@ -348,6 +415,7 @@ export class TurnTranslator {
     const queued = frame.queued_turn_count ?? 0;
     const folded = this.takeFolded(turn.send, queued);
     const { state, message } = this.terminalStateFor(frame, turn);
+    this.recordAccounting(frame, turn, state, queued);
     this.closeOpenActivities(turn, state === TaskState.TASK_STATE_COMPLETED ? "done" : "failed");
     this.flushText(turn, true);
 
@@ -376,6 +444,101 @@ export class TurnTranslator {
     }
     this.cancelRequested.delete(turn.send.taskId);
     this.turn = null;
+  }
+
+  private recordAccounting(
+    frame: SDKResultMessage,
+    turn: OpenTurn,
+    state: TaskState,
+    queued: number,
+  ): void {
+    if (this.onTurnResult === undefined) {
+      return;
+    }
+    // A generation restart resets the running totals; a total below the
+    // baseline means this frame counts from zero again.
+    const deltaOf = (current: number, previous: number): number =>
+      current >= previous ? current - previous : current;
+    const usage = frame.usage as Partial<{
+      input_tokens: number;
+      output_tokens: number;
+      cache_read_input_tokens: number;
+      cache_creation_input_tokens: number;
+    }>;
+    const current = {
+      cost: frame.total_cost_usd ?? 0,
+      input: usage.input_tokens ?? 0,
+      output: usage.output_tokens ?? 0,
+      cacheRead: usage.cache_read_input_tokens ?? 0,
+      cacheCreation: usage.cache_creation_input_tokens ?? 0,
+    };
+    const record: TurnAccounting = {
+      taskId: turn.send.taskId,
+      contextId: turn.send.contextId,
+      trigger: this.triggerOf(turn.send),
+      state: stateName(state),
+      durationMs: frame.duration_ms,
+      durationApiMs: frame.duration_api_ms,
+      costUsd: deltaOf(current.cost, this.cumulative.cost),
+      inputTokens: deltaOf(current.input, this.cumulative.input),
+      outputTokens: deltaOf(current.output, this.cumulative.output),
+      cacheReadTokens: deltaOf(current.cacheRead, this.cumulative.cacheRead),
+      cacheCreationTokens: deltaOf(current.cacheCreation, this.cumulative.cacheCreation),
+      toolsUsed: [...turn.toolNames],
+      permissionDenials: (frame.permission_denials ?? []).map((denial) => denial.tool_name),
+      ...(this.errorOf(frame, state) === undefined ? {} : { error: this.errorOf(frame, state) }),
+      queuedTurnCount: queued,
+    };
+    this.cumulative = current;
+    this.safeRecord(record);
+  }
+
+  private errorOf(frame: SDKResultMessage, state: TaskState): string | undefined {
+    if (state === TaskState.TASK_STATE_CANCELED) {
+      return "turn interrupted";
+    }
+    if (state !== TaskState.TASK_STATE_FAILED) {
+      return undefined;
+    }
+    if (frame.subtype === "success") {
+      return frame.result;
+    }
+    return frame.errors.length > 0 ? frame.errors.join("; ") : frame.subtype;
+  }
+
+  private triggerOf(send: PendingSend): string {
+    const raw = send.message?.metadata?.[META_TRIGGER];
+    return typeof raw === "string" && raw !== "" ? raw : "human";
+  }
+
+  /** Accounting for a turn that never saw a result frame: all zeros, failed. */
+  private deadTurnRecord(send: PendingSend, toolsUsed: string[], reason: string): TurnAccounting {
+    return {
+      taskId: send.taskId,
+      contextId: send.contextId,
+      trigger: this.triggerOf(send),
+      state: "failed",
+      durationMs: 0,
+      durationApiMs: 0,
+      costUsd: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreationTokens: 0,
+      toolsUsed,
+      permissionDenials: [],
+      error: reason,
+      queuedTurnCount: 0,
+    };
+  }
+
+  /** A journal sink must never be able to fail a turn. */
+  private safeRecord(record: TurnAccounting): void {
+    try {
+      this.onTurnResult?.(record);
+    } catch (err) {
+      this.onWarning(`turn accounting sink failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private terminalStateFor(
@@ -461,6 +624,7 @@ export class TurnTranslator {
       chunksEmitted: 0,
       sawStreamText: false,
       openTools: new Map(),
+      toolNames: new Set(),
       activityEmitted: 0,
       interrupted: this.cancelRequested.has(send.taskId),
       terminalEmitted: false,

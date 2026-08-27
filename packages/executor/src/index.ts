@@ -4,6 +4,7 @@ export {
   TurnTranslator,
   ASSISTANT_TEXT_ARTIFACT_ID,
   type TranslatorOptions,
+  type TurnAccounting,
 } from "./translator.js";
 export {
   ClaudeAgentExecutor,
@@ -48,6 +49,7 @@ export {
   META_QUEUE_STATE,
   META_SHOULD_QUERY,
   META_STILL_QUEUED,
+  META_TRIGGER,
   type PendingSend,
   type SessionHandle,
   type SessionProvider,

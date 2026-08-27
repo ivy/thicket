@@ -359,3 +359,156 @@ test("a send racing the queue census is not mis-folded; its turn still answers",
   assert.equal(terminals.length, 1, "turn B reached terminal");
   assert.deepEqual(h.warnings, [], "no dropped frames");
 });
+
+// -------------------------------------------------------------- accounting
+
+import type { TurnAccounting } from "./translator.js";
+import { META_TRIGGER } from "./types.js";
+
+function accountingHarness(): Harness & { records: TurnAccounting[] } {
+  const records: TurnAccounting[] = [];
+  const events: AgentExecutionEvent[] = [];
+  const warnings: string[] = [];
+  const translator = new TurnTranslator({
+    publish: (event) => events.push(event),
+    now: () => "2026-08-26T00:00:00.000Z",
+    onWarning: (message) => warnings.push(message),
+    onTurnResult: (record) => records.push(record),
+  });
+  return { events, translator, warnings, records };
+}
+
+function initFrame(): SDKMessage {
+  return { type: "system", subtype: "init", capabilities: [] } as unknown as SDKMessage;
+}
+
+function resultFrame(
+  uuid: string,
+  totals: { cost: number; input: number; output: number },
+  extra: Record<string, unknown> = {},
+): SDKMessage {
+  return {
+    type: "result",
+    subtype: "success",
+    duration_ms: 500,
+    duration_api_ms: 400,
+    is_error: false,
+    num_turns: 1,
+    result: "done",
+    stop_reason: "end_turn",
+    total_cost_usd: totals.cost,
+    usage: { input_tokens: totals.input, output_tokens: totals.output },
+    modelUsage: {},
+    permission_denials: [],
+    user_message_uuid: uuid,
+    uuid: `result-${uuid}`,
+    session_id: "s1",
+    ...extra,
+  } as unknown as SDKMessage;
+}
+
+test("a completed turn is accounted with tools, cost, and duration", () => {
+  const h = accountingHarness();
+  h.translator.registerSend(send("send-tool", 1));
+  run(h, loadFixture("tool-use-turn"));
+
+  assert.equal(h.records.length, 1);
+  const record = h.records[0]!;
+  assert.equal(record.taskId, "task-1");
+  assert.equal(record.state, "completed");
+  assert.equal(record.trigger, "human");
+  assert.deepEqual(record.toolsUsed, ["Bash"]);
+  assert.ok(record.costUsd > 0, `cost recorded (${record.costUsd})`);
+  assert.ok(record.durationMs > 0);
+});
+
+test("cumulative session totals become per-turn deltas, resetting on a new generation", () => {
+  const h = accountingHarness();
+  h.translator.handleFrame(initFrame());
+  // Sends interleave with results, as the executor actually does; two
+  // sends registered up front would read as one coalesced turn.
+  h.translator.registerSend(send("u1", 1));
+  h.translator.handleFrame(resultFrame("u1", { cost: 0.05, input: 100, output: 50 }));
+  h.translator.registerSend(send("u2", 2));
+  h.translator.handleFrame(resultFrame("u2", { cost: 0.08, input: 160, output: 90 }));
+
+  assert.equal(h.records[0]?.costUsd.toFixed(3), "0.050");
+  assert.equal(h.records[1]?.costUsd.toFixed(3), "0.030", "second turn costs the delta");
+  assert.equal(h.records[1]?.inputTokens, 60);
+  assert.equal(h.records[1]?.outputTokens, 40);
+
+  // New subprocess generation: totals start over.
+  h.translator.registerSend(send("u3", 3));
+  h.translator.handleFrame(initFrame());
+  h.translator.handleFrame(resultFrame("u3", { cost: 0.02, input: 30, output: 10 }));
+  assert.equal(h.records[2]?.costUsd.toFixed(3), "0.020");
+  assert.equal(h.records[2]?.inputTokens, 30);
+});
+
+test("denials and errors are recorded; the trigger comes from message metadata", () => {
+  const h = accountingHarness();
+  h.translator.registerSend({
+    uuid: "u1",
+    messageId: "m1",
+    taskId: "task-1",
+    contextId: "ctx-1",
+    message: {
+      messageId: "m1",
+      contextId: "ctx-1",
+      taskId: "",
+      role: 1,
+      parts: [],
+      metadata: { [META_TRIGGER]: "routine" },
+      extensions: [],
+      referenceTaskIds: [],
+    },
+  });
+  h.translator.handleFrame(
+    resultFrame(
+      "u1",
+      { cost: 0.01, input: 5, output: 5 },
+      {
+        subtype: "error_during_execution",
+        is_error: true,
+        errors: ["budget exceeded"],
+        permission_denials: [{ tool_name: "Bash", tool_use_id: "t1", tool_input: {} }],
+      },
+    ),
+  );
+
+  const record = h.records[0]!;
+  assert.equal(record.state, "failed");
+  assert.equal(record.trigger, "routine");
+  assert.deepEqual(record.permissionDenials, ["Bash"]);
+  assert.equal(record.error, "budget exceeded");
+});
+
+test("a turn that never sees a result still leaves a failed record", () => {
+  const h = accountingHarness();
+  h.translator.registerSend(send("send-a", 1));
+  run(h, loadFixture("no-result")); // run() ends the stream
+
+  assert.equal(h.records.length, 1);
+  assert.equal(h.records[0]?.state, "failed");
+  assert.equal(h.records[0]?.costUsd, 0);
+  assert.match(h.records[0]?.error ?? "", /ended without a result/);
+});
+
+test("a throwing accounting sink warns and never fails the turn", () => {
+  const events: AgentExecutionEvent[] = [];
+  const warnings: string[] = [];
+  const translator = new TurnTranslator({
+    publish: (event) => events.push(event),
+    onWarning: (message) => warnings.push(message),
+    onTurnResult: () => {
+      throw new Error("disk full");
+    },
+  });
+  translator.registerSend(send("send-a", 1));
+  for (const frame of loadFixture("plain-turn")) {
+    translator.handleFrame(frame);
+  }
+  const updates = events.filter((e) => e.kind === "statusUpdate");
+  assert.ok(updates.length > 0, "terminal status still emitted");
+  assert.ok(warnings.some((w) => w.includes("accounting sink failed")));
+});
