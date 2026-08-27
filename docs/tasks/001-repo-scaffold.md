@@ -1,7 +1,7 @@
 ---
 id: "001"
 title: Repository scaffold and toolchain
-status: in-progress
+status: done
 component: .
 language: none
 depends_on: []
@@ -44,12 +44,12 @@ thicket/
 
 ## Acceptance criteria
 
-- [ ] `pnpm install && pnpm build && pnpm test && pnpm lint` succeeds from a clean clone.
-- [ ] `pnpm build:netd` produces a binary.
-- [ ] `apps/agentd` can import a symbol from `packages/roster` and typecheck; the
+- [x] `pnpm install && pnpm build && pnpm test && pnpm lint` succeeds from a clean clone.
+- [x] `pnpm build:netd` produces a binary.
+- [x] `apps/agentd` can import a symbol from `packages/roster` and typecheck; the
       dependency graph in `000-overview.md` is expressible in `package.json` deps.
-- [ ] `mise install` provisions the pinned Node and Go versions.
-- [ ] Importing `apps/bridge` from `packages/*` is a build error (dependency direction
+- [x] `mise install` provisions the pinned Node and Go versions.
+- [x] Importing `apps/bridge` from `packages/*` is a build error (dependency direction
       is enforced, not merely documented).
 
 ## Out of scope

@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/roster" },
+    { "path": "packages/executor" },
+    { "path": "packages/slack-manifest" },
+    { "path": "apps/agentd" },
+    { "path": "apps/bridge" },
+    { "path": "apps/cli" }
+  ]
+}
