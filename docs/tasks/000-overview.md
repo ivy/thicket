@@ -54,6 +54,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [026 Agent persona](026-agent-persona.md) | 002 | `packages/roster` | typescript |
 | [027 Provision the agent's workspace](027-provision-agent-workspace.md) | 010 | `apps/cli` | typescript |
 | [028 thicket send](028-cli-send.md) | 011 | `apps/cli` | typescript |
+| [029 thicket doctor must survive a failing probe](029-doctor-probe-isolation.md) | 010 | `apps/cli` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -71,7 +72,7 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 6 | 013 | 1 |
 | 7 | 015, 017 | 2 |
 | 8 | 018 | 1 |
-| 9 | 019, 025, 026 | 3 |
+| 9 | 019, 025, 026, 029 | 4 |
 | 10 | 020 | 1 |
 | 11 | 016, 021 | 2 |
 | 12 | 022 | 1 |

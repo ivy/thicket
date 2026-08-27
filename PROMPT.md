@@ -97,6 +97,12 @@ not a blocker.** Try properly first.
 You may create new tasks. When implementation surfaces follow-on work, a blocker that
 deserves its own work item, or a spec assumption that turns out wrong in practice:
 
+**Bugs and gaps you merely notice en route** — a tool that crashes, a check that lies, a
+doc that misleads — are backlog, not scope creep. File a ticket for each instead of
+fixing it inside the current task. A ticket the loop can solve itself is `status: todo`;
+use `status: blocked` only when something genuinely external is needed, and write that
+rationale into the ticket.
+
 - Add `docs/tasks/NNN-<name>.md` using the next unused number, with full frontmatter
   (`status: todo`, real `depends_on`, `component`) and Scope / Acceptance criteria /
   Out of scope sections in the style of the existing tasks.
