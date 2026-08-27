@@ -4,7 +4,7 @@ title: Agent-initiated Slack reactions
 status: icebox
 component: apps/bridge
 language: typescript
-depends_on: ["017"]
+depends_on: ["020", "026"]
 blocks: []
 parallel_safe: true
 ---
@@ -44,7 +44,14 @@ model in the loop; reactions do.
   the bridge resolves `message_ts` against its own record of the thread,
   never trusting an arbitrary channel/ts pair. A write route widens the
   trust-graph edge 017 opened, so this constraint is the whole design.
-- An in-process MCP server in agentd exposing it to the session.
+- A `react` tool on the agent's toolbelt (task 020).
+- The bridge puts 👀 on the message that opens a session, automatically — the
+  acknowledgement that costs nothing and is always correct. Everything after
+  that is the agent's judgement.
+- Emoji use has to be *situational and varied* to be worth having. The same
+  reaction every time reads as a status light, not a presence. That is
+  instruction rather than tool design, and it is the first real use for a
+  per-agent persona (task 026).
 - Rate limiting: `reactions.add` is Tier 3; a chatty agent must not burn the
   workspace's budget.
 

@@ -41,10 +41,19 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [013 End-to-end integration and first agent](013-integration.md) | 008, 009, 011, 012, 014 | `.` | typescript |
 | [014 Honor shouldQuery metadata end to end](014-shouldquery-metadata.md) | 005, 008, 009 | `packages/executor` | typescript |
 | [015 Slack status fidelity and agent activity streaming](015-slack-status-fidelity.md) | 009 | `apps/bridge` | typescript |
-| [016 Agent-initiated Slack reactions](016-agent-reactions.md) | 017 | `apps/bridge` | typescript |
+| [016 Agent-initiated Slack reactions](016-agent-reactions.md) | 020, 026 | `apps/bridge` | typescript |
 | [017 Bridge file surface](017-bridge-file-surface.md) | 009 | `apps/bridge` | typescript |
 | [018 Materialize attachments into the agent's cache](018-attachment-materialization.md) | 017 | `packages/executor` | typescript |
 | [019 Detect a Socket Mode connection that stops delivering](019-socket-liveness.md) | 009 | `apps/bridge` | typescript |
+| [020 Agent Slack toolbelt](020-agent-slack-toolbelt.md) | 017 | `apps/agentd` | typescript |
+| [021 Slack workspace knowledge](021-slack-workspace-tools.md) | 020 | `apps/bridge` | typescript |
+| [022 Routines](022-routines.md) | 020, 021, 026 | `apps/agentd` | typescript |
+| [023 Agent-to-agent delegation (research)](023-agent-delegation.md) | 020 | `.` | typescript |
+| [024 Approvals](024-approvals.md) | 009 | `apps/bridge` | typescript |
+| [025 Turn journal](025-turn-journal.md) | 008 | `apps/agentd` | typescript |
+| [026 Agent persona](026-agent-persona.md) | 002 | `packages/roster` | typescript |
+| [027 Provision the agent's workspace](027-provision-agent-workspace.md) | 010 | `apps/cli` | typescript |
+| [028 thicket send](028-cli-send.md) | 011 | `apps/cli` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 

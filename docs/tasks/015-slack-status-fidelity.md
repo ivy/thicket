@@ -1,7 +1,7 @@
 ---
 id: "015"
 title: Slack status fidelity and agent activity streaming
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["009"]
@@ -76,12 +76,12 @@ assistant frames and the `tool_result` blocks that answer them.
 
 ## Acceptance criteria
 
-- [ ] The bridge logs each Slack call it makes during a turn.
-- [ ] A thread's session carries a title taken from its first message.
-- [ ] A turn that uses tools shows task cards in Slack as the tools run,
+- [x] The bridge logs each Slack call it makes during a turn.
+- [x] A thread's session carries a title taken from its first message.
+- [x] A turn that uses tools shows task cards in Slack as the tools run,
       before the reply text arrives.
-- [ ] A failing task-card write degrades to a warning; the reply still lands.
-- [ ] A turn that ends without a final text chunk still closes its stream.
+- [x] A failing task-card write degrades to a warning; the reply still lands.
+- [x] A turn that ends without a final text chunk still closes its stream.
 
 ## Out of scope
 

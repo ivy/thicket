@@ -1,0 +1,65 @@
+---
+id: "026"
+title: Agent persona — an appended system prompt per agent
+status: icebox
+component: packages/roster
+language: typescript
+depends_on: ["002"]
+blocks: ["016", "022"]
+parallel_safe: true
+---
+
+# Agent persona
+
+## Context
+
+Two features want the same thing and neither can have it yet.
+
+Reactions (016) are only worth building if the agent uses them *well* —
+situationally, with variance, not the same 👀 on every message. That is not a
+tool signature, it is instruction.
+
+Routines (022) need the agent to understand that silence is a valid and
+usually correct outcome. Left to its defaults, a model asked to check a
+changelog will find something to say every single time.
+
+Both are behaviour, and behaviour comes from the prompt. The Agent SDK's
+`Options` takes a system prompt, and the roster is where per-agent
+configuration already lives. Nothing currently sets one.
+
+The vision already anticipates the shape of this: *"Specialization within a
+boundary comes from skills, `CLAUDE.md`, and the tools installed in that
+account."* An appended system prompt is the smallest version of that idea, and
+the one thicket can own directly — see task 027 for the larger one.
+
+## Scope
+
+- A per-agent prompt appendix in `agents.yaml`, threaded through to the
+  session's options. Appended, never replacing: the harness's own prompt is
+  what makes Claude Code work.
+- Long enough to be useful, short enough to stay in `agents.yaml` — a
+  paragraph or two, not a document. Anything larger belongs in `CLAUDE.md`
+  (task 027).
+- Where it interacts with generated Slack copy: the agent's description and
+  suggested prompts are already rendered from its skills, and the persona
+  should read as the same character.
+
+## Open questions
+
+- Whether this belongs in `agents.yaml` at all, or as a file path alongside
+  it. Inline keeps one source of truth; a path keeps YAML readable and lets
+  the prompt be diffed properly. A path is probably right the moment anyone
+  writes more than three lines.
+- Interaction with `CLAUDE.md` in the account, which the agent also reads.
+  Two places to say the same thing is two places for them to disagree.
+
+## Acceptance criteria
+
+- [ ] An agent's persona reaches its session's system prompt, appended.
+- [ ] Changing it takes effect on the next session without redeploying.
+- [ ] A roster with no persona behaves exactly as today.
+
+## Out of scope
+
+Per-thread or per-turn prompt injection. Anything that lets a Slack message
+edit the system prompt — that is a prompt-injection surface, not a feature.
