@@ -27,6 +27,15 @@ export function stateDir(): string {
 }
 
 /**
+ * Cache: $XDG_CACHE_HOME/thicket, default ~/.cache/thicket. Holds what can
+ * be fetched again — attachments are here because the bridge can always
+ * re-serve them, which is what makes discarding them safe.
+ */
+export function cacheDir(): string {
+  return join(xdgDir("XDG_CACHE_HOME") ?? join(homedir(), ".cache"), APP);
+}
+
+/**
  * Runtime: $XDG_RUNTIME_DIR/thicket. The spec defines no default; fall back
  * to a per-user directory under the OS temp dir.
  */

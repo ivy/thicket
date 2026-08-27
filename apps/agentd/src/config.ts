@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { configDir, socketPath, stateDir } from "@thicket/roster";
+import { cacheDir, configDir, socketPath, stateDir } from "@thicket/roster";
 
 /**
  * agentd's per-account configuration, rendered by the provisioning CLI
@@ -27,6 +27,10 @@ export interface AgentdConfig {
   /** Names of process env vars to pass through to sessions (credentials). */
   envPassthrough: string[];
   maxSessions?: number;
+  /** Where attachments are streamed to before the model opens them. */
+  attachmentsDir: string;
+  /** netd's outbound proxy socket; the only route off this machine. */
+  egressSocket: string;
 }
 
 interface RawConfig {
@@ -39,6 +43,8 @@ interface RawConfig {
   env?: Record<string, string>;
   env_passthrough?: string[];
   max_sessions?: number;
+  attachments_dir?: string;
+  egress_socket?: string;
 }
 
 export function defaultConfigPath(): string {
@@ -73,6 +79,8 @@ export function loadConfig(path: string): AgentdConfig {
     env: raw.env ?? {},
     envPassthrough: raw.env_passthrough ?? [],
     maxSessions: raw.max_sessions,
+    attachmentsDir: raw.attachments_dir ?? join(cacheDir(), "attachments"),
+    egressSocket: raw.egress_socket ?? socketPath("netd-egress"),
   };
 }
 

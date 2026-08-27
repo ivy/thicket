@@ -19,6 +19,18 @@ export {
   type AgentActivity,
   type AgentActivityStatus,
 } from "./activity.js";
+export {
+  AttachmentStore,
+  AttachmentTooLarge,
+  attachmentPreamble,
+  attachmentRefs,
+  safeName,
+  DEFAULT_MAX_ATTACHMENT_BYTES,
+  META_FILE_SIZE,
+  type AttachmentRef,
+  type AttachmentStoreOptions,
+  type StoredAttachment,
+} from "./attachments.js";
 export { deriveSessionId, uuidv5, THICKET_NAMESPACE } from "./session-id.js";
 export { PushQueue } from "./push-queue.js";
 export {

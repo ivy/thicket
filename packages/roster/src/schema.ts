@@ -21,6 +21,10 @@ const harnessSchema = z.object({
   permissionMode: z
     .enum(["default", "acceptEdits", "plan", "dontAsk", "auto"])
     .default("auto"),
+  // A file a human uploads is attacker-controlled content in the same
+  // sense email is, so an agent holding privilege can refuse it at the
+  // door rather than relying on the operator to remember.
+  attachments: z.enum(["accept", "reject"]).default("accept"),
 });
 
 const agentEntrySchema = z.object({

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type {
   SDKControlInterruptResponse,
@@ -11,6 +13,7 @@ import { TaskState } from "@a2a-js/sdk";
 import type { AgentExecutionEvent, ExecutionEventBus, RequestContext } from "@a2a-js/sdk/server";
 import { ServerCallContext } from "@a2a-js/sdk/server";
 
+import { AttachmentStore, META_FILE_SIZE } from "./attachments.js";
 import { ClaudeAgentExecutor } from "./executor.js";
 import {
   META_CANCELLED,
@@ -107,6 +110,7 @@ function requestContext(
   contextId: string,
   text: string,
   metadata: Record<string, unknown> = {},
+  files: { url: string; filename: string; mediaType: string; size: number }[] = [],
 ): RequestContext {
   const message = {
     messageId: `${taskId}-inbound`,
@@ -120,6 +124,12 @@ function requestContext(
         filename: "",
         metadata: {},
       },
+      ...files.map((file) => ({
+        content: { $case: "url" as const, value: file.url },
+        mediaType: file.mediaType,
+        filename: file.filename,
+        metadata: { [META_FILE_SIZE]: file.size },
+      })),
     ],
     metadata,
     extensions: [],
@@ -338,4 +348,101 @@ test("thicket.priority metadata maps onto SDKUserMessage.priority", async () => 
   );
   assert.equal(session.sent[1]?.priority, undefined);
   session.queue.close();
+});
+
+// --------------------------------------------------------------- attachments
+
+const UPLOAD = {
+  url: "https://bridge.example.ts.net/files/F1",
+  filename: "quarterly.csv",
+  mediaType: "text/csv",
+  size: 11,
+};
+
+function servingFetch(body = "hello world"): { impl: typeof fetch; calls: string[] } {
+  const calls: string[] = [];
+  const impl = (async (input: unknown) => {
+    calls.push(String(input));
+    return new Response(body);
+  }) as unknown as typeof fetch;
+  return { impl, calls };
+}
+
+test("an attached file is fetched and its path leads the prompt", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "exec-attach-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const session = fakeSession(undefined);
+  const { impl, calls } = servingFetch();
+  const executor = new ClaudeAgentExecutor({
+    sessions: { sessionFor: () => session },
+    uuid: () => "uuid-1",
+    attachments: new AttachmentStore({ dir, fetchImpl: impl }),
+  });
+
+  const events: AgentExecutionEvent[] = [];
+  const ctx = requestContext("task-1", "ctx-1", "what do you make of this?", {}, [UPLOAD]);
+  const running = executor.execute(ctx, stubBus(events));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
+  await running;
+
+  assert.deepEqual(calls, [UPLOAD.url], "fetched eagerly, without the model asking");
+  const content = session.sent[0]?.message.content;
+  assert.equal(typeof content, "string");
+  const prompt = String(content);
+  assert.match(prompt, /saved on this machine/);
+  assert.match(prompt, /quarterly\.csv \(text\/csv, 11 B\)/);
+  assert.ok(
+    prompt.indexOf("quarterly.csv") < prompt.indexOf("what do you make of this?"),
+    "attachments are context; the user's words stay the instruction",
+  );
+});
+
+test("an agent that refuses attachments never fetches, and says so", async (t) => {
+  const session = fakeSession(undefined);
+  const executor = new ClaudeAgentExecutor({
+    sessions: { sessionFor: () => session },
+    uuid: () => "uuid-1",
+    // No store: the roster policy is expressed by its absence.
+  });
+  t.after(() => session.queue.close());
+
+  const events: AgentExecutionEvent[] = [];
+  const ctx = requestContext("task-1", "ctx-1", "read this", {}, [UPLOAD]);
+  const running = executor.execute(ctx, stubBus(events));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
+  await running;
+
+  const prompt = String(session.sent[0]?.message.content);
+  assert.match(prompt, /does not accept attachments/);
+  assert.match(prompt, /read this/, "the turn still runs");
+});
+
+test("a failed fetch degrades to a note; the turn still answers", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "exec-attach-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const session = fakeSession(undefined);
+  const failing = (async () => new Response("nope", { status: 500 })) as unknown as typeof fetch;
+  const warnings: string[] = [];
+  const executor = new ClaudeAgentExecutor({
+    sessions: { sessionFor: () => session },
+    uuid: () => "uuid-1",
+    onWarning: (msg) => warnings.push(msg),
+    attachments: new AttachmentStore({ dir, fetchImpl: failing }),
+  });
+
+  const events: AgentExecutionEvent[] = [];
+  const ctx = requestContext("task-1", "ctx-1", "read this", {}, [UPLOAD]);
+  const running = executor.execute(ctx, stubBus(events));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
+  await running;
+
+  const prompt = String(session.sent[0]?.message.content);
+  assert.match(prompt, /could not be retrieved/);
+  assert.match(prompt, /read this/);
+  assert.equal(warnings.length, 1);
+  const terminal = events.filter((e) => e.kind === "statusUpdate").at(-1);
+  assert.equal(terminal?.data.status?.state, TaskState.TASK_STATE_COMPLETED);
 });

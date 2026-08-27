@@ -134,6 +134,40 @@ test("unparseable YAML is a RosterValidationError", () => {
   );
 });
 
+test("attachments default to accepted, and an agent may refuse them", () => {
+  const roster = parseRoster(fixture);
+  assert.equal(roster.agents.hearth?.harness.attachments, "accept");
+  const refusing = parseRoster(
+    JSON.stringify({
+      agents: {
+        hearth: {
+          ...minimalAgent,
+          harness: { ...minimalAgent.harness, attachments: "reject" },
+        },
+      },
+    }),
+  );
+  assert.equal(refusing.agents.hearth?.harness.attachments, "reject");
+  assert.throws(
+    () =>
+      parseRoster(
+        JSON.stringify({
+          agents: {
+            hearth: {
+              ...minimalAgent,
+              harness: { ...minimalAgent.harness, attachments: "sometimes" },
+            },
+          },
+        }),
+      ),
+    (err: unknown) => {
+      assert.ok(err instanceof RosterValidationError);
+      assert.match(err.message, /agents\.hearth\.harness\.attachments/);
+      return true;
+    },
+  );
+});
+
 test("permissionMode defaults to auto and rejects bypassPermissions", () => {
   const roster = parseRoster(fixture);
   assert.equal(roster.agents.hearth?.harness.permissionMode, "auto");

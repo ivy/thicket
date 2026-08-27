@@ -4,15 +4,18 @@ import { createServer } from "node:http";
 import { DefaultRequestHandler } from "@a2a-js/sdk/server";
 
 import { parseRoster, toAgentCard } from "@thicket/roster";
-import { ClaudeAgentExecutor, SessionManager } from "@thicket/executor";
+import { AttachmentStore, ClaudeAgentExecutor, SessionManager } from "@thicket/executor";
 
 import { defaultConfigPath, loadConfig, sessionEnv, type AgentdConfig } from "./config.js";
+import { egressFetch } from "./egress.js";
+import { pruneAttachments } from "./attachments-cache.js";
 import { listen, resolveListenTarget } from "./listen.js";
 import { createLogger, type Logger } from "./logger.js";
 import { buildServer } from "./server.js";
 import { SqliteTaskStore } from "./store/sqlite-task-store.js";
 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
+const ATTACHMENT_PRUNE_INTERVAL_MS = 6 * 60 * 60_000;
 
 export async function run(
   configPath: string = process.env.THICKET_AGENTD_CONFIG ?? defaultConfigPath(),
@@ -42,9 +45,20 @@ export async function run(
     maxSessions: config.maxSessions,
     onWarning: (msg) => logger.warn(msg),
   });
+  // Refusing attachments is a roster policy, so the store is simply absent
+  // for an agent that does not take them: nothing to fetch, nothing to
+  // configure wrongly.
+  const attachments =
+    entry.harness.attachments === "accept"
+      ? new AttachmentStore({
+          dir: config.attachmentsDir,
+          fetchImpl: egressFetch(config.egressSocket),
+        })
+      : undefined;
   const executor = new ClaudeAgentExecutor({
     sessions,
     onWarning: (msg) => logger.warn(msg),
+    ...(attachments === undefined ? {} : { attachments }),
   });
   const handler = new DefaultRequestHandler(card, store, executor);
 
@@ -60,6 +74,15 @@ export async function run(
     agent: config.agent,
     target: target.kind === "fd" ? `fd:${target.fd}` : target.path,
   });
+
+  const pruneTimer = setInterval(() => {
+    void pruneAttachments(config.attachmentsDir).then((dropped) => {
+      if (dropped > 0) {
+        logger.info("pruned attachment cache", { count: dropped });
+      }
+    });
+  }, ATTACHMENT_PRUNE_INTERVAL_MS);
+  pruneTimer.unref();
 
   let shuttingDown = false;
   const shutdown = (signal: string) => {

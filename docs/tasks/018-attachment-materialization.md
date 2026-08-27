@@ -1,7 +1,7 @@
 ---
 id: "018"
 title: Materialize attachments into the agent's cache
-status: todo
+status: in-progress
 component: packages/executor
 language: typescript
 depends_on: ["017"]

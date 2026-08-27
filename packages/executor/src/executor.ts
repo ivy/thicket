@@ -11,6 +11,12 @@ import type {
   RequestContext,
 } from "@a2a-js/sdk/server";
 
+import {
+  attachmentPreamble,
+  attachmentRefs,
+  type AttachmentStore,
+  type StoredAttachment,
+} from "./attachments.js";
 import { TurnTranslator } from "./translator.js";
 import {
   META_CANCELLED,
@@ -30,6 +36,11 @@ export interface ClaudeAgentExecutorOptions {
   /** Injectable clock for deterministic tests. */
   now?: () => string;
   onWarning?: (message: string) => void;
+  /**
+   * Where referred-to files are materialized. Absent means this agent
+   * refuses attachments, per its roster policy.
+   */
+  attachments?: AttachmentStore;
 }
 
 interface ContextState {
@@ -55,6 +66,7 @@ export class ClaudeAgentExecutor implements AgentExecutor {
   private readonly uuid: () => string;
   private readonly now: () => string;
   private readonly onWarning: (message: string) => void;
+  private readonly attachments: AttachmentStore | undefined;
 
   private readonly contexts = new Map<string, ContextState>();
   private readonly busByTask = new Map<string, ExecutionEventBus>();
@@ -65,6 +77,7 @@ export class ClaudeAgentExecutor implements AgentExecutor {
     this.uuid = options.uuid ?? (() => randomUUID());
     this.now = options.now ?? (() => new Date().toISOString());
     this.onWarning = options.onWarning ?? (() => {});
+    this.attachments = options.attachments;
   }
 
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
@@ -82,7 +95,7 @@ export class ClaudeAgentExecutor implements AgentExecutor {
 
     const sdkMessage: SDKUserMessage = {
       type: "user",
-      message: { role: "user", content: messageText(inbound) },
+      message: { role: "user", content: (await this.preamble(contextId, inbound)) + messageText(inbound) },
       parent_tool_use_id: null,
       uuid: uuid as SDKUserMessage["uuid"],
       ...(contextOnly ? { shouldQuery: false as const } : {}),
@@ -128,6 +141,40 @@ export class ClaudeAgentExecutor implements AgentExecutor {
     } finally {
       this.busByTask.delete(taskId);
     }
+  }
+
+  /**
+   * Attachments are fetched eagerly: a file the user attached is a file
+   * they expect used, so making the model spend a tool call to discover it
+   * buys nothing. A failure here is described rather than raised — the
+   * question in the message is usually still answerable.
+   */
+  private async preamble(contextId: string, inbound: Message): Promise<string> {
+    const refs = attachmentRefs(inbound);
+    if (refs.length === 0) {
+      return "";
+    }
+    if (this.attachments === undefined) {
+      return attachmentPreamble(
+        [],
+        refs.map((ref) => ({
+          filename: ref.filename,
+          reason: "this agent does not accept attachments",
+        })),
+      );
+    }
+    const stored: StoredAttachment[] = [];
+    const failures: { filename: string; reason: string }[] = [];
+    for (const ref of refs) {
+      try {
+        stored.push(await this.attachments.store(contextId, ref));
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        this.onWarning(`attachment ${ref.filename} could not be retrieved: ${reason}`);
+        failures.push({ filename: ref.filename, reason });
+      }
+    }
+    return attachmentPreamble(stored, failures);
   }
 
   async cancelTask(taskId: string, eventBus: ExecutionEventBus): Promise<void> {

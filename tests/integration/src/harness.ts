@@ -37,6 +37,7 @@ export function agentEntry(name: string): AgentEntry {
       model: "claude-opus-5",
       sessionTtlSeconds: 300,
       permissionMode: "auto",
+      attachments: "accept",
     },
     context: "native",
     queueing: "harness",

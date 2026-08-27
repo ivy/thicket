@@ -1,7 +1,7 @@
 ---
 id: "017"
 title: Bridge file surface — agents fetch attachments by tailnet identity
-status: in-progress
+status: done
 component: apps/bridge
 language: typescript
 depends_on: ["009"]
@@ -70,13 +70,13 @@ with no writes.
 
 ## Acceptance criteria
 
-- [ ] An upload's descriptor is recorded and the outbound message carries a
+- [x] An upload's descriptor is recorded and the outbound message carries a
       `url` part naming it.
-- [ ] An authorized agent can stream the bytes; the response never buffers the
+- [x] An authorized agent can stream the bytes; the response never buffers the
       file in memory.
-- [ ] An agent cannot fetch a file from a thread it is not in, and an
+- [x] An agent cannot fetch a file from a thread it is not in, and an
       unauthenticated caller cannot fetch at all.
-- [ ] With no reachable address configured, attachments degrade to a clear
+- [x] With no reachable address configured, attachments degrade to a clear
       in-thread notice rather than a broken link.
 
 ## Out of scope

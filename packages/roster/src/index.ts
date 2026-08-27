@@ -18,4 +18,4 @@ export {
   TAILNET_PEER_TAG_SCHEME,
   type CardOptions,
 } from "./card.js";
-export { configDir, stateDir, runtimeDir, socketPath } from "./paths.js";
+export { cacheDir, configDir, stateDir, runtimeDir, socketPath } from "./paths.js";
