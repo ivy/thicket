@@ -5,6 +5,10 @@
     "long_description": "Personal assistant for calendar, todo list, Obsidian vault, and email triage. Reads the inbox, sorts what matters, drafts replies, and keeps the week's plan honest.\n\nSkills:\n• Email triage: Reads and sorts the inbox, drafts replies for review.\n• Calendar management: Schedules, reschedules, and flags conflicts before they bite."
   },
   "features": {
+    "app_home": {
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
     "bot_user": {
       "display_name": "hearth",
       "always_online": true

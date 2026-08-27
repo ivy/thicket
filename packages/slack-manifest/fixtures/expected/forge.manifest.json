@@ -5,6 +5,10 @@
     "long_description": "Keeps the CI fleet green: watches builds, investigates red pipelines, bisects regressions, and proposes fixes as reviewable patches rather than pushing anything itself.\n\nSkills:\n• CI triage: Investigates failing builds and finds the breaking change."
   },
   "features": {
+    "app_home": {
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
     "bot_user": {
       "display_name": "forge",
       "always_online": true

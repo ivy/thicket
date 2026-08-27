@@ -27,6 +27,7 @@ function manifest(description: string): SlackManifest {
       long_description: description.repeat(10),
     },
     features: {
+      app_home: { messages_tab_enabled: true, messages_tab_read_only_enabled: false },
       bot_user: { display_name: "x", always_online: true },
       agent_view: { agent_description: description, suggested_prompts: [], actions: [] },
     },

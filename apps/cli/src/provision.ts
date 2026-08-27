@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { SlackManifest } from "@thicket/slack-manifest";
 
 import type { ConfigTokenPair, FileStore, ProvisionState } from "./store.js";
@@ -51,10 +53,11 @@ const DEFAULT_ROTATE_MARGIN_MS = 10 * 60 * 1000;
  *
  * - keys we do not manage (server-added defaults like pkce_enabled or
  *   is_mcp_enabled) are dropped and never register as drift;
- * - keys the export does not echo at all (observed live:
- *   features.agent_view.actions is accepted but never exported) are
- *   write-only — they compare equal, because counting them as drift
- *   would update every run forever;
+ * - keys the export does not echo (write-only fields like
+ *   features.agent_view.actions, and absent-when-default fields like
+ *   features.app_home before first change) compare equal here — the
+ *   manifest fingerprint in provision state catches desired-side changes
+ *   to them exactly once, without looping on the write-only ones;
  * - echoed keys with changed values still count, and arrays of differing
  *   length pass through untouched so added/removed entries stay visible.
  */
@@ -110,6 +113,10 @@ export function diffPaths(a: unknown, b: unknown, prefix = ""): string[] {
   return out;
 }
 
+function manifestHash(manifest: SlackManifest): string {
+  return createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
+}
+
 export class Provisioner {
   private readonly deps: Required<
     Pick<ProvisionDeps, "now" | "sleep" | "mutationIntervalMs" | "rotateMarginMs">
@@ -144,7 +151,7 @@ export class Provisioner {
         }
         await this.paceMutations();
         const result = await this.deps.api.createApp(await this.freshToken(), manifest);
-        state.apps[agent] = { appId: result.appId };
+        state.apps[agent] = { appId: result.appId, manifestHash: manifestHash(manifest) };
         this.deps.store.write(PROVISION_STATE_FILE, state);
         created.push(agent);
         this.deps.report(`created Slack app ${result.appId} for ${agent}`);
@@ -158,20 +165,25 @@ export class Provisioner {
         continue;
       }
 
+      const desiredHash = manifestHash(manifest);
       const current = await this.deps.api.exportManifest(await this.freshToken(), known.appId);
       const drift = diffPaths(projectOnto(current ?? {}, manifest), manifest);
-      if (drift.length === 0) {
+      if (drift.length === 0 && known.manifestHash === desiredHash) {
         this.deps.report(`${agent}: up to date`);
         continue;
       }
+      const reason =
+        drift.length > 0 ? drift.join(", ") : "desired manifest changed since last push";
       if (input.dryRun) {
-        this.deps.report(`would update ${agent} (${known.appId}): ${drift.join(", ")}`);
+        this.deps.report(`would update ${agent} (${known.appId}): ${reason}`);
         continue;
       }
       await this.paceMutations();
       await this.deps.api.updateApp(await this.freshToken(), known.appId, manifest);
+      known.manifestHash = desiredHash;
+      this.deps.store.write(PROVISION_STATE_FILE, state);
       changed.push(agent);
-      this.deps.report(`updated ${agent} (${known.appId}): ${drift.join(", ")}`);
+      this.deps.report(`updated ${agent} (${known.appId}): ${reason}`);
     }
 
     for (const warning of input.warnings) {

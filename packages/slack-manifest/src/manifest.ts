@@ -57,6 +57,10 @@ export interface SlackManifest {
     background_color?: string;
   };
   features: {
+    app_home: {
+      messages_tab_enabled: boolean;
+      messages_tab_read_only_enabled: boolean;
+    };
     bot_user: {
       display_name: string;
       always_online: boolean;
@@ -182,6 +186,13 @@ export function toSlackManifest(card: AgentCard, options: RenderOptions = {}): R
         : {}),
     },
     features: {
+      // Without an enabled Messages tab, Slack shows "Sending messages to
+      // this app has been turned off" and DMs are impossible (observed
+      // live) — the whole agent surface hangs off the DM.
+      app_home: {
+        messages_tab_enabled: true,
+        messages_tab_read_only_enabled: false,
+      },
       bot_user: {
         display_name: card.name,
         always_online: true,

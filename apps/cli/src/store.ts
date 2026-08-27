@@ -36,7 +36,14 @@ export class FileStore {
 
 /** app_id bookkeeping from previous provision runs. */
 export interface ProvisionState {
-  apps: Record<string, { appId: string }>;
+  apps: Record<
+    string,
+    {
+      appId: string;
+      /** sha256 of the manifest last pushed, for desired-side drift. */
+      manifestHash?: string;
+    }
+  >;
 }
 
 export const PROVISION_STATE_FILE = "provision-state.json";
