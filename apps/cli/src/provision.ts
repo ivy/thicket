@@ -46,11 +46,17 @@ const DEFAULT_MUTATION_INTERVAL_MS = 61_000;
 const DEFAULT_ROTATE_MARGIN_MS = 10 * 60 * 1000;
 
 /**
- * Projects Slack's stored manifest onto the shape of the desired one:
- * keys we do not manage (server-added defaults like pkce_enabled or
- * is_mcp_enabled) are dropped, so they never register as drift, while
- * managed keys that changed or vanished still do. Arrays of differing
- * length pass through untouched so added/removed entries stay visible.
+ * Projects Slack's stored manifest onto the shape of the desired one so
+ * drift is computed only over keys the export can actually witness:
+ *
+ * - keys we do not manage (server-added defaults like pkce_enabled or
+ *   is_mcp_enabled) are dropped and never register as drift;
+ * - keys the export does not echo at all (observed live:
+ *   features.agent_view.actions is accepted but never exported) are
+ *   write-only — they compare equal, because counting them as drift
+ *   would update every run forever;
+ * - echoed keys with changed values still count, and arrays of differing
+ *   length pass through untouched so added/removed entries stay visible.
  */
 export function projectOnto(stored: unknown, desired: unknown): unknown {
   if (Array.isArray(stored) && Array.isArray(desired)) {
@@ -70,6 +76,9 @@ export function projectOnto(stored: unknown, desired: unknown): unknown {
           (stored as Record<string, unknown>)[key],
           (desired as Record<string, unknown>)[key],
         );
+      } else {
+        // Write-only field: the export cannot witness it.
+        out[key] = (desired as Record<string, unknown>)[key];
       }
     }
     return out;

@@ -97,8 +97,12 @@ class FakeSlackAdmin implements SlackAdminApi {
     // it, including keys the caller never sent (observed live:
     // pkce_enabled, is_mcp_enabled, interactivity). Mimic that so the
     // idempotency tests exercise the projection.
+    // ...and actions is write-only: accepted on create/update, never
+    // present in the export.
+    const { actions: _actions, ...agentView } = stored.features.agent_view;
     return {
       ...stored,
+      features: { ...stored.features, agent_view: agentView },
       oauth_config: { ...stored.oauth_config, pkce_enabled: false },
       settings: {
         ...stored.settings,
