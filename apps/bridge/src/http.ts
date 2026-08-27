@@ -50,6 +50,51 @@ const SLACK_REFUSALS = new Set([
 const UPLOAD_LIMIT = "50mb";
 
 /**
+ * Read budgets. A channel's history can be arbitrarily long; an agent
+ * that wants more pages for its next cursor, not a bigger firehose.
+ */
+const READ_LIMIT_DEFAULT = 50;
+const READ_LIMIT_MAX = 200;
+const SEARCH_COUNT_DEFAULT = 20;
+const SEARCH_COUNT_MAX = 100;
+
+function clampLimit(raw: unknown, fallback: number, max: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    return fallback;
+  }
+  return Math.min(Math.floor(n), max);
+}
+
+/** Slack messages, trimmed to what a model can use without drowning. */
+function trimMessage(raw: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ts: String(raw.ts ?? ""),
+    ...(typeof raw.thread_ts === "string" ? { thread_ts: raw.thread_ts } : {}),
+    ...(typeof raw.user === "string" ? { user: raw.user } : {}),
+    ...(typeof raw.bot_id === "string" ? { bot_id: raw.bot_id } : {}),
+    ...(typeof raw.subtype === "string" ? { subtype: raw.subtype } : {}),
+    text: typeof raw.text === "string" ? raw.text : "",
+    ...(typeof raw.reply_count === "number" && raw.reply_count > 0
+      ? { reply_count: raw.reply_count }
+      : {}),
+    ...(Array.isArray(raw.files)
+      ? {
+          files: (raw.files as Record<string, unknown>[]).map((file) => ({
+            id: String(file.id ?? ""),
+            name: String(file.name ?? ""),
+          })),
+        }
+      : {}),
+  };
+}
+
+function nextCursor(body: Record<string, unknown>): Record<string, unknown> {
+  const cursor = (body.response_metadata as { next_cursor?: string } | undefined)?.next_cursor;
+  return cursor !== undefined && cursor !== "" ? { next_cursor: cursor } : {};
+}
+
+/**
  * The bridge's inbound surface: the reverse of the edge it normally uses,
  * so that an agent can read a file a human attached without ever holding a
  * Slack credential.
@@ -225,6 +270,170 @@ export function buildFileServer(options: FileServerOptions): express.Express {
       });
     },
   );
+
+  /**
+   * The read routes. Entitlement is the same everywhere: the call runs on
+   * the agent's own bot token, so what the agent may read is what its app
+   * can already see — membership for history, member-only listings for
+   * private channels, public-only search. The tool argument is never the
+   * authority.
+   */
+  const readRoute = (
+    path: string,
+    action: string,
+    handle: (req: Request) => { error: string } | { method: string; params: Record<string, string>; render: (body: Record<string, unknown>) => Record<string, unknown> },
+  ): void => {
+    app.get(path, identify, (req, res) => {
+      const agent = res.locals.agent as string;
+      const plan = handle(req);
+      if ("error" in plan) {
+        res.status(400).json({ error: plan.error });
+        return;
+      }
+      void (async () => {
+        const result = await slackCall(agent, plan.method, plan.params);
+        if (!result.ok) {
+          refuseOrFail(res, agent, action, result.error);
+          return;
+        }
+        res.status(200).json({ ok: true, ...plan.render(result.body) });
+      })().catch((err: unknown) => {
+        logger.warn("agent read failed", { agent, action, err: String(err) });
+        if (!res.headersSent) {
+          res.status(502).json({ error: "slack unreachable" });
+        }
+      });
+    });
+  };
+
+  readRoute("/api/history", "history", (req) => {
+    const channel = String(req.query.channel ?? "");
+    if (channel === "") {
+      return { error: "channel is required" };
+    }
+    return {
+      method: "conversations.history",
+      params: {
+        channel,
+        limit: String(clampLimit(req.query.limit, READ_LIMIT_DEFAULT, READ_LIMIT_MAX)),
+        ...(typeof req.query.oldest === "string" ? { oldest: req.query.oldest } : {}),
+        ...(typeof req.query.latest === "string" ? { latest: req.query.latest } : {}),
+        ...(typeof req.query.cursor === "string" ? { cursor: req.query.cursor } : {}),
+      },
+      render: (body) => ({
+        messages: ((body.messages ?? []) as Record<string, unknown>[]).map(trimMessage),
+        ...(body.has_more === true ? { has_more: true } : {}),
+        ...nextCursor(body),
+      }),
+    };
+  });
+
+  readRoute("/api/replies", "replies", (req) => {
+    const channel = String(req.query.channel ?? "");
+    const ts = String(req.query.ts ?? "");
+    if (channel === "" || ts === "") {
+      return { error: "channel and ts are required" };
+    }
+    return {
+      method: "conversations.replies",
+      params: {
+        channel,
+        ts,
+        limit: String(clampLimit(req.query.limit, READ_LIMIT_DEFAULT, READ_LIMIT_MAX)),
+        ...(typeof req.query.cursor === "string" ? { cursor: req.query.cursor } : {}),
+      },
+      render: (body) => ({
+        messages: ((body.messages ?? []) as Record<string, unknown>[]).map(trimMessage),
+        ...(body.has_more === true ? { has_more: true } : {}),
+        ...nextCursor(body),
+      }),
+    };
+  });
+
+  readRoute("/api/search", "search", (req) => {
+    const query = String(req.query.query ?? "");
+    if (query === "") {
+      return { error: "query is required" };
+    }
+    return {
+      method: "search.messages",
+      params: {
+        query,
+        count: String(clampLimit(req.query.count, SEARCH_COUNT_DEFAULT, SEARCH_COUNT_MAX)),
+        ...(typeof req.query.page === "string" ? { page: req.query.page } : {}),
+      },
+      render: (body) => {
+        const messages = (body.messages ?? {}) as {
+          total?: number;
+          paging?: { page?: number; pages?: number };
+          matches?: Record<string, unknown>[];
+        };
+        return {
+          total: messages.total ?? 0,
+          ...(messages.paging !== undefined
+            ? { page: messages.paging.page, pages: messages.paging.pages }
+            : {}),
+          matches: (messages.matches ?? []).map((raw) => ({
+            ts: String(raw.ts ?? ""),
+            channel: {
+              id: String((raw.channel as { id?: string } | undefined)?.id ?? ""),
+              name: String((raw.channel as { name?: string } | undefined)?.name ?? ""),
+            },
+            ...(typeof raw.user === "string" ? { user: raw.user } : {}),
+            text: typeof raw.text === "string" ? raw.text : "",
+            ...(typeof raw.permalink === "string" ? { permalink: raw.permalink } : {}),
+          })),
+        };
+      },
+    };
+  });
+
+  readRoute("/api/channels", "channels", (req) => ({
+    method: "conversations.list",
+    params: {
+      // Private channels appear only when the app is a member; that scoping
+      // is Slack's, not the argument's.
+      types: "public_channel,private_channel",
+      exclude_archived: String(req.query.include_archived !== "true"),
+      limit: String(clampLimit(req.query.limit, READ_LIMIT_DEFAULT, READ_LIMIT_MAX)),
+      ...(typeof req.query.cursor === "string" ? { cursor: req.query.cursor } : {}),
+    },
+    render: (body) => ({
+      channels: ((body.channels ?? []) as Record<string, unknown>[]).map((raw) => ({
+        id: String(raw.id ?? ""),
+        name: String(raw.name ?? ""),
+        is_private: raw.is_private === true,
+        is_member: raw.is_member === true,
+        ...(raw.is_archived === true ? { is_archived: true } : {}),
+        ...(typeof (raw.topic as { value?: string } | undefined)?.value === "string" &&
+        (raw.topic as { value: string }).value !== ""
+          ? { topic: (raw.topic as { value: string }).value }
+          : {}),
+      })),
+      ...nextCursor(body),
+    }),
+  }));
+
+  readRoute("/api/users", "users", (req) => ({
+    method: "users.list",
+    params: {
+      limit: String(clampLimit(req.query.limit, READ_LIMIT_DEFAULT, READ_LIMIT_MAX)),
+      ...(typeof req.query.cursor === "string" ? { cursor: req.query.cursor } : {}),
+    },
+    render: (body) => ({
+      users: ((body.members ?? []) as Record<string, unknown>[])
+        .filter((raw) => raw.deleted !== true)
+        .map((raw) => ({
+          id: String(raw.id ?? ""),
+          name: String(raw.name ?? ""),
+          ...(typeof (raw.profile as { real_name?: string } | undefined)?.real_name === "string"
+            ? { real_name: (raw.profile as { real_name: string }).real_name }
+            : {}),
+          ...(raw.is_bot === true ? { is_bot: true } : {}),
+        })),
+      ...nextCursor(body),
+    }),
+  }));
 
   app.get("/files/:fileId", identify, (req, res) => {
     const agent = res.locals.agent as string;

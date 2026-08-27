@@ -1,6 +1,6 @@
 import { WebClient } from "@slack/web-api";
 
-import type { AgentActivity, SlackApi, SlackSessionStatus } from "./types.js";
+import type { AgentActivity, SlackApi, SlackSessionStatus, ThreadMessage } from "./types.js";
 
 export interface SlackApiLogger {
   info(msg: string, fields?: Record<string, unknown>): void;
@@ -119,6 +119,20 @@ export class WebSlackApi implements SlackApi {
 
   async stopStream(channel: string, streamTs: string): Promise<void> {
     await this.call("chat.stopStream", { channel, ts: streamTs });
+  }
+
+  async replies(channel: string, threadTs: string, limit = 50): Promise<ThreadMessage[]> {
+    const res = (await this.call("conversations.replies", {
+      channel,
+      ts: threadTs,
+      limit,
+    })) as { messages?: Record<string, unknown>[] };
+    return (res.messages ?? []).map((raw) => ({
+      ts: String(raw.ts ?? ""),
+      ...(typeof raw.user === "string" ? { authorId: raw.user } : {}),
+      ...(typeof raw.bot_id === "string" ? { botId: raw.bot_id } : {}),
+      text: typeof raw.text === "string" ? raw.text : "",
+    }));
   }
 
   private async call(method: string, args: Record<string, unknown>): Promise<unknown> {

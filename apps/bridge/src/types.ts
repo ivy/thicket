@@ -75,6 +75,16 @@ export interface AgentClient {
 
 export type SlackSessionStatus = "processing" | "active" | "suspended";
 
+/** One thread message, trimmed to what a replayed transcript needs. */
+export interface ThreadMessage {
+  ts: string;
+  /** Slack user id of the author, when a person (or bot user) posted. */
+  authorId?: string;
+  /** Present when the message was posted through an app. */
+  botId?: string;
+  text: string;
+}
+
 /** The Slack surface the bridge writes to. Stubbed in tests. */
 export interface SlackApi {
   setStatus(
@@ -94,6 +104,8 @@ export interface SlackApi {
   /** A step the agent took, rendered as a card on the open stream. */
   appendActivity(channel: string, streamTs: string, activity: AgentActivity): Promise<void>;
   stopStream(channel: string, streamTs: string): Promise<void>;
+  /** A thread's messages, oldest first, for replaying to a stateless agent. */
+  replies(channel: string, threadTs: string, limit?: number): Promise<ThreadMessage[]>;
 }
 
 // Metadata keys and the activity shape are thicket's A2A extension; the

@@ -317,3 +317,161 @@ test("the body is piped, not buffered", async (t) => {
   const second = await reader.read();
   assert.equal(Buffer.from(second.value!).toString(), "second");
 });
+
+// ------------------------------------------------------------- read routes
+
+function slackJson(body: Record<string, unknown>): Response {
+  return Response.json({ ok: true, ...body });
+}
+
+test("channel history comes back trimmed, paged, and on the agent's own token", async (t) => {
+  const r = await rig(() =>
+    slackJson({
+      messages: [
+        {
+          ts: "2.2",
+          user: "U1",
+          text: "release notes are out",
+          reply_count: 3,
+          blocks: [{ huge: "payload" }],
+          team: "T1",
+          files: [{ id: "F9", name: "notes.md", url_private: "https://secret" }],
+        },
+      ],
+      has_more: true,
+      response_metadata: { next_cursor: "cur-2" },
+    }),
+  );
+  t.after(() => r.close());
+
+  const res = await fetch(`${r.url}/api/history?channel=C42&limit=5000`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as Record<string, unknown>;
+  assert.deepEqual(body, {
+    ok: true,
+    messages: [
+      {
+        ts: "2.2",
+        user: "U1",
+        text: "release notes are out",
+        reply_count: 3,
+        files: [{ id: "F9", name: "notes.md" }],
+      },
+    ],
+    has_more: true,
+    next_cursor: "cur-2",
+  });
+  assert.equal(r.upstream.calls[0]!.url, "https://slack.com/api/conversations.history");
+  assert.equal(r.upstream.calls[0]!.auth, "Bearer xoxb-hearth");
+});
+
+test("a history read the app is not entitled to is refused by the bridge", async (t) => {
+  const r = await rig(() => slackError("not_in_channel"));
+  t.after(() => r.close());
+
+  const res = await fetch(`${r.url}/api/history?channel=C-private`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  assert.equal(res.status, 403);
+  assert.equal(await errorOf(res), "not_in_channel");
+
+  const anonymous = await fetch(`${r.url}/api/history?channel=C42`);
+  assert.equal(anonymous.status, 403);
+});
+
+test("thread replies require both coordinates", async (t) => {
+  const r = await rig(() => slackJson({ messages: [] }));
+  t.after(() => r.close());
+
+  const missing = await fetch(`${r.url}/api/replies?channel=C42`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  assert.equal(missing.status, 400);
+
+  const ok = await fetch(`${r.url}/api/replies?channel=C42&ts=1.1`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  assert.equal(ok.status, 200);
+  assert.equal(r.upstream.calls.at(-1)!.url, "https://slack.com/api/conversations.replies");
+});
+
+test("search trims matches to what a model can act on", async (t) => {
+  const r = await rig(() =>
+    slackJson({
+      messages: {
+        total: 1,
+        paging: { page: 1, pages: 1 },
+        matches: [
+          {
+            ts: "3.3",
+            channel: { id: "C42", name: "thicket-test", extra: "noise" },
+            user: "U1",
+            text: "found it",
+            permalink: "https://slack/p3",
+            blocks: [{}],
+          },
+        ],
+      },
+    }),
+  );
+  t.after(() => r.close());
+
+  const res = await fetch(`${r.url}/api/search?query=release+notes`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  const body = (await res.json()) as Record<string, unknown>;
+  assert.deepEqual(body, {
+    ok: true,
+    total: 1,
+    page: 1,
+    pages: 1,
+    matches: [
+      {
+        ts: "3.3",
+        channel: { id: "C42", name: "thicket-test" },
+        user: "U1",
+        text: "found it",
+        permalink: "https://slack/p3",
+      },
+    ],
+  });
+  assert.equal(r.upstream.calls[0]!.url, "https://slack.com/api/search.messages");
+});
+
+test("the directory routes list channels and users, deleted users dropped", async (t) => {
+  const responses = [
+    slackJson({
+      channels: [
+        { id: "C1", name: "general", is_private: false, is_member: false, topic: { value: "hq" } },
+        { id: "C2", name: "sanctum", is_private: true, is_member: true, topic: { value: "" } },
+      ],
+    }),
+    slackJson({
+      members: [
+        { id: "U1", name: "ivy", profile: { real_name: "Ivy Evans" } },
+        { id: "U2", name: "gone", deleted: true },
+        { id: "U3", name: "hearth", is_bot: true, profile: {} },
+      ],
+    }),
+  ];
+  const r = await rig(() => responses.shift()!);
+  t.after(() => r.close());
+
+  const channels = (await (
+    await fetch(`${r.url}/api/channels`, { headers: { [PEER_TAGS_HEADER]: HEARTH_TAG } })
+  ).json()) as { channels: unknown };
+  assert.deepEqual(channels.channels, [
+    { id: "C1", name: "general", is_private: false, is_member: false, topic: "hq" },
+    { id: "C2", name: "sanctum", is_private: true, is_member: true },
+  ]);
+
+  const users = (await (
+    await fetch(`${r.url}/api/users`, { headers: { [PEER_TAGS_HEADER]: HEARTH_TAG } })
+  ).json()) as { users: unknown };
+  assert.deepEqual(users.users, [
+    { id: "U1", name: "ivy", real_name: "Ivy Evans" },
+    { id: "U3", name: "hearth", is_bot: true },
+  ]);
+});

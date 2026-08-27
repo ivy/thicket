@@ -93,5 +93,27 @@ test("the toolbelt is an in-process SDK server exposing exactly the allowed tool
   assert.deepEqual(TOOLBELT_ALLOWED_TOOLS, [
     "mcp__thicket__post_message",
     "mcp__thicket__upload_file",
+    "mcp__thicket__read_channel",
+    "mcp__thicket__read_thread",
+    "mcp__thicket__search_messages",
+    "mcp__thicket__list_channels",
+    "mcp__thicket__list_users",
   ]);
+});
+
+test("read tools GET the bridge with only the arguments that were given", async () => {
+  const { readBridge } = await import("./toolbelt.js");
+  const { opts, calls } = options(() => Response.json({ ok: true, messages: [] }));
+  const outcome = await readBridge(opts, "/api/history", {
+    channel: "C1",
+    limit: 10,
+    cursor: undefined,
+  });
+  assert.equal(outcome.outcome, "ok");
+  const url = new URL(calls[0]!.url);
+  assert.equal(url.pathname, "/api/history");
+  assert.equal(url.searchParams.get("channel"), "C1");
+  assert.equal(url.searchParams.get("limit"), "10");
+  assert.equal(url.searchParams.has("cursor"), false);
+  assert.equal(calls[0]!.init?.method, "GET");
 });

@@ -77,6 +77,15 @@ class FakeSlack implements SlackApi {
   async stopStream(channel: string, ts: string) {
     this.calls.push({ type: "stop", channel, ts });
   }
+  /** Thread transcript served to replay agents; keyed `channel:threadTs`. */
+  threads = new Map<string, { ts: string; authorId?: string; botId?: string; text: string }[]>();
+  repliesError: Error | undefined;
+  async replies(channel: string, threadTs: string) {
+    if (this.repliesError !== undefined) {
+      throw this.repliesError;
+    }
+    return this.threads.get(`${channel}:${threadTs}`) ?? [];
+  }
 
   statuses(): SlackSessionStatus[] {
     return this.calls.filter((c) => c.type === "setStatus").map((c) => c.status);
@@ -223,7 +232,12 @@ interface Rig {
 
 function rig(
   behavior: StubBehavior,
-  options: { queueing?: "harness" | "bridge"; dbPath?: string; fileBaseUrl?: string } = {},
+  options: {
+    queueing?: "harness" | "bridge";
+    context?: "native" | "replay";
+    dbPath?: string;
+    fileBaseUrl?: string;
+  } = {},
 ): Rig {
   const slack = new FakeSlack();
   const client = new StubClient(behavior);
@@ -232,6 +246,7 @@ function rig(
   const engine = new BridgeEngine({
     agent: "hearth",
     queueing: options.queueing ?? "harness",
+    ...(options.context === undefined ? {} : { context: options.context }),
     client,
     slack,
     state,
@@ -837,5 +852,80 @@ test("bridge restart routes an in-flight task's completion to its thread", async
   const appends = r.slack.calls.filter((c) => c.type === "append");
   assert.equal(appends.map((a) => a.text).join(""), "late answer");
   assert.equal(r.slack.lastStatus(), "active");
+  r.state.close();
+});
+
+// ---------------------------------------------------------- context: replay
+
+function textOf(message: Message | undefined): string {
+  const part = message?.parts.find((p) => p.content?.$case === "text");
+  return part?.content?.$case === "text" ? part.content.value : "";
+}
+
+test("a replay agent's turn carries the thread transcript, current message last", async () => {
+  const r = rig(
+    { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
+    { context: "replay" },
+  );
+  r.slack.threads.set(`${CH}:${TH}`, [
+    { ts: TH, authorId: HUMAN, text: "release notes are out" },
+    { ts: "1724650000.000200", botId: "B1", text: "summarizing now" },
+    { ts: "1724650001.000001", authorId: HUMAN, text: "what did I miss?" },
+  ]);
+
+  await r.engine.handleEvent(dm("what did I miss?"));
+
+  const sent = textOf(r.client.streamed[0]);
+  assert.match(sent, /Thread so far/);
+  assert.match(sent, /\[U-human\] release notes are out/);
+  assert.match(sent, /\[B1\] summarizing now/);
+  assert.match(sent, /Current message:\nwhat did I miss\?$/);
+  assert.equal(
+    sent.match(/what did I miss\?/g)?.length,
+    1,
+    "the triggering message appears once, not also in the transcript",
+  );
+  r.state.close();
+});
+
+test("a native agent's turn is untouched by thread history", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  r.slack.threads.set(`${CH}:${TH}`, [{ ts: TH, authorId: HUMAN, text: "earlier" }]);
+  await r.engine.handleEvent(dm("hello"));
+  assert.equal(textOf(r.client.streamed[0]), "hello");
+  r.state.close();
+});
+
+test("an unavailable transcript degrades to the bare message, not a dead turn", async () => {
+  const r = rig(
+    { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
+    { context: "replay" },
+  );
+  r.slack.repliesError = new Error("ratelimited");
+  await r.engine.handleEvent(dm("still there?"));
+  assert.equal(textOf(r.client.streamed[0]), "still there?");
+  assert.ok(r.warnings.some((w) => w.includes("replay transcript unavailable")));
+  r.state.close();
+});
+
+test("a replay agent gets no context-only pushes; the next turn re-reads the thread", async () => {
+  const r = rig(
+    { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
+    { context: "replay" },
+  );
+  await r.engine.handleEvent(dm("hello"));
+  await r.engine.handleEvent({
+    kind: "thread_message",
+    channel: CH,
+    threadTs: TH,
+    text: "fyi",
+    messageTs: "1724650002.000001",
+    files: [],
+    authorId: HUMAN,
+    viaApp: false,
+  });
+  assert.equal(r.client.sent.length, 0, "no shouldQuery:false push for a stateless harness");
   r.state.close();
 });

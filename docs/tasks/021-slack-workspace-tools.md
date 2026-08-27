@@ -34,7 +34,8 @@ which is the same route these tools need.
 
 - Read routes on the bridge API, peer-tag authorized like the rest:
   channel history (`conversations.replies`, `conversations.history`), search,
-  user and channel directory, canvases.
+  user and channel directory. (Canvases carry their own API surface and moved
+  to task 031 rather than landing here unverified.)
 - Search runs on **`search:read.public`**, a legal bot scope. Plain
   `search:read` is user-token only — Slack rejects it in a bot manifest with
   `illegal_bot_scopes` — and a user token acts as the operator everywhere

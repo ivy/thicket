@@ -22,6 +22,12 @@ export interface EngineLogger {
 export interface EngineOptions {
   agent: string;
   queueing: "harness" | "bridge";
+  /**
+   * Roster context policy: `native` trusts the harness to keep
+   * conversation state by contextId; `replay` assumes a stateless harness
+   * and re-sends the thread's transcript with every turn.
+   */
+  context?: "native" | "replay";
   client: AgentClient;
   slack: SlackApi;
   state: BridgeState;
@@ -34,6 +40,12 @@ export interface EngineOptions {
    */
   fileBaseUrl?: string;
 }
+
+/**
+ * How much thread a replayed turn carries. Enough for a conversation, a
+ * hard stop before a long channel thread eats the whole turn.
+ */
+const REPLAY_LIMIT = 50;
 
 const TERMINAL = new Set([
   TaskState.TASK_STATE_COMPLETED,
@@ -98,6 +110,7 @@ export function slackStatusFor(state: TaskState): SlackSessionStatus {
 export class BridgeEngine {
   private readonly agent: string;
   private readonly queueing: "harness" | "bridge";
+  private readonly context: "native" | "replay";
   private readonly client: AgentClient;
   private readonly slack: SlackApi;
   private readonly state: BridgeState;
@@ -116,6 +129,7 @@ export class BridgeEngine {
   constructor(options: EngineOptions) {
     this.agent = options.agent;
     this.queueing = options.queueing;
+    this.context = options.context ?? "native";
     this.client = options.client;
     this.slack = options.slack;
     this.state = options.state;
@@ -163,6 +177,12 @@ export class BridgeEngine {
           return; // not our conversation
         }
         const files = await this.acceptFiles(event);
+        if (this.context === "replay") {
+          // A stateless harness gets the whole thread with its next turn;
+          // pushing context between turns would state-keep on its behalf.
+          // Files are still recorded above so a later turn can fetch them.
+          return;
+        }
         // Context for the agent, no turn: delivered with shouldQuery:false
         // semantics via metadata; no status change, no reply expected.
         await this.client.send(
@@ -303,7 +323,8 @@ export class BridgeEngine {
       return;
     }
 
-    const message = this.buildMessage(channel, threadTs, text, messageTs, true, fileIds);
+    const outgoing = await this.withReplayContext(channel, threadTs, text, messageTs);
+    const message = this.buildMessage(channel, threadTs, outgoing, messageTs, true, fileIds);
     try {
       if (card.streaming) {
         await this.pumpTracked(this.client.stream(message), channel, threadTs, contextId);
@@ -368,6 +389,45 @@ export class BridgeEngine {
       );
     }
     return delivered;
+  }
+
+  /**
+   * For a stateless harness, the turn's text carries the thread so far —
+   * `context: replay` in the roster. The triggering message is excluded
+   * from the transcript (it follows as the current message), and a fetch
+   * failure degrades to the bare message: a turn without history beats no
+   * turn.
+   */
+  private async withReplayContext(
+    channel: string,
+    threadTs: string,
+    text: string,
+    messageTs: string,
+  ): Promise<string> {
+    if (this.context !== "replay") {
+      return text;
+    }
+    try {
+      const messages = await this.slack.replies(channel, threadTs, REPLAY_LIMIT);
+      const transcript = messages
+        .filter((m) => m.ts !== messageTs && m.text !== "")
+        .map((m) => `[${m.authorId ?? m.botId ?? "unknown"}] ${m.text}`);
+      if (transcript.length === 0) {
+        return text;
+      }
+      return (
+        "Thread so far, replayed because you keep no conversation state:\n" +
+        transcript.join("\n") +
+        `\n\nCurrent message:\n${text}`
+      );
+    } catch (err) {
+      this.logger.warn("replay transcript unavailable; sending bare message", {
+        channel,
+        threadTs,
+        err: String(err),
+      });
+      return text;
+    }
   }
 
   private contextIdFor(channel: string, threadTs: string): string {

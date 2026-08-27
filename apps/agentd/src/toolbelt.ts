@@ -104,6 +104,22 @@ export async function uploadFile(
   });
 }
 
+/** A GET against one of the bridge's read routes. */
+export async function readBridge(
+  options: ToolbeltOptions,
+  path: string,
+  params: Record<string, string | number | undefined>,
+): Promise<ToolOutcome> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) {
+      query.set(key, String(value));
+    }
+  }
+  const qs = query.toString();
+  return callBridge(options, qs === "" ? path : `${path}?${qs}`, { method: "GET" });
+}
+
 /** Renders an outcome as a tool result the model can read and act on. */
 export function toToolResult(outcome: ToolOutcome): {
   content: { type: "text"; text: string }[];
@@ -156,6 +172,69 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
         },
         async (args) => toToolResult(await uploadFile(options, args)),
       ),
+      tool(
+        "read_channel",
+        "Read recent messages in a Slack channel or DM the agent's app is in, " +
+          "newest first. Use the returned next_cursor to page further back.",
+        {
+          channel: z.string().min(1).describe("channel ID, e.g. C0123456789"),
+          limit: z.number().int().positive().optional().describe("messages per page (default 50, max 200)"),
+          oldest: z.string().optional().describe("only messages after this ts"),
+          latest: z.string().optional().describe("only messages before this ts"),
+          cursor: z.string().optional().describe("next_cursor from a previous page"),
+        },
+        async (args) => toToolResult(await readBridge(options, "/api/history", args)),
+      ),
+      tool(
+        "read_thread",
+        "Read a Slack thread's messages, oldest first, given its channel and the " +
+          "parent message's ts.",
+        {
+          channel: z.string().min(1).describe("channel ID the thread lives in"),
+          ts: z.string().min(1).describe("the thread parent's ts"),
+          limit: z.number().int().positive().optional().describe("messages per page (default 50, max 200)"),
+          cursor: z.string().optional().describe("next_cursor from a previous page"),
+        },
+        async (args) => toToolResult(await readBridge(options, "/api/replies", args)),
+      ),
+      tool(
+        "search_messages",
+        "Search public channels in the Slack workspace. Supports Slack search " +
+          "modifiers like in:#channel, from:@user, before:/after: dates. Private " +
+          "conversations are not searchable; use read_channel for those.",
+        {
+          query: z.string().min(1).describe("search query"),
+          count: z.number().int().positive().optional().describe("results per page (default 20, max 100)"),
+          page: z.number().int().positive().optional().describe("result page, from a previous response"),
+        },
+        async (args) => toToolResult(await readBridge(options, "/api/search", args)),
+      ),
+      tool(
+        "list_channels",
+        "List the workspace's channels: public ones, and private ones the agent's " +
+          "app is in. is_member says whether the agent can post or read there.",
+        {
+          limit: z.number().int().positive().optional().describe("channels per page (default 50, max 200)"),
+          cursor: z.string().optional().describe("next_cursor from a previous page"),
+          include_archived: z.boolean().optional().describe("include archived channels"),
+        },
+        async (args) =>
+          toToolResult(
+            await readBridge(options, "/api/channels", {
+              ...args,
+              include_archived: args.include_archived === true ? "true" : undefined,
+            }),
+          ),
+      ),
+      tool(
+        "list_users",
+        "List the workspace's people: id, handle, real name, and whether each is a bot.",
+        {
+          limit: z.number().int().positive().optional().describe("users per page (default 50, max 200)"),
+          cursor: z.string().optional().describe("next_cursor from a previous page"),
+        },
+        async (args) => toToolResult(await readBridge(options, "/api/users", args)),
+      ),
     ],
   });
 }
@@ -164,4 +243,9 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
 export const TOOLBELT_ALLOWED_TOOLS = [
   "mcp__thicket__post_message",
   "mcp__thicket__upload_file",
+  "mcp__thicket__read_channel",
+  "mcp__thicket__read_thread",
+  "mcp__thicket__search_messages",
+  "mcp__thicket__list_channels",
+  "mcp__thicket__list_users",
 ];

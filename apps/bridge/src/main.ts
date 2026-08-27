@@ -114,6 +114,7 @@ export async function run(
     const engine = new BridgeEngine({
       agent: name,
       queueing: entry.queueing,
+      context: entry.context,
       client: new RemoteAgentClient(
         endpointOverrides[name] ??
           agentUrl(entry, { tailnetDomain: config.tailnet_domain }).replace(/\/a2a\/v1$/, ""),

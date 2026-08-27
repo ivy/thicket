@@ -55,6 +55,8 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [027 Provision the agent's workspace](027-provision-agent-workspace.md) | 010 | `apps/cli` | typescript |
 | [028 thicket send](028-cli-send.md) | 011 | `apps/cli` | typescript |
 | [029 thicket doctor must survive a failing probe](029-doctor-probe-isolation.md) | 010 | `apps/cli` | typescript |
+| [030 Executor attachment tests flake under the workspace test run](030-executor-test-flake.md) | 018 | `packages/executor` | typescript |
+| [031 Canvas read](031-canvas-read.md) | 021 | `apps/bridge` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -72,10 +74,10 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 6 | 013 | 1 |
 | 7 | 015, 017 | 2 |
 | 8 | 018 | 1 |
-| 9 | 019, 025, 026, 029 | 4 |
+| 9 | 019, 025, 026, 029, 030 | 5 |
 | 10 | 020 | 1 |
 | 11 | 016, 021 | 2 |
-| 12 | 022 | 1 |
+| 12 | 022, 031 | 2 |
 
 `005` and `006` are the hard ones and sit in the widest wave — start them first.
 `003` is Go and shares no files with anything else.

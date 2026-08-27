@@ -320,6 +320,11 @@ export class MockSlack implements SlackApi {
   async stopStream(channel: string, ts: string) {
     this.calls.push({ type: "stop", channel, ts });
   }
+  /** Thread transcript served to replay agents; keyed `channel:threadTs`. */
+  threads = new Map<string, { ts: string; authorId?: string; botId?: string; text: string }[]>();
+  async replies(channel: string, threadTs: string) {
+    return this.threads.get(`${channel}:${threadTs}`) ?? [];
+  }
   activities(): AgentActivity[] {
     return this.calls.filter((c) => c.type === "activity").map((c) => c.activity);
   }
