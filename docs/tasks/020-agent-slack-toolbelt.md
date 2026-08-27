@@ -1,7 +1,7 @@
 ---
 id: "020"
 title: Agent Slack toolbelt — an MCP surface over the bridge API
-status: in-progress
+status: done
 component: apps/agentd
 language: typescript
 depends_on: ["017"]
@@ -56,11 +56,34 @@ substrate around: an agent that can **post** where it was not spoken to
 
 ## Acceptance criteria
 
-- [ ] An agent can post a message and upload a file without holding a Slack
+- [x] An agent can post a message and upload a file without holding a Slack
       credential.
-- [ ] An agent cannot address a channel it has no business in, and the
+- [x] An agent cannot address a channel it has no business in, and the
       refusal is the bridge's decision.
-- [ ] A tool failure reaches the model as a usable error, not as a dead turn.
+- [x] A tool failure reaches the model as a usable error, not as a dead turn.
+
+## What live verification established
+
+All three criteria were observed on the dev rig (2026-08-27), driving
+hearth over DM and reading the channel back with the bot token:
+
+- `post_message` landed the exact text in `#thicket-test` (created for
+  this: `C0BSM7B5GK1`, bot invited) and the agent reported the real `ts`.
+  `upload_file` walked the external upload flow end to end
+  (`F0BT4GJU7UZ`, comment attached). The only Slack credential involved
+  sat in the bridge; the agentd side authenticated purely by peer tag.
+- A post into `#general`, where the app is not a member, came back as the
+  bridge's 403 `not_in_channel` (logged as `refused agent slack action`),
+  and the agent explained the refusal instead of retrying.
+- Two failure shapes reached the model as structured errors mid-turn and
+  the turn completed both times: a 400 from the bridge (during the bug
+  below) and the 403 refusal.
+
+Two defects surfaced and were fixed en route: `egressFetch` dropped
+request bodies (`req.end()` bare — nothing that POSTs through netd had
+existed before), and a single toolbelt `McpServer` instance broke every
+session after the first, because an MCP server instance serves exactly
+one transport — sessions now get their own via a factory.
 
 ## Live verification
 

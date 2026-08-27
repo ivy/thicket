@@ -153,4 +153,5 @@ Verified against upstream; re-check before assuming any of it drifted.
 | Free Slack plan caps installs at 10 apps | https://slack.com/help/articles/115002422943 |
 | `tsnet.Server` exposes `AdvertiseTags`, `Dial`, `LocalClient().WhoIs` | https://pkg.go.dev/tailscale.com/tsnet |
 | `@slack/socket-mode` detects a dead socket in seconds via its own ping loop, but reconnection fetches the wss URL through a WebClient whose default `retryConfig: {retries: 100, factor: 1.3}` retries invisibly and uncancellably for up to hours; bound it via `clientOptions.retryConfig` | `@slack/socket-mode@2.0.7` `dist/src/SocketModeClient.js`, `SlackWebSocket.js` |
+| A `createSdkMcpServer` instance serves exactly one session: the second session to receive the same instance reports the server "failed to connect". Build a fresh instance per subprocess generation | observed live, `@anthropic-ai/claude-agent-sdk` 0.3.247 |
 | `tailcfg.Node.Tags []string` carries peer tags | `tailcfg/tailcfg.go` |

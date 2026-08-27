@@ -108,6 +108,38 @@ test("request headers reach the origin", async (t) => {
   assert.equal(auth, "Bearer t");
 });
 
+test("a POST body reaches the origin, string or bytes", async (t) => {
+  const p = await proxy(t);
+  const bodies: { type: string | undefined; body: string }[] = [];
+  const o = await origin(t, (req, res) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      bodies.push({
+        type: req.headers["content-type"],
+        body: Buffer.concat(chunks).toString(),
+      });
+      res.end(JSON.stringify({ ok: true }));
+    });
+  });
+
+  const doFetch = egressFetch(p.socketPath);
+  await doFetch(`${o.url}/api/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ channel: "C1", text: "hi" }),
+  });
+  await doFetch(`${o.url}/api/files`, {
+    method: "POST",
+    headers: { "content-type": "application/octet-stream" },
+    body: Buffer.from("raw bytes"),
+  });
+  assert.deepEqual(bodies, [
+    { type: "application/json", body: '{"channel":"C1","text":"hi"}' },
+    { type: "application/octet-stream", body: "raw bytes" },
+  ]);
+});
+
 test("a proxy refusal surfaces as an error, not as an empty body", async (t) => {
   const p = await proxy(t);
   p.refuse = true;

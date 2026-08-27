@@ -384,21 +384,33 @@ test("a crash mid-turn injects a failure result and the session recovers", async
   await manager.shutdown();
 });
 
-test("in-process MCP servers and their allow-list reach the query options", async () => {
+test("each generation gets its own MCP server instance, plus the allow-list", async () => {
   const cli = makeFakeCli();
-  const toolbelt = { type: "sdk", name: "thicket" } as unknown as NonNullable<
-    Options["mcpServers"]
-  >[string];
+  let built = 0;
+  const makeToolbelt = () =>
+    ({ type: "sdk", name: "thicket", id: (built += 1) }) as unknown as NonNullable<
+      Options["mcpServers"]
+    >[string];
   const manager = makeManager(cli, {
-    mcpServers: { thicket: toolbelt },
+    mcpServers: () => ({ thicket: makeToolbelt() }),
     allowedTools: ["mcp__thicket__post_message"],
   });
-  const session = manager.sessionFor("ctx-mcp");
-  collect(session);
-  await session.send(userMessage("hi", "u1"));
-  await until(() => cli.processes.length === 1, "spawned");
-  assert.equal(cli.processes[0]?.options.mcpServers?.thicket, toolbelt);
-  assert.deepEqual(cli.processes[0]?.options.allowedTools, ["mcp__thicket__post_message"]);
+  const one = manager.sessionFor("ctx-mcp-1");
+  const two = manager.sessionFor("ctx-mcp-2");
+  collect(one);
+  collect(two);
+  await one.send(userMessage("hi", "u1"));
+  await two.send(userMessage("hi", "u2"));
+  await until(() => cli.processes.length === 2, "both spawned");
+  const [a, b] = cli.processes;
+  assert.ok(a?.options.mcpServers?.thicket);
+  assert.ok(b?.options.mcpServers?.thicket);
+  assert.notEqual(
+    a.options.mcpServers.thicket,
+    b.options.mcpServers.thicket,
+    "an MCP server instance serves one session; sharing one breaks the second connect",
+  );
+  assert.deepEqual(a.options.allowedTools, ["mcp__thicket__post_message"]);
   await manager.shutdown();
 });
 

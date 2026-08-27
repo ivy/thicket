@@ -49,7 +49,15 @@ export function egressFetch(socketPath: string): typeof fetch {
         },
       );
       req.on("error", reject);
-      req.end();
+      const body = init?.body;
+      if (body === undefined || body === null) {
+        req.end();
+      } else if (typeof body === "string" || body instanceof Uint8Array) {
+        req.end(body);
+      } else {
+        req.destroy();
+        reject(new Error("egressFetch supports only string or byte bodies"));
+      }
     });
   }) as unknown as typeof fetch;
 }

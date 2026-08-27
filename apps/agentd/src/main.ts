@@ -41,16 +41,20 @@ export async function run(
   }
 
   // The Slack toolbelt exists only when the bridge is addressable — like
-  // attachments, absence of configuration means absence of capability.
-  const toolbelt =
-    config.bridgeBaseUrl === undefined
+  // attachments, absence of configuration means absence of capability. A
+  // factory, because an MCP server instance serves exactly one session.
+  const bridgeBaseUrl = config.bridgeBaseUrl;
+  const toolbeltFactory =
+    bridgeBaseUrl === undefined
       ? undefined
-      : buildToolbelt({
-          bridgeBaseUrl: config.bridgeBaseUrl,
-          fetchImpl: egressFetch(config.egressSocket),
-          cwd: entry.harness.cwd,
+      : () => ({
+          thicket: buildToolbelt({
+            bridgeBaseUrl,
+            fetchImpl: egressFetch(config.egressSocket),
+            cwd: entry.harness.cwd,
+          }),
         });
-  if (toolbelt === undefined) {
+  if (toolbeltFactory === undefined) {
     logger.info("slack toolbelt disabled: no bridge_base_url configured");
   }
   const sessions = new SessionManager({
@@ -58,10 +62,10 @@ export async function run(
     env: sessionEnv(config),
     maxSessions: config.maxSessions,
     onWarning: (msg) => logger.warn(msg),
-    ...(toolbelt === undefined
+    ...(toolbeltFactory === undefined
       ? {}
       : {
-          mcpServers: { thicket: toolbelt },
+          mcpServers: toolbeltFactory,
           allowedTools: TOOLBELT_ALLOWED_TOOLS,
         }),
   });
