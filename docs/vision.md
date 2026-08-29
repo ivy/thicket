@@ -2,7 +2,8 @@
 
 ## The goal
 
-An agent on every system I operate, available wherever I am.
+An agent on every system I operate — reachable wherever I am, responsive to events I
+never see.
 
 I work across a laptop and a home server with several unix accounts. Each of those
 contexts has standing work — patching and health monitoring, building services,
@@ -13,6 +14,12 @@ Code session I have to be sitting in front of.
 thicket makes each of those contexts a persistent, addressable agent. I reach it from
 Slack on my phone or from Claude Code on my laptop, and it is the same agent with the
 same memory either way. Agents reach each other directly when a task spans contexts.
+
+Little of that standing work begins with me typing. It begins when a dependency bot
+opens a PR, when an exception tracker files a new issue, when a charge posts, when next
+week's calendar firms up. An agent answers three kinds of trigger — a person on a human
+surface, the clock, and an event from the world — and a context is only covered when
+all three can reach it.
 
 ## Core principles
 
@@ -39,6 +46,13 @@ ingest agents but not the reverse.
 A prompt injection that tries to hop toward root fails at the network layer, not at a
 prompt boundary.
 
+The same rule shapes event pipelines that end in privilege. A dependency bump that ends
+in a merge is fed by attacker-influenced text — diffs, changelogs, commit messages —
+aimed at the very agent reviewing it. That agent is ingest-class and its output is a
+verdict artifact; between the verdict and the privileged act sit deterministic gates —
+checksums, CI, provenance — that no model output can waive. The guard that reads the
+poison never holds the keys.
+
 ### A2A is the only transport between agents
 
 Slack is a human surface. Agents never coordinate by posting messages at each other:
@@ -48,6 +62,22 @@ Agent-to-agent work goes over A2A, which carries `contextId`, `taskId`, and arti
 When an agent is working inside a Slack thread it passes the thread's coordinates in
 `Task.metadata`, so a delegate can post its own progress into that thread under its own
 identity. The human sees one conversation; the coordination never touches Slack.
+
+### Bridges are adapters, and there will be many
+
+A bridge does one job: translate a foreign vocabulary — Slack events, GitHub webhooks,
+Sentry alerts — into `message/send` on the right agent, and carry task events back to
+whatever needs them. Slack is the first bridge, not a privileged one; most of what its
+surface demands is presentation, not protocol.
+
+Machine events never ride through the human surface. An exception tracker posting into
+a channel is a notification for me, not an ingress for the fleet — chat as a shared bus
+invites exactly the mention loops and lost task state that A2A exists to avoid.
+
+Bridges hold no policy. When one event fans out into a pipeline — review, then
+refactor, then merge — that pipeline is an agent's job, delegated over A2A, because
+judgment lives where skills and `CLAUDE.md` do. A bridge that holds a workflow
+definition has become a workflow engine; those exist, and thicket is not one.
 
 ### Capability is advertised, not encoded in identity
 
@@ -98,5 +128,7 @@ bridge to serialize them.
   deliberately, and Socket Mode apps cannot be listed in the Slack Marketplace.
 - **Replacing Claude Code.** Local interactive work stays local and interactive.
   thicket makes those sessions reachable when I am not at the keyboard.
-- **A general agent platform.** Scope is the systems I operate. Features that only pay
-  off at fleet sizes I will never reach are out.
+- **A general agent platform.** Scope is one operator's systems and standing work —
+  including the external services that work runs against: a repo host, an exception
+  tracker, a bank, a subscription box. Features that only pay off at fleet sizes I
+  will never reach are out.
