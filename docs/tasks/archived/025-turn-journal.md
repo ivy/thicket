@@ -82,7 +82,7 @@ journal file, and a fleet is queried per account.
 
 ## Live verification
 
-See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+See [LIVE-TESTING.md](../LIVE-TESTING.md) for the rig and the `slack-test` MCP
 tools. Run a turn through Slack, then query the journal
 from the CLI and confirm the turn is there with a cost attached.
 

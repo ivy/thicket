@@ -123,7 +123,7 @@ not worth the money it exists to save.
 
 ## Live verification
 
-See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+See [LIVE-TESTING.md](../LIVE-TESTING.md) for the rig and the `slack-test` MCP
 tools. The whole point is the changelog example. Create a
 routine through conversation, force it to fire, and confirm: it posts when
 there is something new, and posts *nothing at all* when there is not — verify

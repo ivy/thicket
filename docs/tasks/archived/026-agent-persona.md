@@ -78,7 +78,7 @@ mechanism.
 
 ## Live verification
 
-See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+See [LIVE-TESTING.md](../LIVE-TESTING.md) for the rig and the `slack-test` MCP
 tools. `slack_dm_agent` then `slack_await_reply`: a
 persona instructing a recognisable habit should show up in the answer.
 

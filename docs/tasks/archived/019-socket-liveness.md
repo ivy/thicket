@@ -101,7 +101,7 @@ connection state to `state/bridge/health.json` every 15s, and
 
 ## Live verification
 
-See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+See [LIVE-TESTING.md](../LIVE-TESTING.md) for the rig and the `slack-test` MCP
 tools. Reproducing a dead socket on demand is the hard
 part: prefer driving the supervisor and a fake connection over waiting for
 Slack to misbehave. A live check that a healthy socket is *not* falsely

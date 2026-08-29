@@ -88,7 +88,7 @@ other.
 
 ## Live verification
 
-See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+See [LIVE-TESTING.md](../LIVE-TESTING.md) for the rig and the `slack-test` MCP
 tools. Post a known message with `slack_post`,
 then ask the agent what was said in that channel. `context: replay` is
 checkable by pointing a replay-configured agent at a thread with history.

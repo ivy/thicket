@@ -87,7 +87,7 @@ one transport — sessions now get their own via a factory.
 
 ## Live verification
 
-See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+See [LIVE-TESTING.md](../LIVE-TESTING.md) for the rig and the `slack-test` MCP
 tools. Ask the agent to post into `#thicket-test`
 and read it back with `slack_history`; ask it to hand back a file and check
 the attachment with `slack_thread`. The refusal path matters as much: ask it

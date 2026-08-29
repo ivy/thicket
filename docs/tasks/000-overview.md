@@ -9,6 +9,11 @@ status: reference
 Task files are `docs/tasks/<number>-<name>.md`. Each carries YAML frontmatter with its
 status and dependencies. Work any task whose dependencies are all `done`.
 
+Finished tasks are archived: a task that reaches `status: done` moves to
+`docs/tasks/archived/`, frontmatter intact. A `depends_on` entry with no file left in
+`docs/tasks/` is therefore satisfied. New task numbers continue from the highest number
+ever used, archive included — numbers are never reused.
+
 ## Frontmatter schema
 
 ```yaml
@@ -26,42 +31,42 @@ parallel_safe: true            # false if it edits files another in-flight task 
 
 | Task | Depends on | Component | Lang |
 |---|---|---|---|
-| [001 Repository scaffold and toolchain](001-repo-scaffold.md) | — | `.` | none |
-| [002 Roster schema and AgentCard generation](002-roster-and-cards.md) | 001 | `packages/roster` | typescript |
-| [003 netd — tsnet transport shim](003-netd-tsnet-shim.md) | 001 | `netd` | go |
-| [004 Durable A2A TaskStore](004-task-store.md) | 001 | `apps/agentd` | typescript |
-| [005 Executor — Agent SDK stream to A2A task events](005-executor-translation.md) | 002 | `packages/executor` | typescript |
-| [006 Session manager — hot/cold Claude Code sessions](006-session-manager.md) | 002 | `packages/executor` | typescript |
-| [007 Slack app manifest renderer](007-slack-manifest-renderer.md) | 002 | `packages/slack-manifest` | typescript |
-| [008 agentd — A2A server daemon](008-agentd.md) | 002, 004, 005, 006 | `apps/agentd` | typescript |
-| [009 bridge — Slack Socket Mode to A2A](009-bridge.md) | 002 | `apps/bridge` | typescript |
-| [010 CLI — provision and doctor](010-cli-provision.md) | 002, 007 | `apps/cli` | typescript |
-| [011 CLI — MCP server for local Claude Code](011-cli-mcp.md) | 002 | `apps/cli` | typescript |
-| [012 Deployment units and bootstrap](012-deploy-units.md) | 003, 008, 010 | `deploy` | none |
+| [001 Repository scaffold and toolchain](archived/001-repo-scaffold.md) | — | `.` | none |
+| [002 Roster schema and AgentCard generation](archived/002-roster-and-cards.md) | 001 | `packages/roster` | typescript |
+| [003 netd — tsnet transport shim](archived/003-netd-tsnet-shim.md) | 001 | `netd` | go |
+| [004 Durable A2A TaskStore](archived/004-task-store.md) | 001 | `apps/agentd` | typescript |
+| [005 Executor — Agent SDK stream to A2A task events](archived/005-executor-translation.md) | 002 | `packages/executor` | typescript |
+| [006 Session manager — hot/cold Claude Code sessions](archived/006-session-manager.md) | 002 | `packages/executor` | typescript |
+| [007 Slack app manifest renderer](archived/007-slack-manifest-renderer.md) | 002 | `packages/slack-manifest` | typescript |
+| [008 agentd — A2A server daemon](archived/008-agentd.md) | 002, 004, 005, 006 | `apps/agentd` | typescript |
+| [009 bridge — Slack Socket Mode to A2A](archived/009-bridge.md) | 002 | `apps/bridge` | typescript |
+| [010 CLI — provision and doctor](archived/010-cli-provision.md) | 002, 007 | `apps/cli` | typescript |
+| [011 CLI — MCP server for local Claude Code](archived/011-cli-mcp.md) | 002 | `apps/cli` | typescript |
+| [012 Deployment units and bootstrap](archived/012-deploy-units.md) | 003, 008, 010 | `deploy` | none |
 | [013 End-to-end integration and first agent](013-integration.md) | 008, 009, 011, 012, 014 | `.` | typescript |
-| [014 Honor shouldQuery metadata end to end](014-shouldquery-metadata.md) | 005, 008, 009 | `packages/executor` | typescript |
-| [015 Slack status fidelity and agent activity streaming](015-slack-status-fidelity.md) | 009 | `apps/bridge` | typescript |
-| [016 Agent-initiated Slack reactions](016-agent-reactions.md) | 020, 026 | `apps/bridge` | typescript |
-| [017 Bridge file surface](017-bridge-file-surface.md) | 009 | `apps/bridge` | typescript |
-| [018 Materialize attachments into the agent's cache](018-attachment-materialization.md) | 017 | `packages/executor` | typescript |
-| [019 Detect a Socket Mode connection that stops delivering](019-socket-liveness.md) | 009 | `apps/bridge` | typescript |
-| [020 Agent Slack toolbelt](020-agent-slack-toolbelt.md) | 017 | `apps/agentd` | typescript |
-| [021 Slack workspace knowledge](021-slack-workspace-tools.md) | 020 | `apps/bridge` | typescript |
-| [022 Routines](022-routines.md) | 020, 021, 026 | `apps/agentd` | typescript |
+| [014 Honor shouldQuery metadata end to end](archived/014-shouldquery-metadata.md) | 005, 008, 009 | `packages/executor` | typescript |
+| [015 Slack status fidelity and agent activity streaming](archived/015-slack-status-fidelity.md) | 009 | `apps/bridge` | typescript |
+| [016 Agent-initiated Slack reactions](archived/016-agent-reactions.md) | 020, 026 | `apps/bridge` | typescript |
+| [017 Bridge file surface](archived/017-bridge-file-surface.md) | 009 | `apps/bridge` | typescript |
+| [018 Materialize attachments into the agent's cache](archived/018-attachment-materialization.md) | 017 | `packages/executor` | typescript |
+| [019 Detect a Socket Mode connection that stops delivering](archived/019-socket-liveness.md) | 009 | `apps/bridge` | typescript |
+| [020 Agent Slack toolbelt](archived/020-agent-slack-toolbelt.md) | 017 | `apps/agentd` | typescript |
+| [021 Slack workspace knowledge](archived/021-slack-workspace-tools.md) | 020 | `apps/bridge` | typescript |
+| [022 Routines](archived/022-routines.md) | 020, 021, 026 | `apps/agentd` | typescript |
 | [023 Agent-to-agent delegation (research)](023-agent-delegation.md) | 020 | `.` | typescript |
 | [024 Approvals](024-approvals.md) | 009 | `apps/bridge` | typescript |
-| [025 Turn journal](025-turn-journal.md) | 008 | `apps/agentd` | typescript |
-| [026 Agent persona](026-agent-persona.md) | 002 | `packages/roster` | typescript |
+| [025 Turn journal](archived/025-turn-journal.md) | 008 | `apps/agentd` | typescript |
+| [026 Agent persona](archived/026-agent-persona.md) | 002 | `packages/roster` | typescript |
 | [027 Provision the agent's workspace](027-provision-agent-workspace.md) | 010 | `apps/cli` | typescript |
 | [028 thicket send](028-cli-send.md) | 011 | `apps/cli` | typescript |
-| [029 thicket doctor must survive a failing probe](029-doctor-probe-isolation.md) | 010 | `apps/cli` | typescript |
-| [030 Executor attachment tests flake under the workspace test run](030-executor-test-flake.md) | 018 | `packages/executor` | typescript |
+| [029 thicket doctor must survive a failing probe](archived/029-doctor-probe-isolation.md) | 010 | `apps/cli` | typescript |
+| [030 Executor attachment tests flake under the workspace test run](archived/030-executor-test-flake.md) | 018 | `packages/executor` | typescript |
 | [031 Canvas read](031-canvas-read.md) | 021 | `apps/bridge` | typescript |
-| [032 A mention in a channel fails at chat.startStream](032-channel-streaming.md) | 015 | `apps/bridge` | typescript |
-| [033 doctor's card check never gets the roster it needs](033-doctor-card-roster-wiring.md) | 010 | `apps/cli` | typescript |
-| [034 Split long replies at boundaries the reader can live with](034-message-length-splitting.md) | 032 | `apps/bridge` | typescript |
+| [032 A mention in a channel fails at chat.startStream](archived/032-channel-streaming.md) | 015 | `apps/bridge` | typescript |
+| [033 doctor's card check never gets the roster it needs](archived/033-doctor-card-roster-wiring.md) | 010 | `apps/cli` | typescript |
+| [034 Split long replies at boundaries the reader can live with](archived/034-message-length-splitting.md) | 032 | `apps/bridge` | typescript |
 | [035 Task cards carry an icon that says what kind of step this is](035-task-card-icons.md) | 015 | `packages/executor` | typescript |
-| [036 Fallback posts speak markdown, like the stream they stand in for](036-fallback-markdown-dialect.md) | 032 | `apps/bridge` | typescript |
+| [036 Fallback posts speak markdown, like the stream they stand in for](archived/036-fallback-markdown-dialect.md) | 032 | `apps/bridge` | typescript |
 | [037 Agent questions render as Slack UI, and a tap answers them](037-agent-questions-ui.md) | 014, 015 | `apps/bridge` | typescript |
 | [038 One-shot scheduled prompts](038-one-shot-schedule.md) | 022 | `apps/agentd` | typescript |
 | [039 Open the repo — ISC license, README, and a clean history](039-open-source-readiness.md) | — | `.` | none |
@@ -95,13 +100,9 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 15 | 041 | 1 |
 | 16 | 042 | 1 |
 
-`005` and `006` are the hard ones and sit in the widest wave — start them first.
-`003` is Go and shares no files with anything else.
-
-Waves 9–12 are the current front. Take `019` first: it is the only known
-defect, and a routine that fires into a quietly dead socket is worse than a
-reply that arrives late. `026` and `025` are small and independent; `020` is
-the substrate the rest of the Slack work stands on.
+Waves 13 and 14 are the current front: `035`, `037`, and `038` close out the
+Slack surface ([roadmap](../roadmap.md) Arc 1) while `039`–`043` open the
+deployment arc.
 
 Everything in these waves is verifiable live — see
 [LIVE-TESTING.md](LIVE-TESTING.md). Tasks still at `icebox` (023, 024, 027,

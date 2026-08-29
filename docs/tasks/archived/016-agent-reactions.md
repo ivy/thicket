@@ -83,7 +83,7 @@ completed normally, reporting the refusal.
 
 ## Live verification
 
-See [LIVE-TESTING.md](LIVE-TESTING.md) for the rig and the `slack-test` MCP
+See [LIVE-TESTING.md](../LIVE-TESTING.md) for the rig and the `slack-test` MCP
 tools. `slack_dm_agent`, then `slack_reactions` on the
 message you sent — 👀 should appear from the bridge without the agent doing
 anything. Whether the agent's own later reactions are *well chosen* is a
