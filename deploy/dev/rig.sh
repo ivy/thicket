@@ -16,7 +16,26 @@ HOME_DIR="${THICKET_TEST_HOME:-$HOME/thicket-test}"
 # trust records under XDG_STATE_HOME, so a relocated one makes every
 # `mise exec` reject the operator's global config ("not trusted") and the
 # whole rig dies before a single process binds.
-NODE="${THICKET_NODE:-$(mise which node)}"
+BUN="${THICKET_BUN:-$(mise which bun)}"
+
+# The rig runs the artifacts an agent account would install, not a checkout,
+# so a live check measures what ships. `mise exec -- pnpm compile` refreshes
+# them; only the netd stand-ins stay scripts, because netd is not one of them.
+host_target() {
+  local os arch
+  case "$(uname -s)" in
+    Darwin) os=darwin ;;
+    Linux) os=linux ;;
+    *) echo "unsupported platform $(uname -s)" >&2; exit 2 ;;
+  esac
+  case "$(uname -m)" in
+    arm64 | aarch64) arch=arm64 ;;
+    x86_64 | amd64) arch=x64 ;;
+    *) echo "unsupported architecture $(uname -m)" >&2; exit 2 ;;
+  esac
+  echo "bun-$os-$arch"
+}
+BIN_DIR="${THICKET_BIN_DIR:-$REPO/dist-bin/$(host_target)}"
 
 export XDG_CONFIG_HOME="$HOME_DIR/config"
 export XDG_STATE_HOME="$HOME_DIR/state"
@@ -64,19 +83,26 @@ start() {
     echo "no agent in $XDG_CONFIG_HOME/thicket/agents.yaml; set THICKET_DEV_AGENT" >&2
     exit 2
   fi
+  local name
+  for name in thicket-agentd thicket-bridge; do
+    if [[ ! -x "$BIN_DIR/$name" ]]; then
+      echo "no $BIN_DIR/$name — run: mise exec -- pnpm compile" >&2
+      exit 2
+    fi
+  done
   mkdir -p "$SOCKETS" "$HOME_DIR"
 
   # netd stand-ins first: the bridge dials the agent through one of them.
   UPSTREAM="$SOCKETS/agentd.sock" PEER_TAG=tag:thicket-bridge PORT="$AGENTD_PORT" \
-    start_one proxy "$NODE" "$REPO/deploy/dev/peer-tag-proxy.mjs"
+    start_one proxy "$BUN" "$REPO/deploy/dev/peer-tag-proxy.mjs"
   UPSTREAM="$SOCKETS/bridge.sock" PEER_TAG="tag:thicket-$AGENT" PORT="$BRIDGE_PORT" \
-    start_one bridge-proxy "$NODE" "$REPO/deploy/dev/peer-tag-proxy.mjs"
+    start_one bridge-proxy "$BUN" "$REPO/deploy/dev/peer-tag-proxy.mjs"
   SOCKET="$SOCKETS/netd-egress.sock" \
-    start_one egress "$NODE" "$REPO/deploy/dev/egress-proxy.mjs"
+    start_one egress "$BUN" "$REPO/deploy/dev/egress-proxy.mjs"
 
-  start_one agentd "$NODE" "$REPO/apps/agentd/dist/bin.js"
+  start_one agentd "$BIN_DIR/thicket-agentd"
   THICKET_BRIDGE_ENDPOINTS="{\"$AGENT\":\"http://127.0.0.1:$AGENTD_PORT\"}" \
-    start_one bridge "$NODE" "$REPO/apps/bridge/dist/bin.js"
+    start_one bridge "$BIN_DIR/thicket-bridge"
 }
 
 stop() {

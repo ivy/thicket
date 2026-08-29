@@ -95,6 +95,9 @@ export async function run(
     harness: entry.harness,
     env: sessionEnv(config),
     maxSessions: config.maxSessions,
+    ...(config.claudeExecutable === undefined
+      ? {}
+      : { claudeExecutable: config.claudeExecutable }),
     personaPrompt,
     workspaces: entry.workspaces,
     onWarning: (msg) => logger.warn(msg),
@@ -206,6 +209,9 @@ export async function run(
   logger.info("agentd listening", {
     agent: config.agent,
     target: target.kind === "fd" ? `fd:${target.fd}` : target.path,
+    // Which CLI the sessions will run: a standalone build has to be told,
+    // and "the wrong claude" is otherwise a silent difference in answers.
+    claude: config.claudeExecutable ?? "sdk-bundled",
   });
 
   const pruneTimer = setInterval(() => {

@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { dirname, isAbsolute, resolve } from "node:path";
+import { accessSync, constants, readFileSync } from "node:fs";
+import { delimiter, dirname, isAbsolute, resolve } from "node:path";
 import { join } from "node:path";
 
 import { cacheDir, configDir, socketPath, stateDir } from "@thicket/roster";
@@ -37,6 +37,13 @@ export interface AgentdConfig {
    * Absent means no toolbelt: the session gets no Slack tools at all.
    */
   bridgeBaseUrl?: string;
+  /**
+   * The Claude Code CLI sessions run. A standalone agentd has no
+   * node_modules beside it, so the Agent SDK cannot reach the per-platform
+   * binary it would otherwise resolve; the account installs its own
+   * `claude` anyway, and that is the one to run.
+   */
+  claudeExecutable?: string;
 }
 
 interface RawConfig {
@@ -52,6 +59,7 @@ interface RawConfig {
   attachments_dir?: string;
   egress_socket?: string;
   bridge_base_url?: string;
+  claude_executable?: string;
 }
 
 export function defaultConfigPath(): string {
@@ -98,7 +106,32 @@ export function loadConfig(path: string): AgentdConfig {
     attachmentsDir: raw.attachments_dir ?? join(cacheDir(), "attachments"),
     egressSocket: raw.egress_socket ?? socketPath("netd-egress"),
     ...(raw.bridge_base_url === undefined ? {} : { bridgeBaseUrl: raw.bridge_base_url }),
+    ...((): { claudeExecutable?: string } => {
+      const configured = raw.claude_executable ?? process.env.THICKET_CLAUDE_EXECUTABLE;
+      const found = configured ?? findOnPath("claude");
+      return found === undefined ? {} : { claudeExecutable: found };
+    })(),
   };
+}
+
+/** First executable of that name on PATH, or undefined if there is none. */
+export function findOnPath(
+  name: string,
+  path: string | undefined = process.env.PATH,
+): string | undefined {
+  for (const dir of (path ?? "").split(delimiter)) {
+    if (dir === "") {
+      continue;
+    }
+    const candidate = join(dir, name);
+    try {
+      accessSync(candidate, constants.X_OK);
+      return candidate;
+    } catch {
+      // Not here, or not executable by us; keep looking.
+    }
+  }
+  return undefined;
 }
 
 /**

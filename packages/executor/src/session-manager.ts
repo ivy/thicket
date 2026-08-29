@@ -55,6 +55,11 @@ export interface SessionManagerOptions {
     /** Claude Code permission mode for the session (roster default: auto). */
     permissionMode?: "default" | "acceptEdits" | "plan" | "dontAsk" | "auto";
   };
+  /**
+   * The Claude Code CLI to run, when the SDK should not resolve its own.
+   * A standalone build carries no node_modules for it to look in.
+   */
+  claudeExecutable?: string;
   /** Hot pool cap; least-recently-used idle sessions are evicted beyond it. */
   maxSessions?: number;
   /**
@@ -204,6 +209,7 @@ class ManagedSession implements SessionHandle {
  */
 export class SessionManager implements SessionProvider {
   private readonly harness: SessionManagerOptions["harness"];
+  private readonly claudeExecutable: string | undefined;
   private readonly maxSessions: number;
   private readonly env: Record<string, string | undefined>;
   private readonly queryFn: QueryFn;
@@ -221,6 +227,7 @@ export class SessionManager implements SessionProvider {
 
   constructor(options: SessionManagerOptions) {
     this.harness = options.harness;
+    this.claudeExecutable = options.claudeExecutable;
     this.maxSessions = options.maxSessions ?? DEFAULT_MAX_SESSIONS;
     this.env = options.env ?? defaultEnv();
     this.queryFn = options.queryFn ?? ((args) => query(args));
@@ -404,6 +411,9 @@ export class SessionManager implements SessionProvider {
       ...(this.harness.permissionMode !== undefined
         ? { permissionMode: this.harness.permissionMode }
         : {}),
+      ...(this.claudeExecutable === undefined
+        ? {}
+        : { pathToClaudeCodeExecutable: this.claudeExecutable }),
       ...(this.mcpServers === undefined ? {} : { mcpServers: this.mcpServers(session.id) }),
       ...(this.allowedTools === undefined ? {} : { allowedTools: this.allowedTools }),
       canUseTool: denyUnanswerable,

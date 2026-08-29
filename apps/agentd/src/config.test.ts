@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 
-import { loadConfig } from "./config.js";
+import { findOnPath, loadConfig } from "./config.js";
 
 function configDirWith(raw: Record<string, unknown>): string {
   const dir = mkdtempSync(join(tmpdir(), "thicket-agentd-config-"));
@@ -30,4 +30,26 @@ test("an absolute agents_file is left alone", () => {
 test("an absent agents_file still falls back to the config dir", () => {
   const path = configDirWith(base);
   assert.match(loadConfig(path).agentsFile, /agents\.yaml$/);
+});
+
+test("claude_executable wins over whatever PATH offers", () => {
+  const path = configDirWith({ ...base, claude_executable: "/opt/claude/bin/claude" });
+  assert.equal(loadConfig(path).claudeExecutable, "/opt/claude/bin/claude");
+});
+
+test("findOnPath returns the first executable of that name, or nothing", () => {
+  const dir = mkdtempSync(join(tmpdir(), "thicket-path-"));
+  const later = mkdtempSync(join(tmpdir(), "thicket-path-"));
+  writeFileSync(join(later, "widget"), "#!/bin/sh\n", { mode: 0o755 });
+  writeFileSync(join(dir, "widget"), "#!/bin/sh\n", { mode: 0o755 });
+
+  assert.equal(findOnPath("widget", [dir, later].join(delimiter)), join(dir, "widget"));
+  assert.equal(findOnPath("widget", [later, dir].join(delimiter)), join(later, "widget"));
+  assert.equal(findOnPath("no-such-tool", dir), undefined);
+});
+
+test("a file on PATH that is not executable is not a match", () => {
+  const dir = mkdtempSync(join(tmpdir(), "thicket-path-"));
+  writeFileSync(join(dir, "widget"), "not executable\n", { mode: 0o644 });
+  assert.equal(findOnPath("widget", dir), undefined);
 });
