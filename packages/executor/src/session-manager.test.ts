@@ -391,8 +391,12 @@ test("each generation gets its own MCP server instance, plus the allow-list", as
     ({ type: "sdk", name: "thicket", id: (built += 1) }) as unknown as NonNullable<
       Options["mcpServers"]
     >[string];
+  const builtFor: string[] = [];
   const manager = makeManager(cli, {
-    mcpServers: () => ({ thicket: makeToolbelt() }),
+    mcpServers: (contextId) => {
+      builtFor.push(contextId);
+      return { thicket: makeToolbelt() };
+    },
     allowedTools: ["mcp__thicket__post_message"],
   });
   const one = manager.sessionFor("ctx-mcp-1");
@@ -411,6 +415,7 @@ test("each generation gets its own MCP server instance, plus the allow-list", as
     "an MCP server instance serves one session; sharing one breaks the second connect",
   );
   assert.deepEqual(a.options.allowedTools, ["mcp__thicket__post_message"]);
+  assert.deepEqual(builtFor, ["ctx-mcp-1", "ctx-mcp-2"], "each toolbelt is told its session");
   await manager.shutdown();
 });
 

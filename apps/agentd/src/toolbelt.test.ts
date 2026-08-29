@@ -7,11 +7,14 @@ import { join } from "node:path";
 import {
   buildToolbelt,
   postMessage,
+  resolveOrigin,
+  routineTools,
   toToolResult,
   TOOLBELT_ALLOWED_TOOLS,
   uploadFile,
   type ToolbeltOptions,
 } from "./toolbelt.js";
+import { RoutineStore } from "./store/routines.js";
 
 function options(
   respond: (url: string, init?: RequestInit) => Response,
@@ -99,6 +102,7 @@ test("the toolbelt is an in-process SDK server exposing exactly the allowed tool
     "mcp__thicket__search_messages",
     "mcp__thicket__list_channels",
     "mcp__thicket__list_users",
+    "mcp__thicket__schedule_once",
     "mcp__thicket__routine_create",
     "mcp__thicket__routine_list",
     "mcp__thicket__routine_update",
@@ -121,4 +125,76 @@ test("read tools GET the bridge with only the arguments that were given", async 
   assert.equal(url.searchParams.get("limit"), "10");
   assert.equal(url.searchParams.has("cursor"), false);
   assert.equal(calls[0]!.init?.method, "GET");
+});
+
+test("a one-shot's origin comes from the bridge, keyed by the session, never from the model", async () => {
+  const { opts, calls } = options(() =>
+    Response.json({ ok: true, channel: "D1", thread_ts: "1.1", context_id: "ctx-1" }),
+  );
+  const origin = await resolveOrigin({ ...opts, contextId: "ctx-1" });
+  assert.deepEqual(origin, { channel: "D1", threadTs: "1.1", contextId: "ctx-1" });
+  const url = new URL(calls[0]!.url);
+  assert.equal(url.pathname, "/api/origin");
+  assert.equal(url.searchParams.get("context_id"), "ctx-1");
+
+  assert.deepEqual(await resolveOrigin(opts), {
+    error: "this session has no conversation to schedule from",
+  });
+  const refused = options(() => Response.json({ error: "no open turn in that conversation" }, { status: 403 }));
+  assert.deepEqual(await resolveOrigin({ ...refused.opts, contextId: "ctx-9" }), {
+    error: "no open turn in that conversation",
+  });
+});
+
+test("schedule_once rejects times that are past or unreadable, and records a good one", async () => {
+  const store = new RoutineStore(":memory:");
+  const { opts, calls } = options(() =>
+    Response.json({ ok: true, channel: "D1", thread_ts: "1.1", context_id: "ctx-1" }),
+  );
+  const now = Date.parse("2026-08-28T20:00:00Z");
+  const tools = routineTools({ ...opts, contextId: "ctx-1", routines: store, now: () => now }, store);
+  const handler = (name: string) => {
+    const definition = tools.find((t) => t.name === name);
+    assert.ok(definition, `${name} is offered`);
+    return async (args: Record<string, unknown>) =>
+      (await definition.handler(args as never, {})) as {
+        isError?: boolean;
+        content: { text: string }[];
+      };
+  };
+  const call = handler("schedule_once");
+
+  const past = await call({ at: "2026-08-28T19:00:00Z", prompt: "p" });
+  assert.equal(past.isError, true);
+  assert.match(past.content[0]!.text, /already past/);
+  const junk = await call({ at: "tomorrow-ish", prompt: "p" });
+  assert.equal(junk.isError, true);
+  assert.match(junk.content[0]!.text, /not a time I can parse/);
+  assert.equal(calls.length, 0, "no origin lookup for a rejected time");
+
+  const good = await call({ at: "2026-08-29T09:00:00Z", prompt: "post the word ping" });
+  assert.notEqual(good.isError, true, good.content[0]!.text);
+  const body = JSON.parse(good.content[0]!.text) as { scheduled: Record<string, unknown> };
+  assert.equal(body.scheduled.at, "2026-08-29T09:00:00.000Z");
+  assert.equal(body.scheduled.channel, "D1");
+  assert.equal(body.scheduled.thread_ts, "1.1");
+  const [row] = store.list();
+  assert.equal(row?.kind, "at");
+  assert.equal(row?.name, "post the word ping");
+  assert.deepEqual(row?.origin, { channel: "D1", threadTs: "1.1", contextId: "ctx-1" });
+
+  const listed = await handler("routine_list")({});
+  const routines = (JSON.parse(listed.content[0]!.text) as { routines: Record<string, unknown>[] }).routines;
+  assert.equal(routines[0]?.kind, "at");
+  assert.equal(routines[0]?.at, "2026-08-29T09:00:00.000Z");
+  assert.equal(routines[0]?.fired, null);
+
+  // A one-shot cannot be re-timed through routine_update; delete cancels it.
+  const retimed = await handler("routine_update")({ id: row!.id, cron: "* * * * *" });
+  assert.equal(retimed.isError, true);
+  assert.match(retimed.content[0]!.text, /one-shot/);
+  const deleted = await handler("routine_delete")({ id: row!.id });
+  assert.notEqual(deleted.isError, true);
+  assert.equal(store.list().length, 0);
+  store.close();
 });

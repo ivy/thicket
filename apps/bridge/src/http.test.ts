@@ -596,3 +596,45 @@ test("a bare react targets the triggering message of the latest open turn", asyn
   const nothing = await react(idle, { emoji: "eyes" });
   assert.equal(nothing.status, 403, "no open turn, nothing to infer");
 });
+
+test("/api/origin names the thread the agent is answering, for its own session only", async () => {
+  const r = await rig();
+  r.state.recordTask({
+    taskId: "t1",
+    agent: "hearth",
+    channel: "D1",
+    threadTs: "1724650000.000100",
+    streamTs: null,
+    messageTs: "1724650001.000001",
+    authorId: "U1",
+  });
+  r.state.saveContext("D1", "1724650000.000100", "ctx-minted");
+  try {
+    const ok = await fetch(`${r.url}/api/origin?context_id=ctx-minted`, {
+      headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+    });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(await ok.json(), {
+      ok: true,
+      channel: "D1",
+      thread_ts: "1724650000.000100",
+      context_id: "ctx-minted",
+    });
+
+    const other = await fetch(`${r.url}/api/origin?context_id=ctx-minted`, {
+      headers: { [PEER_TAGS_HEADER]: FORGE_TAG },
+    });
+    assert.equal(other.status, 403, "another agent's thread is not this agent's origin");
+
+    const stale = await fetch(`${r.url}/api/origin?context_id=ctx-nobody`, {
+      headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+    });
+    assert.equal(stale.status, 403);
+    assert.match(await errorOf(stale), /no open turn/);
+
+    const missing = await fetch(`${r.url}/api/origin`, { headers: { [PEER_TAGS_HEADER]: HEARTH_TAG } });
+    assert.equal(missing.status, 400);
+  } finally {
+    await r.close();
+  }
+});

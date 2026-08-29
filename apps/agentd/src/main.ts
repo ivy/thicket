@@ -25,7 +25,7 @@ import { createLogger, type Logger } from "./logger.js";
 import { buildServer } from "./server.js";
 import { SqliteTaskStore } from "./store/sqlite-task-store.js";
 import { JournalStore } from "./store/journal.js";
-import { RoutineStore } from "./store/routines.js";
+import { RoutineStore, type Routine } from "./store/routines.js";
 import { RoutineRunner, type RoutineTurnResult } from "./routines.js";
 
 const SHUTDOWN_TIMEOUT_MS = 30_000;
@@ -67,11 +67,12 @@ export async function run(
   const toolbeltFactory =
     bridgeBaseUrl === undefined
       ? undefined
-      : () => ({
+      : (contextId: string) => ({
           thicket: buildToolbelt({
             bridgeBaseUrl,
             fetchImpl: egressFetch(config.egressSocket),
             cwd: entry.harness.cwd,
+            contextId,
             ...(routines === undefined ? {} : { routines }),
           }),
         });
@@ -131,18 +132,22 @@ export async function run(
 
   // Routine turns enter through the same request handler as everything
   // else — agentd is its own A2A requester — so the task store, the
-  // journal (trigger: routine), and the translator all just apply. The
-  // reply text streams back here and is discarded: a routine that has
-  // something to say says it through the toolbelt.
+  // journal (trigger: routine, or schedule for a one-shot), and the
+  // translator all just apply. The reply text streams back here and is
+  // discarded: a routine that has something to say says it through the
+  // toolbelt.
   const routineContext = new ServerCallContext({
     user: { isAuthenticated: true, userName: "routine" },
   });
-  const runRoutineTurn = async (routineId: string, prompt: string): Promise<RoutineTurnResult> => {
+  const runRoutineTurn = async (routine: Routine, prompt: string): Promise<RoutineTurnResult> => {
+    const oneShot = routine.kind === "at" && routine.origin !== null;
     const message: Message = {
-      messageId: `routine-${routineId}-${randomUUID()}`,
-      // One stable context per routine: consecutive runs share a session,
-      // which is how "what did I already report?" answers itself.
-      contextId: deriveSessionId("routine", routineId),
+      messageId: `routine-${routine.id}-${randomUUID()}`,
+      // A cron routine gets one stable context of its own: consecutive
+      // runs share a session, which is how "what did I already report?"
+      // answers itself. A one-shot runs in the thread that asked for it,
+      // so "check if XYZ finished" means the XYZ that thread was about.
+      contextId: oneShot ? routine.origin!.contextId : deriveSessionId("routine", routine.id),
       taskId: "",
       role: Role.ROLE_USER,
       parts: [
@@ -153,7 +158,7 @@ export async function run(
           metadata: {},
         },
       ],
-      metadata: { [META_TRIGGER]: "routine" },
+      metadata: { [META_TRIGGER]: oneShot ? "schedule" : "routine" },
       extensions: [],
       referenceTaskIds: [],
     };
@@ -212,6 +217,11 @@ export async function run(
       const dropped = journal.prune(JOURNAL_RETENTION_MS);
       if (dropped > 0) {
         logger.info("pruned journal", { count: dropped });
+      }
+      // Spent one-shots are history; they leave with their journal rows.
+      const spent = routines?.pruneFired(JOURNAL_RETENTION_MS) ?? 0;
+      if (spent > 0) {
+        logger.info("pruned fired one-shots", { count: spent });
       }
     } catch (err) {
       logger.warn("journal prune failed", { err: String(err) });

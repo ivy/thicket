@@ -70,10 +70,12 @@ export interface SessionManagerOptions {
   /**
    * In-process MCP servers for every session (e.g. the Slack toolbelt),
    * as a factory: an MCP server instance serves one transport, so each
-   * subprocess generation needs its own. Tools named in allowedTools skip
-   * the permission prompt a headless session cannot answer.
+   * subprocess generation needs its own. It is told which session it is
+   * for, so a tool can know its conversation without the model saying.
+   * Tools named in allowedTools skip the permission prompt a headless
+   * session cannot answer.
    */
-  mcpServers?: () => NonNullable<Options["mcpServers"]>;
+  mcpServers?: (contextId: string) => NonNullable<Options["mcpServers"]>;
   allowedTools?: string[];
   /**
    * The agent's persona, appended to the harness's own system prompt —
@@ -182,7 +184,7 @@ export class SessionManager implements SessionProvider {
   private readonly queryFn: QueryFn;
   private readonly sessionExists: (sessionId: string) => Promise<boolean>;
   private readonly onWarning: (message: string) => void;
-  private readonly mcpServers: (() => NonNullable<Options["mcpServers"]>) | undefined;
+  private readonly mcpServers: ((contextId: string) => NonNullable<Options["mcpServers"]>) | undefined;
   private readonly allowedTools: string[] | undefined;
   private readonly personaPrompt: (() => string | undefined) | undefined;
 
@@ -353,7 +355,7 @@ export class SessionManager implements SessionProvider {
       ...(this.harness.permissionMode !== undefined
         ? { permissionMode: this.harness.permissionMode }
         : {}),
-      ...(this.mcpServers === undefined ? {} : { mcpServers: this.mcpServers() }),
+      ...(this.mcpServers === undefined ? {} : { mcpServers: this.mcpServers(session.id) }),
       ...(this.allowedTools === undefined ? {} : { allowedTools: this.allowedTools }),
       canUseTool: denyUnanswerable,
       hooks: { PreToolUse: [{ matcher: QUESTION_TOOL, hooks: [deferQuestion] }] },

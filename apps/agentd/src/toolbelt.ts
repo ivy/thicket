@@ -5,7 +5,7 @@ import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@
 import { z } from "zod";
 
 import { parseCron } from "./cron.js";
-import type { RoutineStore } from "./store/routines.js";
+import type { RoutineOrigin, RoutineStore } from "./store/routines.js";
 
 /**
  * Uploads are buffered through the bridge, so the cap protects two heaps.
@@ -20,8 +20,16 @@ export interface ToolbeltOptions {
   fetchImpl: typeof fetch;
   /** Session working directory; relative upload paths resolve here. */
   cwd: string;
+  /**
+   * The session this toolbelt serves. Baked in at construction, never
+   * supplied by the model: it is how a one-shot learns its origin thread
+   * without the agent being able to name an arbitrary one.
+   */
+  contextId?: string;
   /** When present, the routine CRUD tools are offered (task 022). */
   routines?: RoutineStore;
+  /** Clock for "is that fire time still ahead of us"; injectable for tests. */
+  now?: () => number;
 }
 
 /**
@@ -125,6 +133,26 @@ export async function readBridge(
   return callBridge(options, qs === "" ? path : `${path}?${qs}`, { method: "GET" });
 }
 
+/**
+ * Where the session's current turn is happening, from the bridge's own
+ * record of the thread it is answering. The bridge is the authority; the
+ * agent only says which session it is asking for.
+ */
+export async function resolveOrigin(options: ToolbeltOptions): Promise<RoutineOrigin | { error: string }> {
+  if (options.contextId === undefined) {
+    return { error: "this session has no conversation to schedule from" };
+  }
+  const outcome = await readBridge(options, "/api/origin", { context_id: options.contextId });
+  if (outcome.outcome !== "ok") {
+    return { error: outcome.error };
+  }
+  const { channel, thread_ts, context_id } = outcome.detail;
+  if (typeof channel !== "string" || typeof thread_ts !== "string" || typeof context_id !== "string") {
+    return { error: "bridge returned no origin" };
+  }
+  return { channel, threadTs: thread_ts, contextId: context_id };
+}
+
 /** Renders an outcome as a tool result the model can read and act on. */
 export function toToolResult(outcome: ToolOutcome): {
   content: { type: "text"; text: string }[];
@@ -159,7 +187,8 @@ function toolError(text: string): {
  * host's local time zone; minutes that pass while the machine is asleep
  * are skipped, not replayed.
  */
-function routineTools(store: RoutineStore) {
+export function routineTools(options: ToolbeltOptions, store: RoutineStore) {
+  const now = options.now ?? (() => Date.now());
   const validateCron = (cron: string): string | undefined =>
     parseCron(cron) === undefined
       ? `not a valid cron expression: "${cron}". Five fields — minute hour ` +
@@ -189,16 +218,79 @@ function routineTools(store: RoutineStore) {
       },
     ),
     tool(
+      "schedule_once",
+      "Schedule a one-off prompt for later, from the conversation you are in " +
+        "right now: at the given time this agent comes back to this very " +
+        "thread — same session, so it still knows what was being discussed — " +
+        "runs the prompt, and reports the result here with post_message. Use " +
+        "it for \"check on this tomorrow at 9\", \"remind me in an hour\". " +
+        "Convert the person's words to a time yourself; the host's local " +
+        "time zone applies to an `at` without an offset. A fire time that " +
+        "passes while the agent is down fires when it comes back, once. It " +
+        "appears in routine_list and routine_delete cancels it.",
+      {
+        at: z
+          .string()
+          .min(1)
+          .describe("when to fire, ISO 8601 with a time, e.g. 2026-08-29T09:00 (local) or ...T09:00:00-07:00"),
+        prompt: z.string().min(1).describe("what to do then, written for your future self"),
+        name: z.string().min(1).optional().describe("short label; defaults to the prompt's first words"),
+      },
+      async (args) => {
+        const atMs = Date.parse(args.at);
+        if (!Number.isFinite(atMs)) {
+          return toolError(
+            `not a time I can parse: "${args.at}". Give ISO 8601 with a time, ` +
+              `e.g. 2026-08-29T09:00 for 09:00 local or 2026-08-29T09:00:00-07:00.`,
+          );
+        }
+        if (atMs <= now()) {
+          return toolError(
+            `${args.at} is already past (it is ${new Date(now()).toISOString()} now). ` +
+              `If they meant right away, just do it; otherwise pick a time ahead.`,
+          );
+        }
+        const origin = await resolveOrigin(options);
+        if ("error" in origin) {
+          return toolError(
+            `Cannot schedule from here: ${origin.error}. One-shots come back to the ` +
+              `Slack thread they were asked in, so ask for this from a Slack conversation.`,
+          );
+        }
+        const name = args.name ?? args.prompt.replace(/\s+/g, " ").trim().slice(0, 40);
+        const routine = store.createOneShot({ name, atMs, prompt: args.prompt, origin });
+        return ok({
+          scheduled: {
+            id: routine.id,
+            name: routine.name,
+            at: new Date(atMs).toISOString(),
+            channel: origin.channel,
+            thread_ts: origin.threadTs,
+          },
+        });
+      },
+    ),
+    tool(
       "routine_list",
-      "List this agent's routines: id, name, schedule, enabled, failure " +
-        "count, and the last run's outcome.",
+      "List this agent's scheduled work — cron routines and one-shots: id, " +
+        "name, schedule or fire time, enabled, failure count, and the last " +
+        "run's outcome. A one-shot with `fired` set has already happened.",
       {},
       async () =>
         ok({
           routines: store.list().map((routine) => ({
             id: routine.id,
             name: routine.name,
-            cron: routine.cron,
+            kind: routine.kind,
+            ...(routine.kind === "cron"
+              ? { cron: routine.cron }
+              : {
+                  at: routine.atMs === null ? null : new Date(routine.atMs).toISOString(),
+                  fired: routine.firedMs === null ? null : new Date(routine.firedMs).toISOString(),
+                  ...(routine.origin === null
+                    ? {}
+                    : { channel: routine.origin.channel, thread_ts: routine.origin.threadTs }),
+                }),
             enabled: routine.enabled,
             consecutive_failures: routine.consecutiveFailures,
             last_run: routine.lastRunMs === null ? null : new Date(routine.lastRunMs).toISOString(),
@@ -218,23 +310,30 @@ function routineTools(store: RoutineStore) {
         enabled: z.boolean().optional(),
       },
       async (args) => {
+        const { id, ...patch } = args;
+        const existing = store.get(id);
+        if (existing === undefined) {
+          return toolError(`no routine with id ${id}; routine_list shows what exists`);
+        }
         if (args.cron !== undefined) {
+          if (existing.kind === "at") {
+            return toolError(
+              `${id} is a one-shot, not a cron routine; to change its time, delete it and schedule_once again`,
+            );
+          }
           const invalid = validateCron(args.cron);
           if (invalid !== undefined) {
             return toolError(invalid);
           }
         }
-        const { id, ...patch } = args;
-        if (!store.update(id, patch)) {
-          return toolError(`no routine with id ${id}; routine_list shows what exists`);
-        }
+        store.update(id, patch);
         return ok({ id });
       },
     ),
     tool(
       "routine_delete",
-      "Delete a routine permanently. To pause one instead, routine_update " +
-        "with enabled: false.",
+      "Delete a routine or cancel an unfired one-shot, permanently. To pause " +
+        "a routine instead, routine_update with enabled: false.",
       {
         id: z.string().min(1).describe("routine id, from routine_list"),
       },
@@ -370,7 +469,7 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
         },
         async (args) => toToolResult(await readBridge(options, "/api/users", args)),
       ),
-      ...(options.routines === undefined ? [] : routineTools(options.routines)),
+      ...(options.routines === undefined ? [] : routineTools(options, options.routines)),
     ],
   });
 }
@@ -385,6 +484,7 @@ export const TOOLBELT_ALLOWED_TOOLS = [
   "mcp__thicket__search_messages",
   "mcp__thicket__list_channels",
   "mcp__thicket__list_users",
+  "mcp__thicket__schedule_once",
   "mcp__thicket__routine_create",
   "mcp__thicket__routine_list",
   "mcp__thicket__routine_update",

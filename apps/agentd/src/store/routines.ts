@@ -3,10 +3,26 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
+/** Where a one-shot came from, and where its answer goes back to. */
+export interface RoutineOrigin {
+  channel: string;
+  threadTs: string;
+  /** The origin thread's session: the run happens in it, so "XYZ" means what it meant. */
+  contextId: string;
+}
+
 export interface Routine {
   id: string;
   name: string;
+  /** `cron` recurs on its schedule; `at` fires once, at `atMs`, and catches up if late. */
+  kind: "cron" | "at";
+  /** Five-field cron for `cron` rows; "" for a one-shot. */
   cron: string;
+  /** Epoch ms fire time for `at` rows; null for cron. */
+  atMs: number | null;
+  origin: RoutineOrigin | null;
+  /** When an `at` row fired for good — after success, or after its last retry. */
+  firedMs: number | null;
   prompt: string;
   enabled: boolean;
   consecutiveFailures: number;
@@ -24,10 +40,11 @@ export interface RoutineUpdate {
 }
 
 /**
- * The agent's standing work, durable across restarts: id, schedule,
- * prompt, and enough run accounting to tell "nothing to report" from
- * "broken for a week" — the ambiguity the silence rule creates. The
- * journal (task 025) holds the per-run detail; this holds the health.
+ * The agent's scheduled work, durable across restarts: standing routines
+ * on cron and one-shots at a moment, in one table so listing and deleting
+ * cover both. Enough run accounting lives here to tell "nothing to
+ * report" from "broken for a week" — the ambiguity the silence rule
+ * creates; the journal (task 025) holds the per-run detail.
  */
 export class RoutineStore {
   private readonly db: DatabaseSync;
@@ -52,6 +69,24 @@ export class RoutineStore {
         last_outcome TEXT
       );
     `);
+    this.addColumn("kind", "TEXT NOT NULL DEFAULT 'cron'");
+    this.addColumn("at_ms", "INTEGER");
+    this.addColumn("origin_channel", "TEXT");
+    this.addColumn("origin_thread_ts", "TEXT");
+    this.addColumn("origin_context_id", "TEXT");
+    this.addColumn("fired_ms", "INTEGER");
+  }
+
+  /**
+   * CREATE TABLE IF NOT EXISTS cannot widen a table an earlier version
+   * created, so added columns are applied separately and idempotently.
+   */
+  private addColumn(column: string, definition: string): void {
+    const existing = this.db.prepare("PRAGMA table_info(routines)").all() as { name: string }[];
+    if (existing.some((row) => row.name === column)) {
+      return;
+    }
+    this.db.exec(`ALTER TABLE routines ADD COLUMN ${column} ${definition}`);
   }
 
   close(): void {
@@ -62,10 +97,41 @@ export class RoutineStore {
     const id = randomUUID().slice(0, 8);
     this.db
       .prepare(
-        `INSERT INTO routines (id, name, cron, prompt, enabled, consecutive_failures, created_ms)
-         VALUES (?, ?, ?, ?, 1, 0, ?)`,
+        `INSERT INTO routines (id, name, kind, cron, prompt, enabled, consecutive_failures, created_ms)
+         VALUES (?, ?, 'cron', ?, ?, 1, 0, ?)`,
       )
       .run(id, routine.name, routine.cron, routine.prompt, Date.now());
+    return this.created(id);
+  }
+
+  /** A one-shot: fires once at `atMs`, in and back to its origin thread. */
+  createOneShot(routine: {
+    name: string;
+    atMs: number;
+    prompt: string;
+    origin: RoutineOrigin;
+  }): Routine {
+    const id = randomUUID().slice(0, 8);
+    this.db
+      .prepare(
+        `INSERT INTO routines (id, name, kind, cron, at_ms, origin_channel, origin_thread_ts,
+           origin_context_id, prompt, enabled, consecutive_failures, created_ms)
+         VALUES (?, ?, 'at', '', ?, ?, ?, ?, ?, 1, 0, ?)`,
+      )
+      .run(
+        id,
+        routine.name,
+        routine.atMs,
+        routine.origin.channel,
+        routine.origin.threadTs,
+        routine.origin.contextId,
+        routine.prompt,
+        Date.now(),
+      );
+    return this.created(id);
+  }
+
+  private created(id: string): Routine {
     const created = this.get(id);
     if (created === undefined) {
       throw new Error("routine insert did not persist");
@@ -87,7 +153,7 @@ export class RoutineStore {
     return rows.map(toRoutine);
   }
 
-  /** Returns false when the id names nothing. */
+  /** Returns false when the id names nothing. A one-shot keeps its (empty) cron. */
   update(id: string, update: RoutineUpdate): boolean {
     const existing = this.get(id);
     if (existing === undefined) {
@@ -97,7 +163,7 @@ export class RoutineStore {
       .prepare("UPDATE routines SET name = ?, cron = ?, prompt = ?, enabled = ? WHERE id = ?")
       .run(
         update.name ?? existing.name,
-        update.cron ?? existing.cron,
+        existing.kind === "at" ? "" : (update.cron ?? existing.cron),
         update.prompt ?? existing.prompt,
         (update.enabled ?? existing.enabled) ? 1 : 0,
         id,
@@ -132,13 +198,41 @@ export class RoutineStore {
   disable(id: string): void {
     this.db.prepare("UPDATE routines SET enabled = 0 WHERE id = ?").run(id);
   }
+
+  /** A one-shot is spent: it stays listed as history and never fires again. */
+  markFired(id: string, now = Date.now()): void {
+    this.db.prepare("UPDATE routines SET fired_ms = ? WHERE id = ?").run(now, id);
+  }
+
+  /** Forget spent one-shots older than the journal keeps their runs. */
+  pruneFired(maxAgeMs: number, now = Date.now()): number {
+    const result = this.db
+      .prepare("DELETE FROM routines WHERE kind = 'at' AND fired_ms IS NOT NULL AND fired_ms < ?")
+      .run(now - maxAgeMs);
+    return Number(result.changes);
+  }
 }
 
 function toRoutine(row: Record<string, unknown>): Routine {
+  const kind = row.kind === "at" ? "at" : "cron";
+  const origin =
+    typeof row.origin_channel === "string" &&
+    typeof row.origin_thread_ts === "string" &&
+    typeof row.origin_context_id === "string"
+      ? {
+          channel: row.origin_channel,
+          threadTs: row.origin_thread_ts,
+          contextId: row.origin_context_id,
+        }
+      : null;
   return {
     id: String(row.id),
     name: String(row.name),
+    kind,
     cron: String(row.cron),
+    atMs: row.at_ms === null || row.at_ms === undefined ? null : Number(row.at_ms),
+    origin,
+    firedMs: row.fired_ms === null || row.fired_ms === undefined ? null : Number(row.fired_ms),
     prompt: String(row.prompt),
     enabled: Number(row.enabled) === 1,
     consecutiveFailures: Number(row.consecutive_failures),

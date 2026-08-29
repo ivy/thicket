@@ -3,6 +3,8 @@ import type { NextFunction, Request, Response } from "express";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
+import { deriveSessionId } from "@thicket/executor";
+
 import type { BridgeState } from "./state.js";
 
 /** Header netd stamps with the caller's WhoIs-verified ACL tags. */
@@ -401,6 +403,41 @@ export function buildFileServer(options: FileServerOptions): express.Express {
       if (!res.headersSent) {
         res.status(502).json({ error: "slack unreachable" });
       }
+    });
+  });
+
+  /**
+   * Where a session's current turn is happening. The agent names its
+   * session (a contextId its toolbelt was built with, not something the
+   * model typed) and the bridge answers from its own in-flight records:
+   * the thread this agent is answering right now whose context that is.
+   * Nothing else resolves — a one-shot cannot be aimed at a thread the
+   * agent is not in the middle of.
+   */
+  app.get("/api/origin", identify, (req, res) => {
+    const agent = res.locals.agent as string;
+    const contextId = typeof req.query.context_id === "string" ? req.query.context_id : "";
+    if (contextId === "") {
+      res.status(400).json({ error: "context_id is required" });
+      return;
+    }
+    const open = state
+      .allTasks()
+      .filter((task) => task.agent === agent)
+      .find(
+        (task) =>
+          (state.contextFor(task.channel, task.threadTs) ??
+            deriveSessionId(task.channel, task.threadTs)) === contextId,
+      );
+    if (open === undefined) {
+      res.status(403).json({ error: "no open turn in that conversation" });
+      return;
+    }
+    res.status(200).json({
+      ok: true,
+      channel: open.channel,
+      thread_ts: open.threadTs,
+      context_id: contextId,
     });
   });
 
