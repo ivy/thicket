@@ -50,6 +50,10 @@ routines and one-shot schedules — works end to end on a single host. Real
 multi-host deployment (systemd, tailnet identity) is the next arc; see the
 [roadmap](docs/roadmap.md).
 
+Real deployment is still ahead of the tooling in places: `netd` wants a tailnet you
+administer, and there is no installer yet, so an agent host needs a checkout. The
+laptop rig in [deploy/dev/](deploy/dev/) stands in for netd where there is no tailnet.
+
 Work is decomposed in [docs/tasks/](docs/tasks/) as a dependency graph —
 [docs/tasks/000-overview.md](docs/tasks/000-overview.md) has the build order and the
 hard-won facts about the APIs involved. [AGENTS.md](AGENTS.md) is the map for anyone
@@ -57,10 +61,16 @@ hard-won facts about the APIs involved. [AGENTS.md](AGENTS.md) is the map for an
 
 ## Requirements
 
-- The toolchain pinned in [mise.toml](mise.toml): Node, Go, and pnpm
-- A Tailscale tailnet with ACL tags you control
-- A Slack workspace (one app per agent; the free plan caps installs at 10)
-- An Anthropic API key or a Claude Code OAuth token per agent account
+- Node 22+ and Go 1.27+ — both pinned in [mise.toml](mise.toml), along with pnpm.
+  Node 22 is a floor, not a preference: the task store and the bridge's state both
+  use `node:sqlite`.
+- A Tailscale tailnet with ACL tags you control, and tag owners for `tag:thicket-*`
+- A Slack workspace where you can create apps, and an
+  [app configuration token](https://api.slack.com/authentication/config-tokens).
+  One app per agent, and the free plan caps installs at 10.
+- Claude Code authenticated in each agent's unix account. Sessions inherit that
+  account's own credentials; anything else they need is named in `env_passthrough`
+  in the account's `agentd.json`.
 
 ## License
 
