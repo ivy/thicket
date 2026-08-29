@@ -5,7 +5,7 @@ status: icebox
 component: apps/bridge
 language: typescript
 depends_on: ["009"]
-blocks: []
+blocks: ["048"]
 parallel_safe: true
 ---
 

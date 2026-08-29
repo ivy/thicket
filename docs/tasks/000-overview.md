@@ -78,6 +78,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [045 The dev egress stand-in refuses what netd accepts](archived/045-dev-egress-absolute-form.md) | 012 | `deploy` | none |
 | [046 CI gate on every push, and the workflows themselves are linted](archived/046-ci-gate-and-workflow-lint.md) | — | `.` | none |
 | [047 systemd socket activation cannot survive the Bun port](047-socket-activation-after-bun.md) | 040 | `deploy` | none |
+| [048 Agents review a pull request together (research)](048-pr-review-conversation.md) | 023, 024, 028 | `.` | none |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -111,8 +112,8 @@ deployment arc.
 
 Everything in these waves is verifiable live — see
 [LIVE-TESTING.md](LIVE-TESTING.md). Tasks still at `icebox` (023, 024, 027,
-028) are parked for reasons written in each: a research task whose output
-needs arguing with, a feature whose acceptance needs a human tapping a
+028, 048) are parked for reasons written in each: two research tasks whose
+output needs arguing with, a feature whose acceptance needs a human tapping a
 button, and two that need a second host.
 
 Waves 14–17 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039,

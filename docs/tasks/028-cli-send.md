@@ -5,7 +5,7 @@ status: icebox
 component: apps/cli
 language: typescript
 depends_on: ["011"]
-blocks: []
+blocks: ["048"]
 parallel_safe: true
 ---
 
