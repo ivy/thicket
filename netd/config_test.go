@@ -34,9 +34,9 @@ func TestLoadConfigAppliesDefaults(t *testing.T) {
 
 func TestLoadConfigRejectsBadInput(t *testing.T) {
 	cases := map[string]string{
-		"missing hostname": `{"tag": "tag:thicket-hearth"}`,
+		"missing hostname":   `{"tag": "tag:thicket-hearth"}`,
 		"tag without prefix": `{"hostname": "h", "tag": "thicket-hearth"}`,
-		"unknown field": `{"hostname": "h", "tag": "tag:thicket-h", "bogus": true}`,
+		"unknown field":      `{"hostname": "h", "tag": "tag:thicket-h", "bogus": true}`,
 	}
 	for name, content := range cases {
 		if _, err := loadConfig(writeConfig(t, content)); err == nil {

@@ -6,8 +6,9 @@
   "scripts": {
     "build": "bun --bun tsc -b",
     "test": "bun test",
-    "lint": "pnpm lint:js && pnpm lint:workflows",
+    "lint": "pnpm lint:js && pnpm lint:go && pnpm lint:workflows",
     "lint:js": "bun --bun eslint .",
+    "lint:go": "./scripts/lint-go.sh",
     "lint:workflows": "actionlint && zizmor --offline --no-progress .github/ && pinact run --check",
     "build:netd": "go build -o netd/bin/netd ./netd",
     "compile": "bun run scripts/compile.ts",

@@ -41,9 +41,9 @@ would notice if it stopped being.
 
 ## Acceptance criteria
 
-- [ ] `pnpm lint` from the repo root fails on unformatted Go and on a `go vet`
+- [x] `pnpm lint` from the repo root fails on unformatted Go and on a `go vet`
       finding, with the tool's own message.
-- [ ] `gofmt -l netd/` is empty and `go vet ./netd/...` is clean.
+- [x] `gofmt -l netd/` is empty and `go vet ./netd/...` is clean.
 - [ ] CI runs both, observed green through `gh run`.
 
 ## Out of scope

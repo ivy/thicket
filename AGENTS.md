@@ -43,7 +43,7 @@ Toolchain is pinned in `mise.toml` — prefix commands with `mise exec --`.
 mise exec -- pnpm install
 mise exec -- pnpm build      # tsc -b: the typecheck, declarations only
 mise exec -- pnpm test       # bun test, straight from src/
-mise exec -- pnpm lint       # eslint, then actionlint + zizmor + pinact over .github/
+mise exec -- pnpm lint       # eslint, gofmt + go vet, then the .github/ linters
 mise exec -- pnpm build:netd && go test ./netd/...
 mise exec -- pnpm compile    # standalone binaries; --all for every fleet platform
 ```
@@ -56,7 +56,8 @@ every `run:`), [zizmor](https://github.com/zizmorcore/zizmor) (security: unpinne
 `uses:`, template injection, over-broad permissions) and
 [pinact](https://github.com/suzuki-shunsuke/pinact) (`uses:` pinned to a commit SHA).
 Those three are also in `pnpm lint` and in the pre-commit hook, so a workflow that would
-fail CI fails at the desk first.
+fail CI fails at the desk first. `pnpm lint` covers the Go module too — `gofmt -l` over
+`netd/`, then `go vet` — so `go test` is not the only thing that reads it.
 
 A tag is a release. Pushing `v*` runs the same gate, then builds one archive per fleet
 platform — `bin/` holding all four executables — attests them, and creates the release;
