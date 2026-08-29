@@ -58,7 +58,6 @@ Two traps worth knowing:
 - Read [PROMPT.md](PROMPT.md) if you are working the task queue. It governs: one task
   per iteration, claim it before starting, check an acceptance box only against observed
   behaviour.
-- **Local commits only. Never push, never open a PR, never touch a remote.**
 - **Never run `thicket provision`.** It mutates a live Slack workspace against a Tier 1
   rate limit and needs a browser reinstall no automation can perform. Change the
   renderer, land it, and say a provision is owed.
