@@ -1,7 +1,7 @@
 ---
 id: "043"
 title: Project channels know their workspace
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["006", "009", "044"]
