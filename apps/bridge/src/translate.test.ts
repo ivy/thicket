@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { translateSlackEvent } from "./translate.js";
+import { translateSlackEvent, translateSlackInteraction } from "./translate.js";
 
 const DM = {
   type: "message",
@@ -165,4 +165,67 @@ test("a file with no retrievable bytes is skipped, not half-recorded", () => {
   assert.equal(files[0]?.name, "F3");
   assert.equal(files[0]?.mimetype, "application/octet-stream");
   assert.equal(files[0]?.size, 0);
+});
+
+const TAP = {
+  type: "block_actions",
+  user: { id: "U-human", username: "ivy" },
+  channel: { id: "D1", name: "directmessage" },
+  message: { ts: "1.2", thread_ts: "1.1", text: "Which environment should I deploy to?" },
+  container: { type: "message", message_ts: "1.2", channel_id: "D1", is_ephemeral: false },
+  actions: [
+    {
+      type: "button",
+      action_id: "thicket_q:answer:0:1",
+      block_id: "thicket_q:0",
+      value: "0:1",
+      action_ts: "1724650002.000001",
+    },
+  ],
+  response_url: "https://hooks.slack.com/actions/x",
+};
+
+test("a button tap unwraps to a block_action with the message it landed on", () => {
+  assert.deepEqual(translateSlackInteraction(TAP), {
+    kind: "block_action",
+    channel: "D1",
+    messageTs: "1.2",
+    threadTs: "1.1",
+    userId: "U-human",
+    actions: [{ actionId: "thicket_q:answer:0:1", blockId: "thicket_q:0", value: "0:1" }],
+  });
+});
+
+test("a form's selections arrive both on the action and in the message state", () => {
+  const event = translateSlackInteraction({
+    ...TAP,
+    actions: [
+      {
+        type: "checkboxes",
+        action_id: "thicket_q:answer:1",
+        block_id: "thicket_q:1",
+        selected_options: [{ value: "1:0" }, { value: "1:2" }],
+      },
+    ],
+    state: {
+      values: {
+        "thicket_q:0": { "thicket_q:answer:0": { type: "radio_buttons", selected_option: { value: "0:1" } } },
+        "thicket_q:1": {
+          "thicket_q:answer:1": { type: "checkboxes", selected_options: [{ value: "1:0" }, { value: "1:2" }] },
+        },
+      },
+    },
+  });
+  assert.ok(event?.kind === "block_action");
+  assert.deepEqual(event.actions[0]?.selected, ["1:0", "1:2"]);
+  assert.deepEqual(event.state, {
+    "thicket_q:0": { "thicket_q:answer:0": ["0:1"] },
+    "thicket_q:1": { "thicket_q:answer:1": ["1:0", "1:2"] },
+  });
+});
+
+test("interactions that are not block_actions on a message are ignored", () => {
+  assert.equal(translateSlackInteraction({ ...TAP, type: "view_submission" }), undefined);
+  assert.equal(translateSlackInteraction({ ...TAP, channel: undefined, container: {} }), undefined);
+  assert.equal(translateSlackInteraction({ ...TAP, actions: [] }), undefined);
 });

@@ -115,6 +115,33 @@ export class WebSlackApi implements SlackApi {
     }
   }
 
+  async postBlocks(
+    channel: string,
+    threadTs: string,
+    text: string,
+    blocks: unknown[],
+  ): Promise<string> {
+    const res = (await this.call("chat.postMessage", {
+      channel,
+      thread_ts: threadTs,
+      text,
+      blocks,
+    })) as { ts?: string };
+    if (res.ts === undefined) {
+      throw new Error("chat.postMessage returned no ts");
+    }
+    return res.ts;
+  }
+
+  async updateMessage(
+    channel: string,
+    messageTs: string,
+    text: string,
+    blocks: unknown[],
+  ): Promise<void> {
+    await this.call("chat.update", { channel, ts: messageTs, text, blocks });
+  }
+
   async startStream(channel: string, threadTs: string, recipient?: string): Promise<string> {
     const res = (await this.call("chat.startStream", {
       channel,
@@ -232,6 +259,8 @@ export class WebSlackApi implements SlackApi {
         fields.chars = String(value).length;
       } else if (key === "title") {
         fields.titled = true;
+      } else if (key === "blocks") {
+        fields.blocks = (value as { type?: string }[]).map((block) => String(block.type ?? "?"));
       } else if (key === "chunks") {
         fields.chunks = (value as { type: string; id?: string; status?: string; text?: string }[]).map(
           (chunk) =>

@@ -2,7 +2,7 @@ import { SocketModeClient } from "@slack/socket-mode";
 
 import type { EngineLogger } from "./engine.js";
 import type { Connection } from "./supervisor.js";
-import { translateSlackEvent } from "./translate.js";
+import { translateSlackEvent, translateSlackInteraction } from "./translate.js";
 import type { InboundEvent } from "./types.js";
 
 /** Client lifecycle events worth a log line, in the library's own names. */
@@ -93,12 +93,28 @@ export class SlackSocketConnection implements Connection {
       "slack_event",
       (args: {
         ack?: () => Promise<void>;
+        type?: string;
         event?: unknown;
         body?: unknown;
         retry_num?: number;
       }) => {
         void args.ack?.();
-        const body = (args.body ?? {}) as { event?: Record<string, unknown> };
+        const body = (args.body ?? {}) as Record<string, unknown> & { event?: Record<string, unknown> };
+        if (args.type === "interactive" || body.type === "block_actions") {
+          // A tap on something the bridge posted. Same shape-only logging
+          // as an event: which element, never what the message said.
+          const event = translateSlackInteraction(body);
+          const actions = Array.isArray(body.actions) ? (body.actions as { action_id?: unknown }[]) : [];
+          this.logger.info("slack interaction", {
+            type: body.type,
+            actions: actions.map((action) => String(action.action_id ?? "?")),
+            acted: event?.kind ?? "ignored",
+          });
+          if (event !== undefined) {
+            onEvent(event);
+          }
+          return;
+        }
         const raw = (args.event ?? body.event) as Record<string, unknown> | undefined;
         if (raw === undefined) {
           return;

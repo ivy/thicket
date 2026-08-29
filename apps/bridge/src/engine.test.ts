@@ -12,6 +12,7 @@ import { BridgeEngine, sessionTitle } from "./engine.js";
 import { BridgeState } from "./state.js";
 import {
   META_QUEUED_TURN_COUNT,
+  META_QUESTIONS,
   META_SHOULD_QUERY,
   type A2AEvent,
   type AgentActivity,
@@ -30,6 +31,8 @@ type SlackCall =
     }
   | { type: "note"; channel: string; threadTs: string; status: string }
   | { type: "post"; channel: string; threadTs: string; text: string }
+  | { type: "postBlocks"; channel: string; threadTs: string; text: string; blocks: unknown[]; ts: string }
+  | { type: "update"; channel: string; ts: string; text: string; blocks: unknown[] }
   | { type: "startStream"; channel: string; threadTs: string; ts: string }
   | { type: "append"; channel: string; ts: string; text: string }
   | { type: "activity"; channel: string; ts: string; activity: AgentActivity }
@@ -59,6 +62,24 @@ class FakeSlack implements SlackApi {
   }
   async postMessage(channel: string, threadTs: string, text: string) {
     this.calls.push({ type: "post", channel, threadTs, text });
+  }
+  /** When set, postBlocks rejects with it (a surface refusing blocks). */
+  blocksError: Error | undefined;
+  private blocksCounter = 0;
+  async postBlocks(channel: string, threadTs: string, text: string, blocks: unknown[]) {
+    if (this.blocksError !== undefined) {
+      throw this.blocksError;
+    }
+    const ts = `blocks-${++this.blocksCounter}`;
+    this.calls.push({ type: "postBlocks", channel, threadTs, text, blocks, ts });
+    return ts;
+  }
+  updateError: Error | undefined;
+  async updateMessage(channel: string, ts: string, text: string, blocks: unknown[]) {
+    if (this.updateError !== undefined) {
+      throw this.updateError;
+    }
+    this.calls.push({ type: "update", channel, ts, text, blocks });
   }
   /** When set, startStream rejects with it (a channel refusing a stream). */
   startStreamError: Error | undefined;
@@ -1073,4 +1094,239 @@ test("a normal-length answer streams exactly as before", async () => {
   assert.equal(r.slack.calls.filter((c) => c.type === "startStream").length, 1);
   assert.equal(r.slack.calls.filter((c) => c.type === "stop").length, 1);
   r.state.close();
+});
+
+// ---------------------------------------------------------------- questions
+
+const DEPLOY_QUESTION = [
+  {
+    question: "Which environment should I deploy to?",
+    header: "Target",
+    multiSelect: false,
+    options: [
+      { label: "staging", description: "Rehearse first" },
+      { label: "production", description: "Straight to the real thing" },
+    ],
+  },
+];
+
+function questionEvent(taskId: string, questions: unknown = DEPLOY_QUESTION): A2AEvent {
+  return {
+    kind: "status",
+    taskId,
+    contextId: "ctx",
+    state: TaskState.TASK_STATE_INPUT_REQUIRED,
+    metadata: { [META_QUEUED_TURN_COUNT]: 0, [META_QUESTIONS]: questions },
+  };
+}
+
+function tap(messageTs: string, value: string, userId = HUMAN) {
+  return {
+    kind: "block_action" as const,
+    channel: CH,
+    messageTs,
+    threadTs: TH,
+    userId,
+    actions: [{ actionId: `thicket_q:answer:0:${value.split(":")[1]}`, blockId: "thicket_q:0", value }],
+  };
+}
+
+test("an agent question with options renders as blocks in the thread, after the prose", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "Which environment should I deploy to?", false, true),
+      questionEvent("t1"),
+    ],
+  });
+  await r.engine.handleEvent(dm("deploy it"));
+
+  const kinds = r.slack.calls.map((c) => c.type);
+  const stop = kinds.indexOf("stop");
+  const posted = kinds.indexOf("postBlocks");
+  assert.ok(posted > stop, `blocks follow the closed stream: ${kinds.join(",")}`);
+  const call = r.slack.calls[posted]!;
+  assert.ok(call.type === "postBlocks");
+  assert.equal(call.threadTs, TH);
+  assert.equal(call.text, "Which environment should I deploy to?");
+  assert.ok(JSON.stringify(call.blocks).includes('"button"'), "the options are buttons");
+  assert.ok(r.state.questionFor(CH, call.ts) !== undefined, "the question is remembered for its tap");
+  assert.equal(r.slack.lastStatus(), "active", "the thread is the user's again");
+  r.state.close();
+});
+
+test("a tap answers the question: the choice reaches the agent as the next message", async () => {
+  const r = rig({
+    script: (_message, turn) =>
+      turn === 0
+        ? [taskEvent("t1", "ctx"), questionEvent("t1")]
+        : [
+            taskEvent("t2", "ctx"),
+            artifactEvent("t2", "Deploying to production.", false, true),
+            statusEvent("t2", TaskState.TASK_STATE_COMPLETED),
+          ],
+  });
+  await r.engine.handleEvent(dm("deploy it"));
+  const posted = r.slack.calls.find((c) => c.type === "postBlocks");
+  assert.ok(posted?.type === "postBlocks");
+
+  await r.engine.handleEvent(tap(posted.ts, "0:1"));
+
+  assert.equal(r.client.streamed.length, 2, "the tap became a turn");
+  const answer = r.client.streamed[1]!;
+  // The agent minted "ctx" on the first turn, so that is the conversation now.
+  assert.equal(answer.contextId, r.state.contextFor(CH, TH), "same conversation");
+  assert.equal(answer.contextId, "ctx");
+  assert.equal(
+    answer.parts[0]?.content?.$case === "text" ? answer.parts[0].content.value : "",
+    "Target: production",
+  );
+  const update = r.slack.calls.find((c) => c.type === "update");
+  assert.ok(update?.type === "update", "the question message is redrawn");
+  assert.equal(update.ts, posted.ts);
+  assert.match(update.text, /production/);
+  assert.equal(JSON.stringify(update.blocks).includes('"button"'), false, "nothing left to tap");
+  assert.equal(r.state.questionFor(CH, posted.ts), undefined, "answered questions are forgotten");
+  assert.equal(r.slack.reactions.length, 1, "no second eyes: the thread was already engaged");
+  assert.equal(r.slack.lastStatus(), "active");
+  r.state.close();
+});
+
+test("a tap after the question was answered gets a note, not a turn", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), questionEvent("t1")],
+  });
+  await r.engine.handleEvent(dm("deploy it"));
+  const posted = r.slack.calls.find((c) => c.type === "postBlocks");
+  assert.ok(posted?.type === "postBlocks");
+  await r.engine.handleEvent(tap(posted.ts, "0:0"));
+  const turnsBefore = r.client.streamed.length;
+
+  await r.engine.handleEvent(tap(posted.ts, "0:1"));
+
+  assert.equal(r.client.streamed.length, turnsBefore, "no second turn");
+  assert.ok(
+    r.slack.posts().some((p) => /already been answered/.test(p)),
+    "the stale tap is answered with a gentle note in the thread",
+  );
+  r.state.close();
+});
+
+test("a tap on something that is not a thicket question is ignored", async () => {
+  const r = rig({ script: () => [taskEvent("t1", "ctx"), questionEvent("t1")] });
+  await r.engine.handleEvent(dm("deploy it"));
+  const calls = r.slack.calls.length;
+  await r.engine.handleEvent({
+    kind: "block_action",
+    channel: CH,
+    messageTs: "9.9",
+    userId: HUMAN,
+    actions: [{ actionId: "some_other_app", blockId: "b", value: "x" }],
+  });
+  assert.equal(r.slack.calls.length, calls, "not even a note");
+  assert.equal(r.client.streamed.length, 1);
+  r.state.close();
+});
+
+test("a form submits from the message state; a blank question is sent back to the form", async () => {
+  const two = [
+    DEPLOY_QUESTION[0],
+    {
+      question: "Which features do you want on?",
+      header: "Features",
+      multiSelect: true,
+      options: [{ label: "metrics" }, { label: "tracing" }],
+    },
+  ];
+  const r = rig({
+    script: (_message, turn) =>
+      turn === 0 ? [taskEvent("t1", "ctx"), questionEvent("t1", two)] : [taskEvent("t2", "ctx")],
+  });
+  await r.engine.handleEvent(dm("set it up"));
+  const posted = r.slack.calls.find((c) => c.type === "postBlocks");
+  assert.ok(posted?.type === "postBlocks");
+  assert.ok(JSON.stringify(posted.blocks).includes('"radio_buttons"'));
+  assert.ok(JSON.stringify(posted.blocks).includes('"checkboxes"'));
+
+  const submit = { actionId: "thicket_q:submit", blockId: "thicket_q:controls", value: "submit" };
+  await r.engine.handleEvent({
+    kind: "block_action",
+    channel: CH,
+    messageTs: posted.ts,
+    threadTs: TH,
+    userId: HUMAN,
+    actions: [submit],
+    state: { "thicket_q:0": { "thicket_q:answer:0": ["0:0"] } },
+  });
+  assert.equal(r.client.streamed.length, 1, "half a form is not an answer");
+  assert.ok(r.slack.posts().some((p) => /every question/.test(p)));
+
+  await r.engine.handleEvent({
+    kind: "block_action",
+    channel: CH,
+    messageTs: posted.ts,
+    threadTs: TH,
+    userId: HUMAN,
+    actions: [submit],
+    state: {
+      "thicket_q:0": { "thicket_q:answer:0": ["0:0"] },
+      "thicket_q:1": { "thicket_q:answer:1": ["1:0", "1:1"] },
+    },
+  });
+  assert.equal(r.client.streamed.length, 2);
+  const answer = r.client.streamed[1]!.parts[0];
+  assert.equal(
+    answer?.content?.$case === "text" ? answer.content.value : "",
+    "Target: staging\nFeatures: metrics, tracing",
+  );
+  r.state.close();
+});
+
+test("input-required without structure behaves exactly as before: no blocks", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "What do you mean by 'soon'?", false, true),
+      statusEvent("t1", TaskState.TASK_STATE_INPUT_REQUIRED),
+    ],
+  });
+  await r.engine.handleEvent(dm("do it soon"));
+  assert.equal(r.slack.calls.some((c) => c.type === "postBlocks"), false);
+  assert.equal(r.slack.lastStatus(), "active");
+  r.state.close();
+});
+
+test("a surface that refuses the blocks keeps the prose question and the thread", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "Which environment should I deploy to?", false, true),
+      questionEvent("t1"),
+    ],
+  });
+  r.slack.blocksError = new Error("invalid_blocks");
+  await r.engine.handleEvent(dm("deploy it"));
+  assert.equal(r.slack.lastStatus(), "active");
+  assert.ok(r.warnings.some((w) => /question blocks refused/.test(w)));
+  assert.equal(r.slack.calls.filter((c) => c.type === "append").length, 1, "the prose still streamed");
+  r.state.close();
+});
+
+test("a question survives a bridge restart: the tap still resolves from the database", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "thicket-q-"));
+  const dbPath = join(dir, "bridge.db");
+  try {
+    const first = rig({ script: () => [taskEvent("t1", "ctx"), questionEvent("t1")] }, { dbPath });
+    await first.engine.handleEvent(dm("deploy it"));
+    const posted = first.slack.calls.find((c) => c.type === "postBlocks");
+    assert.ok(posted?.type === "postBlocks");
+    first.state.close();
+
+    const second = rig({ script: () => [taskEvent("t2", "ctx")] }, { dbPath });
+    await second.engine.handleEvent(tap(posted.ts, "0:0"));
+    assert.equal(second.client.streamed.length, 1, "the tap became a turn on the new process");
+    second.state.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

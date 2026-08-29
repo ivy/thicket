@@ -25,6 +25,16 @@ interface MessageEvent {
   viaApp: boolean;
 }
 
+/** One tapped or changed element in a block_actions payload. */
+export interface BlockAction {
+  actionId: string;
+  blockId: string;
+  /** A button's value. */
+  value?: string;
+  /** A radio group's or checkbox group's current selection values. */
+  selected?: string[];
+}
+
 /** Slack events the bridge acts on, already unwrapped from envelopes. */
 export type InboundEvent =
   | ({ kind: "dm" } & MessageEvent)
@@ -34,6 +44,23 @@ export type InboundEvent =
       kind: "session_stopped";
       channel: string;
       threadTs: string;
+    }
+  | {
+      /** Someone interacted with a message the bridge posted. */
+      kind: "block_action";
+      channel: string;
+      /** ts of the message carrying the tapped element. */
+      messageTs: string;
+      threadTs?: string;
+      /** Slack user id of whoever tapped. */
+      userId: string;
+      actions: BlockAction[];
+      /**
+       * Current values of every stateful element on the message, keyed
+       * block_id → action_id → selected values. Slack sends it with every
+       * interaction on a message; absent on older payloads.
+       */
+      state?: Record<string, Record<string, string[]>>;
     };
 
 /** Normalized A2A stream event, transport-independent. */
@@ -99,6 +126,14 @@ export interface SlackApi {
   isBotUser(userId: string): Promise<boolean>;
   postMessage(channel: string, threadTs: string, text: string): Promise<void>;
   /**
+   * A Block Kit message in the thread; `text` is the notification
+   * fallback. Resolves to the posted message's ts, the handle a later
+   * update needs.
+   */
+  postBlocks(channel: string, threadTs: string, text: string, blocks: unknown[]): Promise<string>;
+  /** chat.update: replace a posted message's blocks and fallback text. */
+  updateMessage(channel: string, messageTs: string, text: string, blocks: unknown[]): Promise<void>;
+  /**
    * chat.startStream → stream ts used for appends. `recipient` is the
    * user the stream answers; Slack requires it (with the team id) when
    * streaming anywhere that is not a DM.
@@ -116,5 +151,5 @@ export interface SlackApi {
 
 // Metadata keys and the activity shape are thicket's A2A extension; the
 // executor package owns their definitions so the two ends cannot drift.
-export { META_QUEUED_TURN_COUNT, META_SHOULD_QUERY } from "@thicket/executor";
-export type { AgentActivity } from "@thicket/executor";
+export { META_QUEUED_TURN_COUNT, META_QUESTIONS, META_SHOULD_QUERY } from "@thicket/executor";
+export type { AgentActivity, AgentQuestion } from "@thicket/executor";

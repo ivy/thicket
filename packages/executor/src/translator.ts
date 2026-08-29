@@ -18,6 +18,7 @@ import {
   type AgentActivityStatus,
   type ToolDescription,
 } from "./activity.js";
+import { META_QUESTIONS, parseAgentQuestions } from "./questions.js";
 import {
   META_FOLDED_INTO,
   META_FOLDED_MESSAGE_IDS,
@@ -428,6 +429,7 @@ export class TurnTranslator {
       const metadata: Record<string, unknown> = {
         [META_QUEUED_TURN_COUNT]: queued,
         [META_FOLDED_MESSAGE_IDS]: folded.map((send) => send.messageId),
+        ...this.questionMetadata(frame),
       };
       this.emitStatus(turn.send, state, { message, metadata });
       turn.terminalEmitted = true;
@@ -449,6 +451,20 @@ export class TurnTranslator {
     }
     this.cancelRequested.delete(turn.send.taskId);
     this.turn = null;
+  }
+
+  /**
+   * The options behind an agent's question, so a client can offer them as
+   * something to tap. Only AskUserQuestion carries a shape worth rendering;
+   * any other deferred tool stays prose.
+   */
+  private questionMetadata(frame: SDKResultMessage): Record<string, unknown> {
+    if (frame.subtype !== "success" || frame.deferred_tool_use === undefined) {
+      return {};
+    }
+    const { name, input } = frame.deferred_tool_use;
+    const questions = name === "AskUserQuestion" ? parseAgentQuestions(input) : undefined;
+    return questions === undefined ? {} : { [META_QUESTIONS]: questions };
   }
 
   private recordAccounting(

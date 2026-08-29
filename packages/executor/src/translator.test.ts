@@ -12,6 +12,7 @@ import {
   parseAgentActivity,
   type AgentActivity,
 } from "./activity.js";
+import { META_QUESTIONS } from "./questions.js";
 import {
   META_FOLDED_INTO,
   META_FOLDED_MESSAGE_IDS,
@@ -297,6 +298,33 @@ test("agent question with deferred_tool_use: input-required, not terminal", () =
 
   const status = terminalStatus(h.events);
   assert.equal(status.status?.state, TaskState.TASK_STATE_INPUT_REQUIRED);
+  // The options ride along so a client can render them as something to tap.
+  assert.deepEqual(status.metadata?.[META_QUESTIONS], [
+    {
+      question: "Which environment should I deploy to?",
+      header: "Target",
+      multiSelect: false,
+      options: [
+        { label: "staging", description: "Rehearse first" },
+        { label: "production", description: "Straight to the real thing" },
+      ],
+    },
+  ]);
+});
+
+test("a deferred tool that is not a question carries no question metadata", () => {
+  const h = harness();
+  h.translator.registerSend(send("send-question", 1));
+  const frames = loadFixture("input-required").map((frame) =>
+    frame.type === "result" && "deferred_tool_use" in frame
+      ? { ...frame, deferred_tool_use: { id: "toolu_x", name: "SomethingElse", input: { a: 1 } } }
+      : frame,
+  );
+  run(h, frames, false);
+
+  const status = terminalStatus(h.events);
+  assert.equal(status.status?.state, TaskState.TASK_STATE_INPUT_REQUIRED);
+  assert.equal(META_QUESTIONS in (status.metadata ?? {}), false);
 });
 
 test("stream ending without a result yields failed, never a stuck working task", () => {

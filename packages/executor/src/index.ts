@@ -24,6 +24,12 @@ export {
   type ToolDescription,
 } from "./activity.js";
 export {
+  META_QUESTIONS,
+  parseAgentQuestions,
+  type AgentQuestion,
+  type AgentQuestionOption,
+} from "./questions.js";
+export {
   AttachmentStore,
   AttachmentTooLarge,
   attachmentPreamble,

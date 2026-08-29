@@ -1,10 +1,19 @@
 import { TaskState } from "@a2a-js/sdk";
 import type { Message, Task } from "@a2a-js/sdk";
-import { deriveSessionId } from "@thicket/executor";
+import { deriveSessionId, parseAgentQuestions, type AgentQuestion } from "@thicket/executor";
 
+import {
+  answerText,
+  decodeAnswers,
+  isQuestionAction,
+  questionFallbackText,
+  renderAnsweredBlocks,
+  renderQuestionBlocks,
+} from "./questions.js";
 import type { BridgeState } from "./state.js";
 import {
   META_QUEUED_TURN_COUNT,
+  META_QUESTIONS,
   META_SHOULD_QUERY,
   type A2AEvent,
   type AgentClient,
@@ -172,7 +181,11 @@ export class BridgeEngine {
   }
 
   async handleEvent(event: InboundEvent): Promise<void> {
-    if (event.kind !== "session_stopped" && (await this.authoredByBot(event))) {
+    if (
+      event.kind !== "session_stopped" &&
+      event.kind !== "block_action" &&
+      (await this.authoredByBot(event))
+    ) {
       return;
     }
     switch (event.kind) {
@@ -181,6 +194,10 @@ export class BridgeEngine {
           this.logger.info("stop button: canceling", { taskId: task.taskId });
           await this.client.cancel(task.taskId);
         }
+        return;
+      }
+      case "block_action": {
+        await this.answerByTap(event);
         return;
       }
       case "dm":
@@ -788,6 +805,10 @@ export class BridgeEngine {
       );
     }
 
+    if (state === TaskState.TASK_STATE_INPUT_REQUIRED) {
+      await this.offerQuestions(channel, threadTs, metadata);
+    }
+
     const key = `${channel}:${threadTs}`;
     if (TERMINAL.has(state)) {
       const buffered = this.streamlessText.get(taskId);
@@ -819,6 +840,105 @@ export class BridgeEngine {
       }
     }
     await this.slack.setStatus(channel, threadTs, slackStatusFor(state));
+  }
+
+  /**
+   * The agent asked and stopped. Its question already reached the thread
+   * as prose; when the status carries the options too, they go up as
+   * something to tap. A surface that refuses the blocks is left with the
+   * prose — a typed reply answers either way.
+   */
+  private async offerQuestions(
+    channel: string,
+    threadTs: string,
+    metadata: Record<string, unknown> | undefined,
+  ): Promise<void> {
+    const questions = parseAgentQuestions(metadata?.[META_QUESTIONS]);
+    if (questions === undefined) {
+      return;
+    }
+    try {
+      const messageTs = await this.slack.postBlocks(
+        channel,
+        threadTs,
+        questionFallbackText(questions),
+        renderQuestionBlocks(questions),
+      );
+      this.state.recordQuestion({ agent: this.agent, channel, messageTs, threadTs, questions });
+    } catch (err) {
+      this.logger.warn("question blocks refused; the prose question stands", {
+        channel,
+        threadTs,
+        err: String(err),
+      });
+    }
+  }
+
+  /**
+   * A tap on a question message. The choice becomes the thread's next
+   * message to the agent — exactly what a typed answer is — and the
+   * question message is redrawn to show it, with nothing left to tap.
+   * The lookup is the authorization: Slack only delivers a tap from
+   * someone who can see the message, and the message is one this bridge
+   * posted into this thread.
+   */
+  private async answerByTap(
+    event: Extract<InboundEvent, { kind: "block_action" }>,
+  ): Promise<void> {
+    if (!event.actions.some(isQuestionAction)) {
+      return; // not an element the bridge posted
+    }
+    const pending = this.state.questionFor(event.channel, event.messageTs);
+    const questions: AgentQuestion[] | undefined =
+      pending === undefined ? undefined : parseAgentQuestions(pending.questions);
+    if (pending === undefined || questions === undefined) {
+      // Already answered, or a question from before this bridge's memory.
+      this.logger.info("tap on a question no longer pending", {
+        channel: event.channel,
+        messageTs: event.messageTs,
+      });
+      await this.slack.postMessage(
+        event.channel,
+        event.threadTs ?? event.messageTs,
+        `That question has already been answered, or I've lost track of it — just reply here in the thread and I'll take it from there.`,
+      );
+      return;
+    }
+    const decoded = decodeAnswers(questions, event.actions, event.state);
+    if (decoded === undefined) {
+      return; // a selection changed; the form waits for Submit
+    }
+    if ("incomplete" in decoded) {
+      await this.slack.postMessage(
+        event.channel,
+        pending.threadTs,
+        "Pick an option for every question, then Submit.",
+      );
+      return;
+    }
+    this.state.removeQuestion(event.channel, event.messageTs);
+    const text = answerText(questions, decoded.answers);
+    try {
+      await this.slack.updateMessage(
+        event.channel,
+        event.messageTs,
+        text,
+        renderAnsweredBlocks(questions, decoded.answers, event.userId),
+      );
+    } catch (err) {
+      // The answer matters more than the redraw.
+      this.logger.warn("question message could not be updated", {
+        channel: event.channel,
+        messageTs: event.messageTs,
+        err: String(err),
+      });
+    }
+    this.logger.info("question answered by tap", {
+      channel: event.channel,
+      threadTs: pending.threadTs,
+      user: event.userId,
+    });
+    await this.trigger(event.channel, pending.threadTs, text, event.messageTs, [], event.userId);
   }
 
   /** Non-streaming agents: one message with the final text. */

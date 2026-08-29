@@ -50,7 +50,19 @@
     "deferred_tool_use": {
       "id": "toolu_ask_1",
       "name": "AskUserQuestion",
-      "input": { "question": "Which environment should I deploy to?", "options": ["staging", "production"] }
+      "input": {
+        "questions": [
+          {
+            "question": "Which environment should I deploy to?",
+            "header": "Target",
+            "options": [
+              { "label": "staging", "description": "Rehearse first" },
+              { "label": "production", "description": "Straight to the real thing" }
+            ],
+            "multiSelect": false
+          }
+        ]
+      }
     },
     "user_message_uuid": "send-question",
     "uuid": "88888888-0000-0000-0000-000000000003",

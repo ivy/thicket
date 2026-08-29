@@ -78,6 +78,27 @@ test("an activity becomes one task_update chunk", async () => {
   assert.equal("icon" in chunk, false, "a card with no icon is sent exactly as before");
 });
 
+test("a question message posts blocks with a fallback and hands back its ts", async () => {
+  const r = rig();
+  const blocks = [{ type: "section", text: { type: "mrkdwn", text: "Which?" } }];
+  const ts = await r.api.postBlocks("C1", "1.1", "Which?", blocks);
+  assert.equal(ts, "1724650000.000200");
+  assert.deepEqual(r.calls[0], {
+    method: "chat.postMessage",
+    args: { channel: "C1", thread_ts: "1.1", text: "Which?", blocks },
+  });
+  await r.api.updateMessage("C1", ts, "Which? staging", []);
+  assert.deepEqual(r.calls[1], {
+    method: "chat.update",
+    args: { channel: "C1", ts, text: "Which? staging", blocks: [] },
+  });
+  // The log records block kinds and a text length, never the content.
+  const logged = r.logged.map((f) => f.slack as Record<string, unknown>);
+  assert.deepEqual(logged[0]!.blocks, ["section"]);
+  assert.equal(logged[0]!.chars, "Which?".length);
+  assert.equal("text" in logged[0]!, false);
+});
+
 test("text appends go through chunks, like every other append", async () => {
   const r = rig();
   await r.api.appendStream("C1", "1.2", "the tide comes in");

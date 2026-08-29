@@ -278,6 +278,8 @@ export type SlackCall =
     }
   | { type: "note"; channel: string; threadTs: string; status: string }
   | { type: "post"; channel: string; threadTs: string; text: string }
+  | { type: "postBlocks"; channel: string; threadTs: string; text: string; blocks: unknown[]; ts: string }
+  | { type: "update"; channel: string; ts: string; text: string; blocks: unknown[] }
   | { type: "startStream"; channel: string; threadTs: string; ts: string }
   | { type: "append"; channel: string; ts: string; text: string }
   | { type: "activity"; channel: string; ts: string; activity: AgentActivity }
@@ -305,6 +307,15 @@ export class MockSlack implements SlackApi {
   }
   async postMessage(channel: string, threadTs: string, text: string) {
     this.calls.push({ type: "post", channel, threadTs, text });
+  }
+  private blocksCounter = 0;
+  async postBlocks(channel: string, threadTs: string, text: string, blocks: unknown[]) {
+    const ts = `blocks-${++this.blocksCounter}`;
+    this.calls.push({ type: "postBlocks", channel, threadTs, text, blocks, ts });
+    return ts;
+  }
+  async updateMessage(channel: string, ts: string, text: string, blocks: unknown[]) {
+    this.calls.push({ type: "update", channel, ts, text, blocks });
   }
   async startStream(channel: string, threadTs: string) {
     const ts = `stream-${++this.streamCounter}`;

@@ -190,3 +190,39 @@ test("a redelivered event logs its age and retry count", async () => {
   assert.equal(typeof ageMs, "number");
   assert.ok((ageMs as number) >= 355_000, `delay is visible in the log (ageMs=${String(ageMs)})`);
 });
+
+test("an interactive envelope is acked and its tap reaches the engine", async () => {
+  const client = new FakeClient();
+  const { logger, lines } = collector();
+  const events: InboundEvent[] = [];
+  const connection = connect({ client, logger, onEvent: (event) => events.push(event) });
+  connection.onDown(() => {});
+  await connection.start();
+
+  let acked = 0;
+  client.emit("slack_event", {
+    ack: async () => {
+      acked += 1;
+    },
+    type: "interactive",
+    body: {
+      type: "block_actions",
+      user: { id: "U1" },
+      channel: { id: "D1" },
+      message: { ts: "1.2", thread_ts: "1.1", text: "Which environment should I deploy to?" },
+      actions: [
+        { type: "button", action_id: "thicket_q:answer:0:1", block_id: "thicket_q:0", value: "0:1" },
+      ],
+    },
+  });
+  await settle(10);
+
+  assert.equal(acked, 1);
+  assert.equal(events.length, 1);
+  assert.equal(events[0]!.kind, "block_action");
+  const line = lines.find((l) => l.msg === "slack interaction");
+  assert.ok(line, "the tap is logged by shape");
+  assert.deepEqual(line.fields?.actions, ["thicket_q:answer:0:1"]);
+  assert.equal(line.fields?.acted, "block_action");
+  assert.equal(JSON.stringify(line).includes("deploy to"), false, "message content stays out of the log");
+});

@@ -1,4 +1,4 @@
-import type { InboundEvent, SlackFile } from "./types.js";
+import type { BlockAction, InboundEvent, SlackFile } from "./types.js";
 
 /**
  * Slack sends several URL variants per file; url_private_download is the
@@ -102,4 +102,92 @@ export function translateSlackEvent(event: Record<string, unknown>): InboundEven
     return { kind: "session_stopped", channel, threadTs };
   }
   return undefined;
+}
+
+function selectedValues(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  return value
+    .map((option) => (option as { value?: unknown }).value)
+    .filter((v): v is string => typeof v === "string");
+}
+
+function parseAction(raw: unknown): BlockAction | undefined {
+  if (typeof raw !== "object" || raw === null) {
+    return undefined;
+  }
+  const action = raw as Record<string, unknown>;
+  if (typeof action.action_id !== "string") {
+    return undefined;
+  }
+  // A radio group reports one selected_option; checkboxes report a list.
+  const single = (action.selected_option as { value?: unknown } | undefined)?.value;
+  const selected =
+    selectedValues(action.selected_options) ?? (typeof single === "string" ? [single] : undefined);
+  return {
+    actionId: action.action_id,
+    blockId: typeof action.block_id === "string" ? action.block_id : "",
+    ...(typeof action.value === "string" ? { value: action.value } : {}),
+    ...(selected === undefined ? {} : { selected }),
+  };
+}
+
+/** state.values, reduced to block_id → action_id → selected values. */
+function parseState(raw: unknown): Record<string, Record<string, string[]>> | undefined {
+  const values = (raw as { values?: unknown } | undefined)?.values;
+  if (typeof values !== "object" || values === null) {
+    return undefined;
+  }
+  const state: Record<string, Record<string, string[]>> = {};
+  for (const [blockId, byAction] of Object.entries(values as Record<string, unknown>)) {
+    if (typeof byAction !== "object" || byAction === null) {
+      continue;
+    }
+    for (const [actionId, element] of Object.entries(byAction as Record<string, unknown>)) {
+      const parsed = parseAction({ action_id: actionId, ...(element as object) });
+      if (parsed?.selected !== undefined) {
+        (state[blockId] ??= {})[actionId] = parsed.selected;
+      }
+    }
+  }
+  return state;
+}
+
+/**
+ * Unwraps an interactivity payload (an `interactive` Socket Mode envelope)
+ * into the bridge's inbound event type. Only block_actions on a message
+ * are acted on; modals and shortcuts are not surfaces the bridge has.
+ */
+export function translateSlackInteraction(
+  payload: Record<string, unknown>,
+): InboundEvent | undefined {
+  if (payload.type !== "block_actions") {
+    return undefined;
+  }
+  const channel = (payload.channel as { id?: unknown } | undefined)?.id;
+  const message = payload.message as { ts?: unknown; thread_ts?: unknown } | undefined;
+  const container = payload.container as { message_ts?: unknown; thread_ts?: unknown } | undefined;
+  const messageTs = message?.ts ?? container?.message_ts;
+  const userId = (payload.user as { id?: unknown } | undefined)?.id;
+  if (typeof channel !== "string" || typeof messageTs !== "string" || typeof userId !== "string") {
+    return undefined;
+  }
+  const actions = Array.isArray(payload.actions)
+    ? payload.actions.map(parseAction).filter((a): a is BlockAction => a !== undefined)
+    : [];
+  if (actions.length === 0) {
+    return undefined;
+  }
+  const threadTs = message?.thread_ts ?? container?.thread_ts;
+  const state = parseState(payload.state);
+  return {
+    kind: "block_action",
+    channel,
+    messageTs,
+    ...(typeof threadTs === "string" ? { threadTs } : {}),
+    userId,
+    actions,
+    ...(state === undefined ? {} : { state }),
+  };
 }

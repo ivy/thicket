@@ -48,10 +48,22 @@ export interface QueuedRequest {
   authorId?: string | null;
 }
 
+/** A question message awaiting a tap, keyed by the message that carries it. */
+export interface PendingQuestion {
+  agent: string;
+  channel: string;
+  /** ts of the Block Kit message the options live on. */
+  messageTs: string;
+  threadTs: string;
+  /** The questions as posted, JSON; the shape is the executor's AgentQuestion[]. */
+  questions: unknown;
+}
+
 /**
  * Bridge-local persistence: the task -> thread reverse index that routes a
  * completion arriving after a restart, agent-minted contextId overrides,
- * and the offline delivery queue. Nothing here is agent state.
+ * the offline delivery queue, and questions awaiting a tap. Nothing here
+ * is agent state.
  */
 export class BridgeState {
   private readonly db: DatabaseSync;
@@ -89,6 +101,15 @@ export class BridgeState {
         size       INTEGER NOT NULL,
         url        TEXT NOT NULL,
         created_ms INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS questions (
+        channel    TEXT NOT NULL,
+        message_ts TEXT NOT NULL,
+        agent      TEXT NOT NULL,
+        thread_ts  TEXT NOT NULL,
+        questions  TEXT NOT NULL,
+        created_ms INTEGER NOT NULL,
+        PRIMARY KEY (channel, message_ts)
       );
       CREATE TABLE IF NOT EXISTS queued (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -351,5 +372,45 @@ export class BridgeState {
 
   dequeue(id: number): void {
     this.db.prepare("DELETE FROM queued WHERE id = ?").run(id);
+  }
+
+  /** Remember a posted question so a tap resolves it, even after a restart. */
+  recordQuestion(question: PendingQuestion): void {
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO questions (channel, message_ts, agent, thread_ts, questions, created_ms)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        question.channel,
+        question.messageTs,
+        question.agent,
+        question.threadTs,
+        JSON.stringify(question.questions),
+        Date.now(),
+      );
+  }
+
+  questionFor(channel: string, messageTs: string): PendingQuestion | undefined {
+    const row = this.db
+      .prepare(
+        "SELECT agent, thread_ts, questions FROM questions WHERE channel = ? AND message_ts = ?",
+      )
+      .get(channel, messageTs) as { agent: string; thread_ts: string; questions: string } | undefined;
+    if (row === undefined) {
+      return undefined;
+    }
+    let questions: unknown;
+    try {
+      questions = JSON.parse(row.questions);
+    } catch {
+      return undefined;
+    }
+    return { agent: row.agent, channel, messageTs, threadTs: row.thread_ts, questions };
+  }
+
+  /** Answered, or abandoned: a later tap finds nothing and is told so. */
+  removeQuestion(channel: string, messageTs: string): void {
+    this.db.prepare("DELETE FROM questions WHERE channel = ? AND message_ts = ?").run(channel, messageTs);
   }
 }
