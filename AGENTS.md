@@ -28,7 +28,6 @@ binaries an agent account installs.
 | `netd/` | Go; tsnet node per agent, tailnet ⇄ unix socket with verified peer tags |
 | `tests/integration/` | Real agentd + real bridge over HTTP; only Slack is faked |
 | `deploy/` | systemd units, launchd plists, and `deploy/dev/` stand-ins |
-| `docs/tasks/` | The work queue — one file per task, status in YAML frontmatter |
 | `.github/` | The CI gate and the Dependabot policy that moves its action pins |
 | `scripts/compile.ts` | `bun build --compile` → `dist-bin/<target>/{thicket,thicket-agentd,thicket-bridge}` |
 
@@ -64,7 +63,7 @@ platform — `bin/` holding all four executables — attests them, and creates t
 `.github/workflows/verify-release.yml` then installs it the way an agent account does,
 and can be dispatched by hand against any tag. Deploying is repinning:
 `mise use -g github:ivy/thicket@1.2.3`. Build provenance needs the repository to be
-public — see [041](docs/tasks/041-release-pipeline.md).
+public — see [#15](https://github.com/ivy/thicket/issues/15).
 
 Two traps worth knowing:
 
@@ -76,9 +75,9 @@ Two traps worth knowing:
 
 ## Change hygiene
 
-- Read [PROMPT.md](PROMPT.md) if you are working the task queue. It governs: one task
-  per iteration, claim it before starting, check an acceptance box only against observed
-  behaviour.
+- The work queue is [GitHub issues](https://github.com/ivy/thicket/issues). Read
+  [PROMPT.md](PROMPT.md) if you are working it: one issue per iteration, assign yourself
+  before starting, check an acceptance box only against observed behaviour.
 - **Never run `thicket provision`.** It mutates a live Slack workspace against a Tier 1
   rate limit and needs a browser reinstall no automation can perform. Change the
   renderer, land it, and say a provision is owed.
@@ -93,10 +92,12 @@ Two traps worth knowing:
 
 ## Deeper docs
 
-- [docs/tasks/000-overview.md](docs/tasks/000-overview.md) — the dependency graph, the
-  current wave, and hard-won external facts (Slack API quirks, A2A semantics).
-- [docs/tasks/LIVE-TESTING.md](docs/tasks/LIVE-TESTING.md) — the local rig, the two
-  Slack MCP servers, and what still needs a human. **Read before any live check.**
+- [GitHub issues](https://github.com/ivy/thicket/issues) — the work queue. A `blocked`
+  label means the operator must act before that one can move.
+- [docs/reference.md](docs/reference.md) — runtime topology, conventions, and hard-won
+  external facts (Slack API quirks, A2A semantics).
+- [docs/live-testing.md](docs/live-testing.md) — the local rig, the two Slack MCP
+  servers, and what still needs a human. **Read before any live check.**
 - [docs/runbook.md](docs/runbook.md) — what to do when an agent stops responding, a
   socket will not reconnect, or a task is stuck in `working`.
 - [deploy/README.md](deploy/README.md) — real deployment: accounts, units, tailnet

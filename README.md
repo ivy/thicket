@@ -54,10 +54,10 @@ Real deployment is still ahead of the tooling in places: `netd` wants a tailnet 
 administer, and there is no installer yet, so an agent host needs a checkout. The
 laptop rig in [deploy/dev/](deploy/dev/) stands in for netd where there is no tailnet.
 
-Work is decomposed in [docs/tasks/](docs/tasks/) as a dependency graph —
-[docs/tasks/000-overview.md](docs/tasks/000-overview.md) has the build order and the
-hard-won facts about the APIs involved. [AGENTS.md](AGENTS.md) is the map for anyone
-(or any agent) working in the repo.
+Work is tracked in [GitHub issues](https://github.com/ivy/thicket/issues).
+[docs/reference.md](docs/reference.md) has the runtime topology and the hard-won facts
+about the APIs involved. [AGENTS.md](AGENTS.md) is the map for anyone (or any agent)
+working in the repo.
 
 ## Requirements
 

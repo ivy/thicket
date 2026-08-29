@@ -1,9 +1,9 @@
 # Roadmap
 
 Where the fleet is going, arc by arc. [vision.md](vision.md) says what thicket is;
-[tasks/000-overview.md](tasks/000-overview.md) says what is being built this week. This
-file is the middle: the order the arcs land in, why that order, and what must be true
-before the next one starts.
+the [issue tracker](https://github.com/ivy/thicket/issues) says what is being built
+this week. This file is the middle: the order the arcs land in, why that order, and
+what must be true before the next one starts.
 
 ## Rules
 
@@ -12,14 +12,14 @@ before the next one starts.
   makes do.
 - **Oversight precedes autonomy.** An agent takes on unattended work only after its
   activity is visible from the human surface and its irreversible acts are gateable
-  ([024](tasks/024-approvals.md)).
+  ([#10](https://github.com/ivy/thicket/issues/10)).
 - **The budget is human hours.** Agent time spent on the foundation is the system
   working; operator time spent on it is the signal to stop generalizing and ship the
   next automation instead.
 
 ## Arc 1 — a surface I can trust (now)
 
-Waves 9–13 of the task queue: status fidelity, message splitting and dialects, the
+Status fidelity, message splitting and dialects, the
 question UI, reactions, routines. Not polish for its own sake — the Slack surface is
 the oversight channel every later arc depends on: the place autonomous work is watched,
 questioned, and stopped.
@@ -37,16 +37,15 @@ them — propose-and-show-diff first, auto-apply only after approvals exist.
 
 - Two iteration loops, kept separate. The **platform loop** — thicket itself — ships
   as attested release artifacts: a tag push runs the gate and publishes per-platform
-  executables ([041](tasks/041-release-pipeline.md)), and an account updates by
+  executables ([#15](https://github.com/ivy/thicket/issues/15)), and an account updates by
   repinning (`mise use -g github:ivy/thicket@…`) and re-running
-  [`thicket install`](tasks/042-cli-install.md). The repo goes public first
-  ([039](tasks/039-open-source-readiness.md)) so no account needs a token, and the
-  runtime moves to Bun ([040](tasks/040-bun-port.md)) so no account needs Node or a
-  checkout. The **agent loop** — skills, `CLAUDE.md`, tools inside the account — is
-  where daily iteration lives and needs no redeploy at all.
-- [027](tasks/027-provision-agent-workspace.md) leaves the icebox: the agent loop must
+  [`thicket install`](https://github.com/ivy/thicket/issues/16). The repo goes public
+  first so no account needs a token, and the runtime moves to Bun so no account needs
+  Node or a checkout — both landed. The **agent loop** — skills, `CLAUDE.md`, tools
+  inside the account — is where daily iteration lives and needs no redeploy at all.
+- [#11](https://github.com/ivy/thicket/issues/11) leaves the icebox: the agent loop must
   be versioned and rendered, not hand-grown per host.
-- Channel→workspace binding ([043](tasks/043-channel-workspace-binding.md)): a project
+- Channel→workspace binding: a project
   channel names a workspace, and the channel's agent runs its sessions with that
   working directory, so the repo's own `CLAUDE.md` and skills are the channel's
   memory.
@@ -56,11 +55,13 @@ a diff, and applied on the server — with the laptop closed the whole time.
 
 ## Arc 3 — reactivity
 
-Events join people and the clock as triggers. [028](tasks/028-cli-send.md) leaves the
-icebox as the minimum viable ingress — with `thicket send`, a webhook receiver is a
-shell script — followed by a real GitHub-events bridge when a second consumer asks for
-one. [023](tasks/023-agent-delegation.md) and [024](tasks/024-approvals.md) come out
-with it; approvals land before any pipeline is allowed to end in a merge.
+Events join people and the clock as triggers.
+[#12](https://github.com/ivy/thicket/issues/12) leaves the icebox as the minimum viable
+ingress — with `thicket send`, a webhook receiver is a shell script — followed by a
+real GitHub-events bridge when a second consumer asks for one.
+[#9](https://github.com/ivy/thicket/issues/9) and
+[#10](https://github.com/ivy/thicket/issues/10) come out with it; approvals land before
+any pipeline is allowed to end in a merge.
 
 First shipped automation: the Renovate pipeline. An ingest-class agent reviews the bump
 and emits a verdict artifact; deterministic gates — checksums, CI, provenance — sit
