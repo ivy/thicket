@@ -10,7 +10,14 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 
 import { PushQueue } from "./push-queue.js";
-import { QUESTION_TOOL, deferQuestion, denyUnanswerable, SessionManager, type QueryFn } from "./session-manager.js";
+import {
+  QUESTION_TOOL,
+  SessionManager,
+  UnknownWorkspaceError,
+  deferQuestion,
+  denyUnanswerable,
+  type QueryFn,
+} from "./session-manager.js";
 import type { SessionHandle } from "./types.js";
 
 const TTL_S = 300;
@@ -506,5 +513,50 @@ test("no persona leaves the session options without any systemPrompt", async () 
   await session.send(userMessage("hi", "u1"));
   await until(() => cli.processes.length === 1, "spawned");
   assert.equal("systemPrompt" in (cli.processes[0]?.options ?? {}), false);
+  await manager.shutdown();
+});
+
+test("a workspace names the session's cwd; an undeclared one is refused, never guessed", async () => {
+  const cli = makeFakeCli();
+  const manager = makeManager(cli, { workspaces: { homestead: "/srv/homestead" } });
+
+  const bound = manager.sessionFor("ctx-bound", { workspace: "homestead" });
+  collect(bound);
+  await bound.send(userMessage("hi", "u1"));
+  await until(() => cli.processes.length === 1, "spawned");
+  assert.equal(cli.processes[0]?.options.cwd, "/srv/homestead");
+
+  const plain = manager.sessionFor("ctx-plain");
+  collect(plain);
+  await plain.send(userMessage("hi", "u2"));
+  await until(() => cli.processes.length === 2, "spawned");
+  assert.equal(cli.processes[1]?.options.cwd, "/home/hearth", "no workspace: the harness cwd");
+
+  assert.throws(
+    () => manager.sessionFor("ctx-nowhere", { workspace: "nowhere" }),
+    (err: unknown) =>
+      err instanceof UnknownWorkspaceError &&
+      err.workspace === "nowhere" &&
+      /declares: homestead/.test(err.message),
+  );
+  await manager.shutdown();
+});
+
+test("binding a thread that already has a session re-homes it on the next turn, resuming by id", async () => {
+  const cli = makeFakeCli();
+  const manager = makeManager(cli, { workspaces: { homestead: "/srv/homestead" } });
+  const first = manager.sessionFor("ctx-move");
+  collect(first);
+  await first.send(userMessage("hi", "u1"));
+  await until(() => cli.processes.length === 1, "spawned in the harness cwd");
+  await until(() => !(first as unknown as { busy: boolean }).busy, "turn settled");
+  cli.transcripts.set("ctx-move", []);
+
+  const moved = manager.sessionFor("ctx-move", { workspace: "homestead" });
+  assert.equal(moved, first, "same session handle");
+  await moved.send(userMessage("again", "u2"));
+  await until(() => cli.processes.length === 2, "a second generation");
+  assert.equal(cli.processes[1]?.options.cwd, "/srv/homestead");
+  assert.equal(cli.processes[1]?.options.resume, "ctx-move", "resumed, not restarted");
   await manager.shutdown();
 });

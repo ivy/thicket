@@ -15,6 +15,7 @@ import { ServerCallContext } from "@a2a-js/sdk/server";
 
 import { AttachmentStore, META_FILE_SIZE } from "./attachments.js";
 import { ClaudeAgentExecutor, threadPreamble } from "./executor.js";
+import { UnknownWorkspaceError } from "./session-manager.js";
 import {
   META_CANCELLED,
   META_CONTEXT_ONLY,
@@ -23,6 +24,7 @@ import {
   META_SHOULD_QUERY,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
+  META_WORKSPACE,
   META_STILL_QUEUED,
   type SessionHandle,
 } from "./types.js";
@@ -500,4 +502,56 @@ test("a failed fetch degrades to a note; the turn still answers", async (t) => {
   assert.equal(warnings.length, 1);
   const terminal = events.filter((e) => e.kind === "statusUpdate").at(-1);
   assert.equal(terminal?.data.status?.state, TaskState.TASK_STATE_COMPLETED);
+});
+
+test("the workspace a message names reaches the session provider every turn", async () => {
+  const session = fakeSession(undefined);
+  const asked: (string | undefined)[] = [];
+  const executor = new ClaudeAgentExecutor({
+    sessions: {
+      sessionFor: (_contextId, options) => {
+        asked.push(options?.workspace);
+        return session;
+      },
+    },
+    uuid: () => "uuid-1",
+  });
+  const events: AgentExecutionEvent[] = [];
+  const ctx = requestContext("task-1", "ctx-1", "hi", { [META_WORKSPACE]: "homestead" });
+  const running = executor.execute(ctx, stubBus(events));
+  await untilSent(session);
+  session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
+  await running;
+  assert.deepEqual(asked, ["homestead"]);
+});
+
+test("an undeclared workspace refuses the turn out loud instead of running elsewhere", async () => {
+  const session = fakeSession(undefined);
+  const executor = new ClaudeAgentExecutor({
+    sessions: {
+      sessionFor: (_contextId, options) => {
+        if (options?.workspace !== undefined) {
+          throw new UnknownWorkspaceError(options.workspace, ["homestead"]);
+        }
+        return session;
+      },
+    },
+    uuid: () => "uuid-1",
+  });
+  const events: AgentExecutionEvent[] = [];
+  const ctx = requestContext("task-1", "ctx-1", "fix it", { [META_WORKSPACE]: "nowhere" });
+  await executor.execute(ctx, stubBus(events));
+
+  assert.equal(session.sent.length, 0, "nothing reached the model");
+  assert.deepEqual(
+    events.map((e) => e.kind),
+    ["task", "statusUpdate"],
+  );
+  const status = events[1]!;
+  assert.ok(status.kind === "statusUpdate");
+  assert.equal(status.data.status?.state, TaskState.TASK_STATE_FAILED);
+  const text = status.data.status?.message?.parts[0]?.content;
+  assert.ok(text?.$case === "text");
+  assert.match(text.value, /workspace "nowhere" is not declared/);
+  assert.match(text.value, /declares: homestead/);
 });

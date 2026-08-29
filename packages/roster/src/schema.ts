@@ -27,6 +27,14 @@ const harnessSchema = z.object({
   attachments: z.enum(["accept", "reject"]).default("accept"),
 });
 
+const WORKSPACE_NAME = /^[a-z0-9][a-z0-9-]*$/;
+const workspaceNameSchema = z.string().regex(WORKSPACE_NAME, {
+  message: "workspace names must be lowercase slugs ([a-z0-9-])",
+});
+
+/** A binding key the operator writes: a readable `#name`, or an id that never drifts. */
+const CHANNEL_KEY = /^(#[a-z0-9][a-z0-9._-]*|[CG][A-Z0-9]{8,})$/;
+
 const agentEntrySchema = z.object({
   host: z.string().min(1),
   user: z.string().min(1),
@@ -47,6 +55,21 @@ const agentEntrySchema = z.object({
   harness: harnessSchema,
   context: z.enum(["native", "replay"]).default("native"),
   queueing: z.enum(["harness", "bridge"]).default("harness"),
+  /**
+   * Working directories a conversation can be bound to, by name. The
+   * agent's own half of a channel binding: the bridge never learns a
+   * path, only the name.
+   */
+  workspaces: z
+    .record(z.string(), z.string().regex(/^\//, { message: "workspace paths must be absolute" }))
+    .default({}),
+  /**
+   * Channel → workspace name. A mention there runs in that workspace, so
+   * the repo's own CLAUDE.md, skills, and memory are the channel's context.
+   * Keys are checked in the roster refinement, where the message can say
+   * what a key should look like.
+   */
+  channels: z.record(z.string(), workspaceNameSchema).default({}),
 });
 
 const agentNameSchema = z
@@ -72,6 +95,33 @@ const rosterSchema = z
         });
       } else {
         byTag.set(entry.tag, name);
+      }
+
+      for (const workspace of Object.keys(entry.workspaces)) {
+        if (!WORKSPACE_NAME.test(workspace)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["agents", name, "workspaces", workspace],
+            message: "workspace names must be lowercase slugs ([a-z0-9-])",
+          });
+        }
+      }
+      for (const [channel, workspace] of Object.entries(entry.channels)) {
+        if (!CHANNEL_KEY.test(channel)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["agents", name, "channels", channel],
+            message: "channel keys are #name or a channel id (C…/G…)",
+          });
+          continue;
+        }
+        if (entry.workspaces[workspace] === undefined) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["agents", name, "channels", channel],
+            message: `binds to workspace "${workspace}", which agents.${name}.workspaces does not declare`,
+          });
+        }
       }
 
       const hostUser = `${entry.host}/${entry.user}`;

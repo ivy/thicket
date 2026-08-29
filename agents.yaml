@@ -10,3 +10,10 @@ agents:
       type: claude-agent-sdk
       cwd: /home/thicket-example
       model: claude-sonnet-5
+    # A project channel means a working directory: a mention in #proj-example
+    # runs in that checkout, with its CLAUDE.md, skills, and memory. The
+    # bridge only ever sees the name; the path stays on the agent's host.
+    workspaces:
+      example: /home/thicket-example/src/example
+    channels:
+      "#proj-example": example

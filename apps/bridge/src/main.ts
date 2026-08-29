@@ -123,6 +123,7 @@ export async function run(
       state,
       logger,
       ...(config.file_base_url === undefined ? {} : { fileBaseUrl: config.file_base_url }),
+      ...(Object.keys(entry.channels).length === 0 ? {} : { bindings: entry.channels }),
     });
     engines.set(name, engine);
     await engine.start();

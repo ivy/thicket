@@ -46,6 +46,7 @@ export { PushQueue } from "./push-queue.js";
 export {
   QUESTION_TOOL,
   SessionManager,
+  UnknownWorkspaceError,
   deferQuestion,
   denyUnanswerable,
   type QueryFn,
@@ -64,6 +65,7 @@ export {
   META_SLACK_THREAD,
   META_STILL_QUEUED,
   META_TRIGGER,
+  META_WORKSPACE,
   type PendingSend,
   type SessionHandle,
   type SessionProvider,

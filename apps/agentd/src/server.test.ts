@@ -40,6 +40,8 @@ const entry: AgentEntry = {
   },
   context: "native",
   queueing: "harness",
+  workspaces: {},
+  channels: {},
 };
 
 function quietLogger(): Logger {

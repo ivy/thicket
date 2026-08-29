@@ -147,6 +147,8 @@ export interface SlackApi {
   replies(channel: string, threadTs: string, limit?: number): Promise<ThreadMessage[]>;
   /** reactions.add: `emoji` is the bare name, no colons. */
   addReaction(channel: string, messageTs: string, emoji: string): Promise<void>;
+  /** A channel's name without the #, or undefined if Slack has none for it. Cached. */
+  channelName(channel: string): Promise<string | undefined>;
 }
 
 // Metadata keys and the activity shape are thicket's A2A extension; the
@@ -157,5 +159,6 @@ export {
   META_SHOULD_QUERY,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
+  META_WORKSPACE,
 } from "@thicket/executor";
 export type { AgentActivity, AgentQuestion } from "@thicket/executor";

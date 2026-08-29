@@ -227,3 +227,49 @@ agents:
     RosterValidationError,
   );
 });
+
+test("workspaces and channel bindings parse, default to empty, and must agree", () => {
+  const base = `
+agents:
+  hearth:
+    host: home
+    user: hearth
+    description: d
+    tag: tag:thicket-hearth
+    harness: { type: claude-agent-sdk, cwd: /home/hearth, model: m }
+`;
+  const bare = parseRoster(base);
+  assert.deepEqual(bare.agents.hearth?.workspaces, {});
+  assert.deepEqual(bare.agents.hearth?.channels, {});
+
+  const bound = parseRoster(
+    base +
+      `    workspaces:
+      homestead: /home/hearth/src/homestead
+    channels:
+      "#proj-homestead": homestead
+      C0123456789: homestead
+`,
+  );
+  assert.deepEqual(bound.agents.hearth?.workspaces, { homestead: "/home/hearth/src/homestead" });
+  assert.deepEqual(bound.agents.hearth?.channels, {
+    "#proj-homestead": "homestead",
+    C0123456789: "homestead",
+  });
+
+  assert.throws(
+    () => parseRoster(base + `    channels:\n      "#proj-x": nowhere\n`),
+    (err: Error) =>
+      err instanceof RosterValidationError &&
+      /agents\.hearth\.channels\.#proj-x: binds to workspace "nowhere"/.test(err.message),
+    "a binding to an undeclared workspace names itself",
+  );
+  assert.throws(
+    () => parseRoster(base + `    workspaces:\n      rel: src/here\n`),
+    /workspace paths must be absolute/,
+  );
+  assert.throws(
+    () => parseRoster(base + `    workspaces:\n      w: /w\n    channels:\n      proj-x: w\n`),
+    /channel keys are #name or a channel id/,
+  );
+});

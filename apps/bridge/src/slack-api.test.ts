@@ -99,6 +99,20 @@ test("a question message posts blocks with a fallback and hands back its ts", as
   assert.equal("text" in logged[0]!, false);
 });
 
+test("a channel's name comes from conversations.info, asked once", async () => {
+  const { calls } = fakeWeb();
+  const web = {
+    apiCall: async (method: string, args: Record<string, unknown>) => {
+      calls.push({ method, args });
+      return { ok: true, channel: { id: args.channel, name: "proj-homestead" } };
+    },
+  } as unknown as WebClient;
+  const api = new WebSlackApi(web);
+  assert.equal(await api.channelName("C1"), "proj-homestead");
+  assert.equal(await api.channelName("C1"), "proj-homestead");
+  assert.deepEqual(calls, [{ method: "conversations.info", args: { channel: "C1" } }]);
+});
+
 test("text appends go through chunks, like every other append", async () => {
   const r = rig();
   await r.api.appendStream("C1", "1.2", "the tide comes in");

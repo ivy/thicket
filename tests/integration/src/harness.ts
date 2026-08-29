@@ -41,6 +41,8 @@ export function agentEntry(name: string): AgentEntry {
     },
     context: "native",
     queueing: "harness",
+    workspaces: {},
+    channels: {},
   };
 }
 
@@ -339,6 +341,10 @@ export class MockSlack implements SlackApi {
   reactions: { channel: string; ts: string; emoji: string }[] = [];
   async addReaction(channel: string, ts: string, emoji: string) {
     this.reactions.push({ channel, ts, emoji });
+  }
+  channelNames = new Map<string, string>();
+  async channelName(channel: string) {
+    return this.channelNames.get(channel);
   }
   activities(): AgentActivity[] {
     return this.calls.filter((c) => c.type === "activity").map((c) => c.activity);

@@ -17,6 +17,7 @@ import {
   META_SHOULD_QUERY,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
+  META_WORKSPACE,
   type A2AEvent,
   type AgentClient,
   type InboundEvent,
@@ -52,6 +53,12 @@ export interface EngineOptions {
   fileBaseUrl?: string;
   /** Test override for the per-stream text budget. */
   streamTextBudget?: number;
+  /**
+   * Channel → workspace name, from the agent's roster entry. Keys are
+   * `#name` or a channel id; the path behind a name never reaches the
+   * bridge.
+   */
+  bindings?: Record<string, string>;
 }
 
 /**
@@ -153,6 +160,9 @@ export class BridgeEngine {
   /** Threads whose prose status line was abandoned after a rejection. */
   private readonly noteOff = new Set<string>();
   private readonly fileBaseUrl: string | undefined;
+  private readonly bindings: Record<string, string>;
+  /** Channel id → name, from conversations.info; asked once per channel. */
+  private readonly channelNames = new Map<string, string | undefined>();
   constructor(options: EngineOptions) {
     this.agent = options.agent;
     this.queueing = options.queueing;
@@ -163,6 +173,7 @@ export class BridgeEngine {
     this.logger = options.logger ?? { info: () => {}, warn: () => {} };
     this.fileBaseUrl = options.fileBaseUrl?.replace(/\/+$/, "");
     this.streamTextBudget = options.streamTextBudget ?? STREAM_TEXT_BUDGET;
+    this.bindings = options.bindings ?? {};
   }
 
   /** Reattach to tasks recorded by a previous bridge process. */
@@ -228,6 +239,16 @@ export class BridgeEngine {
         }
         // Context for the agent, no turn: delivered with shouldQuery:false
         // semantics via metadata; no status change, no reply expected.
+        const bound = await this.workspaceFor(event.channel);
+        if ("error" in bound) {
+          // Nobody is waiting on this message; the next mention will
+          // refuse out loud if the lookup is still failing.
+          this.logger.warn("context message dropped: workspace unresolved", {
+            channel: event.channel,
+            err: bound.error,
+          });
+          return;
+        }
         await this.client.send(
           this.buildMessage(
             event.channel,
@@ -236,6 +257,7 @@ export class BridgeEngine {
             event.messageTs,
             false,
             files,
+            bound.workspace,
           ),
         );
         return;
@@ -371,6 +393,23 @@ export class BridgeEngine {
     // Something to read during the seconds before the first tool call.
     await this.note(channel, threadTs, "is thinking…");
 
+    const bound = await this.workspaceFor(channel);
+    if ("error" in bound) {
+      // A bound channel whose binding cannot be resolved must not run
+      // somewhere else: the wrong CLAUDE.md is a wrong answer that looks
+      // right. Say so, and stop.
+      this.logger.warn("turn refused: workspace unresolved", { channel, err: bound.error });
+      await this.slack.postMessage(
+        channel,
+        threadTs,
+        `I can't tell which channel this is (${bound.error}), so I won't guess which ` +
+          `workspace to work in. Try again in a moment.`,
+      );
+      await this.note(channel, threadTs, "");
+      await this.slack.setStatus(channel, threadTs, "active");
+      return;
+    }
+
     let card: { streaming: boolean };
     try {
       card = await this.client.fetchCard();
@@ -380,7 +419,15 @@ export class BridgeEngine {
     }
 
     const outgoing = await this.withReplayContext(channel, threadTs, text, messageTs);
-    const message = this.buildMessage(channel, threadTs, outgoing, messageTs, true, fileIds);
+    const message = this.buildMessage(
+      channel,
+      threadTs,
+      outgoing,
+      messageTs,
+      true,
+      fileIds,
+      bound.workspace,
+    );
     try {
       if (card.streaming) {
         await this.pumpTracked(
@@ -509,6 +556,40 @@ export class BridgeEngine {
     return this.state.contextFor(channel, threadTs) ?? deriveSessionId(channel, threadTs);
   }
 
+  /**
+   * The workspace a channel is bound to, by name. A DM is never bound. A
+   * binding written as `#name` needs the channel's name from Slack, asked
+   * once and remembered; while that lookup fails the answer is an error,
+   * not "unbound".
+   */
+  private async workspaceFor(
+    channel: string,
+  ): Promise<{ workspace?: string } | { error: string }> {
+    if (Object.keys(this.bindings).length === 0 || channel.startsWith("D")) {
+      return {};
+    }
+    const direct = this.bindings[channel];
+    if (direct !== undefined) {
+      return { workspace: direct };
+    }
+    if (!Object.keys(this.bindings).some((key) => key.startsWith("#"))) {
+      return {};
+    }
+    if (!this.channelNames.has(channel)) {
+      try {
+        this.channelNames.set(channel, await this.slack.channelName(channel));
+      } catch (err) {
+        return { error: `channel lookup failed: ${err instanceof Error ? err.message : String(err)}` };
+      }
+    }
+    const name = this.channelNames.get(channel);
+    if (name === undefined) {
+      return { error: "Slack reports no name for this channel" };
+    }
+    const byName = this.bindings[`#${name}`];
+    return byName === undefined ? {} : { workspace: byName };
+  }
+
   private buildMessage(
     channel: string,
     threadTs: string,
@@ -516,6 +597,7 @@ export class BridgeEngine {
     messageTs: string,
     shouldQuery: boolean,
     fileIds: string[],
+    workspace?: string,
   ): Message {
     const files = fileIds
       .map((id) => this.state.fileFor(this.agent, id))
@@ -542,6 +624,7 @@ export class BridgeEngine {
         // reach "this thread" without the model being told by a person.
         [META_SLACK_CHANNEL]: channel,
         [META_SLACK_THREAD]: threadTs,
+        ...(workspace === undefined ? {} : { [META_WORKSPACE]: workspace }),
         ...(shouldQuery ? {} : { [META_SHOULD_QUERY]: false }),
       },
       extensions: [],

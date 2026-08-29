@@ -96,6 +96,7 @@ export async function run(
     env: sessionEnv(config),
     maxSessions: config.maxSessions,
     personaPrompt,
+    workspaces: entry.workspaces,
     onWarning: (msg) => logger.warn(msg),
     ...(toolbeltFactory === undefined
       ? {}

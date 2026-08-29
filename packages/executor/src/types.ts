@@ -28,7 +28,15 @@ export interface SessionHandle {
 
 /** Hands out the session bound to an A2A contextId. Implemented by task 006. */
 export interface SessionProvider {
-  sessionFor(contextId: string): SessionHandle | Promise<SessionHandle>;
+  /**
+   * The session for a context. `workspace` names a working directory the
+   * session should run in, from the agent's own roster entry; a name the
+   * agent does not declare is refused, never guessed.
+   */
+  sessionFor(
+    contextId: string,
+    options?: { workspace?: string },
+  ): SessionHandle | Promise<SessionHandle>;
 }
 
 /** One outbound send awaiting its turn. */
@@ -70,6 +78,11 @@ export const META_CONTEXT_ONLY = "thicket.contextOnly";
  */
 export const META_SLACK_CHANNEL = "thicket.slackChannel";
 export const META_SLACK_THREAD = "thicket.slackThread";
+/**
+ * The workspace name a bound channel maps to. The bridge knows the name;
+ * only the agent's own config knows the path.
+ */
+export const META_WORKSPACE = "thicket.workspace";
 /**
  * On the acknowledgment task of a send that was coalesced into another
  * send's turn: the task id that actually carries the answer.

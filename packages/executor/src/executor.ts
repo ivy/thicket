@@ -17,6 +17,7 @@ import {
   type AttachmentStore,
   type StoredAttachment,
 } from "./attachments.js";
+import { UnknownWorkspaceError } from "./session-manager.js";
 import { TurnTranslator, type TurnAccounting } from "./translator.js";
 import {
   META_CANCELLED,
@@ -27,6 +28,7 @@ import {
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
   META_STILL_QUEUED,
+  META_WORKSPACE,
   type SessionHandle,
   type SessionProvider,
 } from "./types.js";
@@ -107,8 +109,23 @@ export class ClaudeAgentExecutor implements AgentExecutor {
 
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
     const { taskId, contextId } = requestContext;
-    const state = await this.contextState(contextId);
     const inbound = requestContext.userMessage;
+    const rawWorkspace = inbound.metadata?.[META_WORKSPACE];
+    const workspace = typeof rawWorkspace === "string" && rawWorkspace !== "" ? rawWorkspace : undefined;
+    let state: ContextState;
+    try {
+      state = await this.contextState(contextId, workspace);
+    } catch (err) {
+      if (!(err instanceof UnknownWorkspaceError)) {
+        throw err;
+      }
+      // A bound channel naming a workspace this agent does not declare:
+      // refuse out loud rather than run somewhere else. Silence, or $HOME,
+      // would both look like an answer.
+      this.onWarning(`turn refused: ${err.message}`);
+      this.publishRefusal(eventBus, taskId, contextId, inbound, err.message);
+      return;
+    }
 
     const uuid = this.uuid();
     const contextOnly = inbound.metadata?.[META_SHOULD_QUERY] === false;
@@ -237,6 +254,57 @@ export class ClaudeAgentExecutor implements AgentExecutor {
     state.translator.markTerminalEmitted(taskId);
   }
 
+  /** A task that never ran: it exists, and it says why it stopped. */
+  private publishRefusal(
+    eventBus: ExecutionEventBus,
+    taskId: string,
+    contextId: string,
+    inbound: Message,
+    reason: string,
+  ): void {
+    const message: Message = {
+      messageId: `${taskId}-refused`,
+      contextId,
+      taskId,
+      role: Role.ROLE_AGENT,
+      parts: [
+        {
+          content: {
+            $case: "text",
+            value:
+              `I can't take this one: this channel is bound to a workspace I don't have — ` +
+              `${reason}. Fix the roster (agents.yaml) and try again.`,
+          },
+          mediaType: "text/plain",
+          filename: "",
+          metadata: {},
+        },
+      ],
+      metadata: {},
+      extensions: [],
+      referenceTaskIds: [],
+    };
+    const now = this.now();
+    eventBus.publish(
+      AgentEvent.task({
+        id: taskId,
+        contextId,
+        status: { state: TaskState.TASK_STATE_WORKING, message: undefined, timestamp: now },
+        artifacts: [],
+        history: [inbound],
+        metadata: {},
+      }),
+    );
+    eventBus.publish(
+      AgentEvent.statusUpdate({
+        taskId,
+        contextId,
+        status: { state: TaskState.TASK_STATE_FAILED, message, timestamp: now },
+        metadata: {},
+      }),
+    );
+  }
+
   private canceledStatus(
     taskId: string,
     contextId: string,
@@ -270,12 +338,17 @@ export class ClaudeAgentExecutor implements AgentExecutor {
     });
   }
 
-  private async contextState(contextId: string): Promise<ContextState> {
+  private async contextState(contextId: string, workspace?: string): Promise<ContextState> {
+    // Asked every turn, not once: a channel bound after the thread began
+    // moves the session on its next turn, and an unknown name fails now.
+    const session = await this.sessions.sessionFor(
+      contextId,
+      workspace === undefined ? {} : { workspace },
+    );
     const existing = this.contexts.get(contextId);
     if (existing !== undefined) {
       return existing;
     }
-    const session = await this.sessions.sessionFor(contextId);
     const translator = new TurnTranslator({
       publish: (event) => this.route(event),
       now: this.now,

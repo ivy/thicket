@@ -16,6 +16,7 @@ import {
   META_SHOULD_QUERY,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
+  META_WORKSPACE,
   type A2AEvent,
   type AgentActivity,
   type AgentClient,
@@ -116,6 +117,17 @@ class FakeSlack implements SlackApi {
       throw this.reactionError;
     }
     this.reactions.push({ channel, ts, emoji });
+  }
+  /** Channel names conversations.info would report; lookups counted. */
+  channelNames = new Map<string, string>();
+  channelNameError: Error | undefined;
+  channelNameLookups = 0;
+  async channelName(channel: string) {
+    this.channelNameLookups += 1;
+    if (this.channelNameError !== undefined) {
+      throw this.channelNameError;
+    }
+    return this.channelNames.get(channel);
   }
   /** Thread transcript served to replay agents; keyed `channel:threadTs`. */
   threads = new Map<string, { ts: string; authorId?: string; botId?: string; text: string }[]>();
@@ -278,6 +290,7 @@ function rig(
     dbPath?: string;
     fileBaseUrl?: string;
     streamTextBudget?: number;
+    bindings?: Record<string, string>;
   } = {},
 ): Rig {
   const slack = new FakeSlack();
@@ -288,6 +301,7 @@ function rig(
     agent: "hearth",
     queueing: options.queueing ?? "harness",
     ...(options.context === undefined ? {} : { context: options.context }),
+    ...(options.bindings === undefined ? {} : { bindings: options.bindings }),
     client,
     slack,
     state,
@@ -1355,4 +1369,75 @@ test("a question survives a bridge restart: the tap still resolves from the data
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ---------------------------------------------------------- workspace binding
+
+function mention(channel: string, text: string, ts = "1724650001.000001") {
+  return {
+    kind: "mention" as const,
+    channel,
+    threadTs: ts,
+    text,
+    messageTs: ts,
+    files: [],
+    authorId: HUMAN,
+    viaApp: false,
+  };
+}
+
+test("a mention in a channel bound by id carries the workspace name; a DM never does", async () => {
+  const r = rig(
+    { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
+    { bindings: { C0PROJ00001: "homestead" } },
+  );
+  await r.engine.handleEvent(mention("C0PROJ00001", "fix the backup timer"));
+  await r.engine.handleEvent(dm("hello"));
+  await r.engine.handleEvent(mention("C0OTHER0001", "hi", "1724650009.000001"));
+  const [bound, direct, unbound] = r.client.streamed;
+  assert.equal(bound?.metadata?.[META_WORKSPACE], "homestead");
+  assert.equal(META_WORKSPACE in (direct?.metadata ?? {}), false, "DMs are unchanged");
+  assert.equal(META_WORKSPACE in (unbound?.metadata ?? {}), false, "unbound channels are unchanged");
+  assert.equal(r.slack.channelNameLookups, 0, "id bindings never ask Slack");
+  r.state.close();
+});
+
+test("a binding written as #name resolves the channel's name once and remembers it", async () => {
+  const r = rig(
+    { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
+    { bindings: { "#proj-homestead": "homestead" } },
+  );
+  r.slack.channelNames.set("C0PROJ00001", "proj-homestead");
+  await r.engine.handleEvent(mention("C0PROJ00001", "one"));
+  await r.engine.handleEvent(mention("C0PROJ00001", "two", "1724650002.000001"));
+  assert.equal(r.client.streamed[0]?.metadata?.[META_WORKSPACE], "homestead");
+  assert.equal(r.client.streamed[1]?.metadata?.[META_WORKSPACE], "homestead");
+  assert.equal(r.slack.channelNameLookups, 1, "asked once");
+  // A thread-context message in the bound channel carries it too.
+  await r.engine.handleEvent({
+    kind: "thread_message",
+    channel: "C0PROJ00001",
+    threadTs: "1724650001.000001",
+    text: "fyi",
+    messageTs: "1724650003.000001",
+    files: [],
+    authorId: HUMAN,
+    viaApp: false,
+  });
+  assert.equal(r.client.sent[0]?.metadata?.[META_WORKSPACE], "homestead");
+  r.state.close();
+});
+
+test("when the channel's name cannot be resolved, the turn is refused in-thread, not run elsewhere", async () => {
+  const r = rig(
+    { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
+    { bindings: { "#proj-homestead": "homestead" } },
+  );
+  r.slack.channelNameError = new Error("ratelimited");
+  await r.engine.handleEvent(mention("C0PROJ00001", "fix it"));
+  assert.equal(r.client.streamed.length, 0, "no turn");
+  assert.ok(r.slack.posts().some((p) => /won't guess which workspace/.test(p)));
+  assert.equal(r.slack.lastStatus(), "active", "the thread is handed back");
+  assert.ok(r.warnings.some((w) => /workspace unresolved/.test(w)));
+  r.state.close();
 });

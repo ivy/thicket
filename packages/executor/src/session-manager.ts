@@ -84,6 +84,25 @@ export interface SessionManagerOptions {
    * means no appendix and the options are exactly as before.
    */
   personaPrompt?: () => string | undefined;
+  /**
+   * Working directories a session may be asked to run in, by name — the
+   * agent's half of a channel binding. Absent names are refused.
+   */
+  workspaces?: Record<string, string>;
+}
+
+/** A session was asked for a workspace this agent does not declare. */
+export class UnknownWorkspaceError extends Error {
+  constructor(
+    readonly workspace: string,
+    readonly known: string[],
+  ) {
+    super(
+      `workspace "${workspace}" is not declared for this agent` +
+        (known.length === 0 ? " (it declares none)" : `; it declares: ${known.join(", ")}`),
+    );
+    this.name = "UnknownWorkspaceError";
+  }
 }
 
 const DEFAULT_MAX_SESSIONS = 8;
@@ -113,6 +132,8 @@ async function defaultSessionExists(sessionId: string): Promise<boolean> {
 
 /** One live subprocess generation of a session. */
 interface Generation {
+  /** Where this subprocess runs; a session re-homed elsewhere gets a new one. */
+  cwd: string;
   input: PushQueue<SDKUserMessage>;
   q: Query;
   abort: AbortController;
@@ -123,6 +144,8 @@ interface Generation {
 
 class ManagedSession implements SessionHandle {
   readonly id: string;
+  /** Working directory the next generation spawns in. */
+  cwd: string;
   /** Frames from every generation flow through this one stream. */
   readonly out = new PushQueue<SDKMessage>();
   generation: Generation | null = null;
@@ -135,9 +158,11 @@ class ManagedSession implements SessionHandle {
 
   constructor(
     id: string,
+    cwd: string,
     private readonly manager: SessionManager,
   ) {
     this.id = id;
+    this.cwd = cwd;
     this.lastActivity = Date.now();
   }
 
@@ -187,6 +212,7 @@ export class SessionManager implements SessionProvider {
   private readonly mcpServers: ((contextId: string) => NonNullable<Options["mcpServers"]>) | undefined;
   private readonly allowedTools: string[] | undefined;
   private readonly personaPrompt: (() => string | undefined) | undefined;
+  private readonly workspaces: Record<string, string>;
 
   /** Insertion order is recency order: oldest first. */
   private readonly sessions = new Map<string, ManagedSession>();
@@ -203,10 +229,28 @@ export class SessionManager implements SessionProvider {
     this.mcpServers = options.mcpServers;
     this.allowedTools = options.allowedTools;
     this.personaPrompt = options.personaPrompt;
+    this.workspaces = options.workspaces ?? {};
   }
 
-  sessionFor(contextId: string): SessionHandle {
-    return this.session(contextId);
+  /**
+   * A workspace re-homes the session: its next generation spawns there,
+   * resuming the same transcript (the SDK finds a session by id across
+   * project directories — observed), so a thread bound after it began
+   * keeps everything it knew. A generation already running elsewhere is
+   * closed once idle; a turn in flight finishes where it started.
+   */
+  sessionFor(contextId: string, options: { workspace?: string } = {}): SessionHandle {
+    const session = this.session(contextId);
+    if (options.workspace !== undefined) {
+      const cwd = this.workspaces[options.workspace];
+      if (cwd === undefined) {
+        throw new UnknownWorkspaceError(options.workspace, Object.keys(this.workspaces));
+      }
+      session.cwd = cwd;
+    } else {
+      session.cwd = this.harness.cwd;
+    }
+    return session;
   }
 
   /** Number of sessions with a live subprocess. */
@@ -265,7 +309,7 @@ export class SessionManager implements SessionProvider {
   private session(contextId: string): ManagedSession {
     let session = this.sessions.get(contextId);
     if (session === undefined) {
-      session = new ManagedSession(contextId, this);
+      session = new ManagedSession(contextId, this.harness.cwd, this);
       this.sessions.set(contextId, session);
     }
     return session;
@@ -327,6 +371,11 @@ export class SessionManager implements SessionProvider {
     if (this.shutdownRequested) {
       throw new Error("session manager is shut down");
     }
+    if (session.generation !== null && session.generation.cwd !== session.cwd && !session.busy) {
+      // Re-homed while idle: let this process go and start over in the
+      // right directory, resuming by id.
+      this.evict(session);
+    }
     if (session.generation !== null) {
       return session.generation;
     }
@@ -347,7 +396,7 @@ export class SessionManager implements SessionProvider {
     const input = new PushQueue<SDKUserMessage>();
     const abort = new AbortController();
     const options: Options = {
-      cwd: this.harness.cwd,
+      cwd: session.cwd,
       model: this.harness.model,
       env: this.env,
       includePartialMessages: true,
@@ -368,6 +417,7 @@ export class SessionManager implements SessionProvider {
     };
     const q = this.queryFn({ prompt: input, options });
     const generation: Generation = {
+      cwd: session.cwd,
       input,
       q,
       abort,

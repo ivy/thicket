@@ -227,6 +227,21 @@ export class WebSlackApi implements SlackApi {
     await this.call("reactions.add", { channel, timestamp: messageTs, name: emoji });
   }
 
+  private readonly channelNames = new Map<string, string | undefined>();
+
+  /** conversations.info, asked once per channel: names rarely change. */
+  async channelName(channel: string): Promise<string | undefined> {
+    if (this.channelNames.has(channel)) {
+      return this.channelNames.get(channel);
+    }
+    const res = (await this.call("conversations.info", { channel })) as {
+      channel?: { name?: unknown };
+    };
+    const name = typeof res.channel?.name === "string" ? res.channel.name : undefined;
+    this.channelNames.set(channel, name);
+    return name;
+  }
+
   async replies(channel: string, threadTs: string, limit = 50): Promise<ThreadMessage[]> {
     const res = (await this.call("conversations.replies", {
       channel,
