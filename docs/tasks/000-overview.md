@@ -77,8 +77,9 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [044 The agent knows which Slack thread it is in](archived/044-agent-knows-its-thread.md) | 005, 009, 020 | `packages/executor` | typescript |
 | [045 The dev egress stand-in refuses what netd accepts](archived/045-dev-egress-absolute-form.md) | 012 | `deploy` | none |
 | [046 CI gate on every push, and the workflows themselves are linted](archived/046-ci-gate-and-workflow-lint.md) | — | `.` | none |
-| [047 systemd socket activation cannot survive the Bun port](047-socket-activation-after-bun.md) | 040 | `deploy` | none |
+| [047 systemd socket activation cannot survive the Bun port](archived/047-socket-activation-after-bun.md) | 040 | `deploy` | none |
 | [048 Agents review a pull request together (research)](048-pr-review-conversation.md) | 023, 024, 028 | `.` | none |
+| [049 netd's tolerance of an absent agentd is untested](049-netd-late-upstream-test.md) | 047 | `netd` | go |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -104,7 +105,7 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 14 | 039, 043, 046 | 3 |
 | 15 | 040 | 1 |
 | 16 | 041, 047 | 2 |
-| 17 | 042 | 1 |
+| 17 | 042, 049 | 2 |
 
 Waves 13 and 14 are the current front: `037`, `038`, and `044` close out the
 Slack surface ([roadmap](../roadmap.md) Arc 1) while `039`–`043` open the
@@ -121,11 +122,11 @@ Waves 14–17 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039,
 themselves linted by actionlint, zizmor, and pinact. 040 is done too: Bun
 runs the workspace and compiles the three executables the fleet installs,
 and the rig now drives those binaries with no Node on PATH. 041 chains
-behind it, 042 behind 041. 047 is the port's bill — Bun cannot accept an
-inherited descriptor, so the systemd units have to get agentd its socket
-some other way. 041 is built and blocked: GitHub refuses build provenance
-on a user-owned private repository, so the release half waits on 039's
-operator step, the public flip.
+behind it, 042 behind 041. 041 is built and blocked: GitHub refuses build
+provenance on a user-owned private repository, so the release half waits on
+039's operator step, the public flip. 047 paid the port's bill — agentd now
+creates its own socket on Linux as it always has on macOS, and CI starts it
+under systemd on every push.
 
 
 ## Shared components
@@ -200,5 +201,5 @@ Verified against upstream; re-check before assuming any of it drifted.
 | Creating a GitHub release attests it automatically — an `in-toto.io/attestation/release/v0.2` predicate naming the tag and every asset digest, initiated by `github` — even on a private repo with no build provenance. mise accepts it and prints "✓ GitHub artifact attestations verified", so that line alone does not prove a release was built by a workflow | observed, `gh api repos/ivy/thicket/attestations/sha256:…`, mise 2026.8.11, 2026-08-29 |
 | Listing attestations is its own workflow permission: `contents: read` alone gets 403 "Resource not accessible by integration" from `/repos/{o}/{r}/attestations`, and mise fails the install rather than skipping verification. A job that installs a release needs `attestations: read` | observed, run 33240542607, 2026-08-29 |
 | mise's asset autodetection scores os and arch tokens on word boundaries, so `<name>-<version>-<os>-<arch>.tar.gz` is enough: `linux-x64` and `macos-arm64` each picked their own archive with no `asset_pattern`. With no `bin_path` set, a `bin/` directory at the archive root is found and every executable in it lands on PATH | `src/backend/asset_matcher.rs`; observed on both platforms, 2026-08-29 |
-| Bun cannot listen on a descriptor it did not open. `node:net` refuses with `EINVAL` ("Bun does not support listening on a file descriptor"); `node:http` resolves `listen({fd})`, reports success and then accepts nothing — a daemon that comes up mute. systemd socket activation therefore cannot work under Bun | observed, Bun 1.4.0, 2026-08-29; [047](047-socket-activation-after-bun.md) |
+| Bun cannot listen on a descriptor it did not open. `node:net` refuses with `EINVAL` ("Bun does not support listening on a file descriptor"); `node:http` resolves `listen({fd})`, reports success and then accepts nothing — a daemon that comes up mute. systemd socket activation therefore cannot work under Bun | observed, Bun 1.4.0, 2026-08-29; [047](archived/047-socket-activation-after-bun.md) |
 | A `bun build --compile` binary carries no `node_modules`, so `@anthropic-ai/claude-agent-sdk` cannot reach the per-platform CLI it ships as an optional dependency: the turn fails with "Native CLI binary for <platform> not found". Pass `pathToClaudeCodeExecutable` — the account's own `claude` is the right one | observed live, `@anthropic-ai/claude-agent-sdk` 0.3.247 under Bun 1.4.0, 2026-08-29 |

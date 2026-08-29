@@ -16,6 +16,12 @@ jobs:
   gate:
     uses: ./.github/workflows/gate.yml
 
+  # The deploy artifacts are only ever exercised on a systemd host, and the
+  # developers' machines are Macs. Seconds of work, so it runs every time
+  # rather than behind a paths: filter.
+  deploy:
+    uses: ./.github/workflows/deploy-check.yml
+
   workflows:
     name: workflows
     runs-on: ubuntu-latest

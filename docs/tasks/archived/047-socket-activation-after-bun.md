@@ -1,11 +1,11 @@
 ---
 id: "047"
 title: systemd socket activation cannot survive the Bun port
-status: in-progress
+status: done
 component: deploy
 language: none
 depends_on: ["040"]
-blocks: []
+blocks: ["049"]
 parallel_safe: true
 ---
 
@@ -56,15 +56,49 @@ agentd create its own 0600 socket, and has since 012.
 
 ## Acceptance criteria
 
-- [ ] agentd on a systemd host serves on its socket after a plain
+- [x] agentd on a systemd host serves on its socket after a plain
       `systemctl --user start`, with the unit files matching what actually
       happens.
-- [ ] The ordering question is answered in `deploy/README.md`: what
+- [x] The ordering question is answered in `deploy/README.md`: what
       creates the socket, what happens to a caller that arrives first.
-- [ ] `resolveListenTarget`'s fd branch and its refusal either still earn
+- [x] `resolveListenTarget`'s fd branch and its refusal either still earn
       their place or are gone, with the reason in the commit body.
 
 ## Out of scope
 
 Making Bun able to adopt a descriptor — that is upstream. The launchd side,
 which already works this way.
+
+## Decided (2026-08-29)
+
+Activation is gone; agentd creates its own socket on Linux, exactly as it has
+under launchd since 012. `thicket-agentd.socket` is deleted,
+`thicket-agentd.service` gained `[Install] WantedBy=default.target` and a
+`RuntimeDirectoryMode=0700`, and netd's `After=`/`Wants=` on the socket unit
+went with it.
+
+**The ordering worry was smaller than it looked.** `newInboundProxy` dials
+agentd's socket inside `DialContext`, once per request, not once at startup.
+Observed directly against it: 502 while the socket is absent, 200 on the next
+request after it appears, with no restart. So nothing had to wait for anything
+and no retry loop was needed. Nothing defends that property yet —
+[049](049-netd-late-upstream-test.md).
+
+**The fd branch stays.** A host upgraded in place still has the old socket
+unit enabled, and `listen()` refusing with a message naming `LISTEN_FDS` is a
+better outcome than agentd quietly creating a second socket at the same path
+while systemd holds the first. `deploy/README.md` carries the disable recipe.
+
+**Observed**, run 33241198115 on an ubuntu runner — a real systemd host, not
+the Fedora one:
+
+```
+Active: active (running)
+agentd listening … "target":"/run/user/1001/thicket/agentd.sock"
+{"name":"example", …}
+```
+
+after `systemctl --user start thicket-agentd.service`, with the socket at 0600
+inside a 0700 directory and `systemctl --user stop` clean afterwards. That
+check now runs on every push as `deploy-check.yml`, so the units and what they
+actually do cannot drift apart again.
