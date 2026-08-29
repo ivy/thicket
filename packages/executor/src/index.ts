@@ -17,8 +17,11 @@ export {
   activity,
   describeToolUse,
   parseAgentActivity,
+  ACTIVITY_ICONS,
   type AgentActivity,
+  type AgentActivityIcon,
   type AgentActivityStatus,
+  type ToolDescription,
 } from "./activity.js";
 export {
   AttachmentStore,

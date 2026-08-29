@@ -139,8 +139,9 @@ test("tool-use turn: the tool_use opens a card and its tool_result closes it", (
 
   const cards = activities(h.events);
   assert.deepEqual(cards, [
-    { id: "toolu_1", title: "Running a command", status: "running", details: "date" },
-    { id: "toolu_1", title: "Running a command", status: "done" },
+    { id: "toolu_1", title: "Running a command", status: "running", details: "date", icon: "code" },
+    // The closing update redraws the card, so it carries the icon again.
+    { id: "toolu_1", title: "Running a command", status: "done", icon: "code" },
   ]);
   const updates = h.events.filter((e) => e.kind === "artifactUpdate");
   const cardEvents = updates.filter(

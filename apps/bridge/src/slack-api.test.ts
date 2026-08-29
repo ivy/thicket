@@ -52,6 +52,7 @@ test("an activity becomes one task_update chunk", async () => {
     title: "Check memory pressure",
     status: "running",
     details: "vm_stat",
+    icon: "code",
   });
   await r.api.appendActivity("C1", "1.2", { id: "toolu_1", title: "Check memory pressure", status: "failed" });
   assert.deepEqual(r.calls[0], {
@@ -66,6 +67,7 @@ test("an activity becomes one task_update chunk", async () => {
           title: "Check memory pressure",
           status: "in_progress",
           details: "vm_stat",
+          icon: { type: "icon", name: "code" },
         },
       ],
     },
@@ -73,6 +75,7 @@ test("an activity becomes one task_update chunk", async () => {
   const chunk = (r.calls[1]!.args.chunks as Record<string, unknown>[])[0]!;
   assert.equal(chunk.status, "error");
   assert.equal("details" in chunk, false);
+  assert.equal("icon" in chunk, false, "a card with no icon is sent exactly as before");
 });
 
 test("text appends go through chunks, like every other append", async () => {

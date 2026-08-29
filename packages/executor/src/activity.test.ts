@@ -21,6 +21,42 @@ test("tool titles read as what the agent is doing", () => {
   }
 });
 
+test("each kind of step carries its own icon, and unknown tools the fallback", () => {
+  const cases: [string, string][] = [
+    ["Bash", "code"],
+    ["BashOutput", "code"],
+    ["Read", "file"],
+    ["Edit", "edit"],
+    ["Write", "edit"],
+    ["NotebookEdit", "edit"],
+    ["Grep", "refine"],
+    ["Glob", "refine"],
+    ["WebFetch", "globe"],
+    ["WebSearch", "globe"],
+    ["TodoWrite", "clipboard"],
+    ["Task", "bot"],
+    ["Agent", "bot"],
+    ["AskUserQuestion", "help"],
+    ["mcp__thicket__post_message", "comment"],
+    ["mcp__thicket__upload_file", "upload"],
+    ["mcp__thicket__read_thread", "book"],
+    ["mcp__thicket__read_channel", "book"],
+    ["mcp__thicket__routine_create", "calendar"],
+    ["mcp__thicket__routine_list", "calendar"],
+    ["mcp__thicket__something_new", "gear"],
+    ["mcp__qmd__query", "gear"],
+    ["SomethingNew", "gear"],
+  ];
+  for (const [name, expected] of cases) {
+    assert.equal(describeToolUse(name, {}).icon, expected, name);
+  }
+});
+
+test("the icon rides along on the card, and only when there is one", () => {
+  assert.equal(activity("toolu_1", "running", describeToolUse("Bash", {})).icon, "code");
+  assert.equal("icon" in activity("toolu_1", "done", { title: "t" }), false);
+});
+
 test("details carry the command or path when there is one", () => {
   assert.equal(describeToolUse("Bash", { command: "vm_stat" }).details, "vm_stat");
   assert.equal(
@@ -55,4 +91,12 @@ test("malformed activity payloads are rejected, not rendered", () => {
     title: "t",
     status: "done",
   });
+});
+
+test("an icon survives the wire only when it is one Slack will draw", () => {
+  assert.equal(parseAgentActivity({ id: "a", title: "t", status: "done", icon: "code" })?.icon, "code");
+  const odd = parseAgentActivity({ id: "a", title: "t", status: "done", icon: ":tada:" });
+  assert.ok(odd !== undefined, "the card itself is still rendered");
+  assert.equal("icon" in odd, false);
+  assert.equal("icon" in parseAgentActivity({ id: "a", title: "t", status: "done", icon: 7 })!, false);
 });

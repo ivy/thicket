@@ -186,6 +186,7 @@ export class WebSlackApi implements SlackApi {
           title: activity.title,
           status: CARD_STATUS[activity.status],
           ...(activity.details === undefined ? {} : { details: activity.details }),
+          ...(activity.icon === undefined ? {} : { icon: { type: "icon", name: activity.icon } }),
         },
       ],
     });

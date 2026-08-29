@@ -16,6 +16,7 @@ import {
   describeToolUse,
   type AgentActivity,
   type AgentActivityStatus,
+  type ToolDescription,
 } from "./activity.js";
 import {
   META_FOLDED_INTO,
@@ -83,6 +84,9 @@ export interface TurnAccounting {
   queuedTurnCount: number;
 }
 
+/** The fields a card keeps when its status changes. */
+type OpenCard = Pick<ToolDescription, "title" | "icon">;
+
 interface OpenTurn {
   send: PendingSend;
   /** Registration sequence at the moment the turn opened: sends
@@ -95,8 +99,8 @@ interface OpenTurn {
   chunksEmitted: number;
   /** Set when stream deltas carried text, so complete-message frames are not double-counted. */
   sawStreamText: boolean;
-  /** Open tool cards: tool_use_id -> title, awaiting their tool_result. */
-  openTools: Map<string, string>;
+  /** Open tool cards: tool_use_id -> what to redraw them with, awaiting their tool_result. */
+  openTools: Map<string, OpenCard>;
   /** Distinct tool names used this turn, for the journal. */
   toolNames: Set<string>;
   activityEmitted: number;
@@ -338,13 +342,13 @@ export class TurnTranslator {
       if (typeof id !== "string") {
         continue;
       }
-      const title = turn.openTools.get(id);
-      if (title === undefined) {
+      const open = turn.openTools.get(id);
+      if (open === undefined) {
         continue; // not a card this turn opened
       }
       turn.openTools.delete(id);
       this.flushText(turn, false);
-      this.emitActivity(turn, activity(id, record.is_error === true ? "failed" : "done", { title }));
+      this.emitActivity(turn, activity(id, record.is_error === true ? "failed" : "done", open));
     }
   }
 
@@ -355,7 +359,8 @@ export class TurnTranslator {
     }
     const described = describeToolUse(name, block.input);
     const card = activity(id, "running", described);
-    turn.openTools.set(id, card.title);
+    // The closing update redraws the card, so it carries the icon again.
+    turn.openTools.set(id, { title: card.title, ...(card.icon === undefined ? {} : { icon: card.icon }) });
     turn.toolNames.add(name);
     // Text already buffered belongs ahead of the card it precedes.
     this.flushText(turn, false);
@@ -364,8 +369,8 @@ export class TurnTranslator {
 
   /** Settle cards whose tool_result never arrived (interrupt, crash). */
   private closeOpenActivities(turn: OpenTurn, status: AgentActivityStatus): void {
-    for (const [id, title] of turn.openTools) {
-      this.emitActivity(turn, activity(id, status, { title }));
+    for (const [id, open] of turn.openTools) {
+      this.emitActivity(turn, activity(id, status, open));
     }
     turn.openTools.clear();
   }
