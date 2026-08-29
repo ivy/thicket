@@ -36,6 +36,20 @@ Logs and pidfiles sit beside each other in `~/thicket-test/`, one pair per
 process. `status` checks liveness rather than presence — it asks the agent
 card, because a process can be up and not serving.
 
+The CLI reaches the rig the way it would reach a real fleet — through the
+egress stand-in, to the agent's address — given the rig's roster and two
+overrides:
+
+```sh
+THICKET_AGENTS_FILE=~/thicket-test/config/thicket/agents.yaml \
+THICKET_MCP_ENDPOINTS='{"hearth":"http://127.0.0.1:8791"}' \
+THICKET_EGRESS_SOCKET=~/thicket-test/run/thicket/netd-egress.sock \
+  mise exec -- node apps/cli/dist/bin.js fleet      # or: mcp
+```
+
+The endpoint is the peer-tag proxy in front of agentd, so the call arrives
+carrying the bridge's tag, which is the only one agentd admits.
+
 ## Driving Slack
 
 Two MCP servers, and the split matters.

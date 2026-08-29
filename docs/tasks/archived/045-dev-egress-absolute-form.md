@@ -1,7 +1,7 @@
 ---
 id: "045"
 title: The dev egress stand-in refuses what netd accepts
-status: in-progress
+status: done
 component: deploy
 language: none
 depends_on: ["012"]
@@ -40,13 +40,18 @@ noticed until the CLI was pointed at the rig.
 
 ## Acceptance criteria
 
-- [ ] With the rig up, `thicket fleet` with `THICKET_MCP_ENDPOINTS`
+- [x] With the rig up, `thicket fleet` with `THICKET_MCP_ENDPOINTS`
       naming the local agentd and `THICKET_EGRESS_SOCKET` naming the
-      stand-in reports the agent up.
-- [ ] `thicket mcp`'s `ask` completes a turn against the rig through the
-      stand-in.
-- [ ] agentd's toolbelt still reaches the bridge through it (a
-      `post_message` live).
+      stand-in reports the agent up. 2026-08-28, the incantation now in
+      LIVE-TESTING.md: `up   hearth in-flight:0 …`, exit 0 — where the
+      same command got "HTTP 405 with a non-JSON body" before.
+- [x] `thicket mcp`'s `ask` completes a turn against the rig through the
+      stand-in. The real `thicket mcp` server driven over stdio with the
+      MCP client, `ask_agent` → "egress ok",
+      `state: TASK_STATE_COMPLETED`.
+- [x] agentd's toolbelt still reaches the bridge through it (a
+      `post_message` live). In the hearth DM, "post 'egress ok' with
+      post_message": the post landed in the thread, then "done".
 
 ## Out of scope
 

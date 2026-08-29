@@ -9,7 +9,7 @@ export default tseslint.config(
     // Plain Node scripts, run directly rather than compiled.
     files: ["deploy/dev/**/*.mjs"],
     languageOptions: {
-      globals: { process: "readonly", console: "readonly" },
+      globals: { process: "readonly", console: "readonly", URL: "readonly" },
     },
   },
 );
