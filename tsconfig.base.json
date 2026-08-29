@@ -9,7 +9,7 @@
     "tsBuildInfoFile": "${configDir}/dist/.tsbuildinfo",
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true,
+    "emitDeclarationOnly": true,
     "isolatedModules": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,

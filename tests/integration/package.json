@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test \"dist/**/*.test.js\""
+    "test": "bun test"
   },
   "dependencies": {
     "@a2a-js/sdk": "^1.1.0",

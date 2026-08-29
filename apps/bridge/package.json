@@ -5,12 +5,12 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
     }
   },
   "scripts": {
-    "test": "node --test \"dist/**/*.test.js\""
+    "test": "bun test"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

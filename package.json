@@ -4,10 +4,10 @@
   "license": "ISC",
   "type": "module",
   "scripts": {
-    "build": "tsc -b",
-    "test": "pnpm build && pnpm -r test",
+    "build": "bun --bun tsc -b",
+    "test": "bun test",
     "lint": "pnpm lint:js && pnpm lint:workflows",
-    "lint:js": "eslint .",
+    "lint:js": "bun --bun eslint .",
     "lint:workflows": "actionlint && zizmor --offline --no-progress .github/ && pinact run --check",
     "build:netd": "go build -o netd/bin/netd ./netd"
   },

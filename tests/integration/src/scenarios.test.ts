@@ -218,7 +218,12 @@ agents:
   assert.ok(hearthHealth?.up, "hearth reported up");
   assert.equal(hearthHealth.inFlight, 1, "in-flight task counted");
   assert.equal(groveHealth?.up, false, "stopped agent reported down");
-  assert.match(groveHealth.detail, /fetch failed|ECONNREFUSED|unreachable/i);
+  // Each runtime words a refused connection differently; what matters is that
+  // the operator is told the agent could not be reached, not which phrase.
+  assert.match(
+    groveHealth.detail,
+    /fetch failed|ECONNREFUSED|unreachable|unable to connect/i,
+  );
 
   hearth.cli.hold = false;
   hearth.cli.release();

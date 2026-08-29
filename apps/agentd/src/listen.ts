@@ -29,6 +29,18 @@ export function resolveListenTarget(
 }
 
 /**
+ * Whether this runtime can serve on a file descriptor it did not open.
+ *
+ * Bun resolves `listen({ fd })` on an http server, reports success, and then
+ * never accepts a connection; asked the same thing, its `node:net` refuses
+ * outright with EINVAL. A daemon that comes up mute is the worst of the
+ * three outcomes, so the fd path refuses in advance instead.
+ */
+export function canAdoptListenFd(): boolean {
+  return process.versions.bun === undefined;
+}
+
+/**
  * Listens per the target. A self-created socket is mode 0600: agentd's
  * whole security model assumes only netd (same account) can reach it, so
  * a world-accessible socket is a configuration error, not a warning.
@@ -37,6 +49,16 @@ export function listen(server: Server, target: ListenTarget): Promise<void> {
   return new Promise((resolve, reject) => {
     server.once("error", reject);
     if (target.kind === "fd") {
+      if (!canAdoptListenFd()) {
+        reject(
+          new Error(
+            `socket activation asked for fd ${target.fd}, but this runtime cannot ` +
+              "listen on a descriptor it did not open; start agentd without LISTEN_FDS " +
+              "so it creates its own socket",
+          ),
+        );
+        return;
+      }
       server.listen({ fd: target.fd }, () => resolve());
       return;
     }
