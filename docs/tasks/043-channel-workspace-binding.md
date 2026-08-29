@@ -4,7 +4,7 @@ title: Project channels know their workspace
 status: todo
 component: apps/bridge
 language: typescript
-depends_on: ["006", "009"]
+depends_on: ["006", "009", "044"]
 blocks: []
 parallel_safe: false
 ---
@@ -24,7 +24,7 @@ same context.
 Two-level indirection keeps host paths out of the bridge: the bridge knows
 channel → (agent, workspace *name*); the agent's own config knows name →
 path. Both halves render from `agents.yaml`. Precedent: Slack thread
-coordinates already travel in message metadata.
+coordinates travel in message metadata once 044 lands.
 
 ## Scope
 

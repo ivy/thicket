@@ -1,7 +1,7 @@
 ---
 id: "035"
 title: Task cards carry an icon that says what kind of step this is
-status: in-progress
+status: done
 component: packages/executor
 language: typescript
 depends_on: ["015"]
@@ -45,10 +45,14 @@ user, warning.
 
 ## Acceptance criteria
 
-- [ ] Different tool kinds render with different icons in a live
+- [x] Different tool kinds render with different icons in a live
       timeline (operator eyeballs a turn that uses Bash, a read, and a
-      thicket tool).
-- [ ] An unknown tool still renders, with the fallback icon.
+      thicket tool). Observed 2026-08-28 in the hearth DM: one streamed
+      message read back with `code` on the Bash card, `file` on the Read
+      card, and `book` on the `list_channels (thicket)` card. Slack
+      accepted every chunk; the rendering itself is owed a human glance.
+- [x] An unknown tool still renders, with the fallback icon. Same turn:
+      `ToolSearch`, which nothing maps, came back as a card with `gear`.
 
 ## Out of scope
 
