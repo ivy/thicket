@@ -1,7 +1,7 @@
 ---
 id: "040"
 title: Bun port — one runtime, standalone executables
-status: in-progress
+status: done
 component: .
 language: typescript
 depends_on: ["046"]
@@ -53,12 +53,12 @@ commit" trap can disappear rather than be worked around.
 
 ## Acceptance criteria
 
-- [ ] Build, test, and lint run from the repo root under Bun and are
+- [x] Build, test, and lint run from the repo root under Bun and are
       documented in AGENTS.md as run.
-- [ ] `tests/integration` passes with the apps running under Bun.
-- [ ] Compiled standalone binaries drive the dev rig end to end — a Slack
+- [x] `tests/integration` passes with the apps running under Bun.
+- [x] Compiled standalone binaries drive the dev rig end to end — a Slack
       message in, a streamed reply out — with no Node on PATH.
-- [ ] The runtime-sensitive external-facts rows are re-verified and
+- [x] The runtime-sensitive external-facts rows are re-verified and
       annotated.
 
 ## Out of scope

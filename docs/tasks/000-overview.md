@@ -70,13 +70,14 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [037 Agent questions render as Slack UI, and a tap answers them](037-agent-questions-ui.md) | 014, 015 | `apps/bridge` | typescript |
 | [038 One-shot scheduled prompts](archived/038-one-shot-schedule.md) | 022 | `apps/agentd` | typescript |
 | [039 Open the repo — ISC license, README, and a clean history](archived/039-open-source-readiness.md) | — | `.` | none |
-| [040 Bun port — one runtime, standalone executables](040-bun-port.md) | 046 | `.` | typescript |
+| [040 Bun port — one runtime, standalone executables](archived/040-bun-port.md) | 046 | `.` | typescript |
 | [041 Release pipeline — a tag becomes attested artifacts](041-release-pipeline.md) | 039, 040, 046 | `.` | none |
 | [042 thicket install — the last mile after mise](042-cli-install.md) | 041 | `apps/cli` | typescript |
 | [043 Project channels know their workspace](archived/043-channel-workspace-binding.md) | 006, 009, 044 | `apps/bridge` | typescript |
 | [044 The agent knows which Slack thread it is in](archived/044-agent-knows-its-thread.md) | 005, 009, 020 | `packages/executor` | typescript |
 | [045 The dev egress stand-in refuses what netd accepts](archived/045-dev-egress-absolute-form.md) | 012 | `deploy` | none |
 | [046 CI gate on every push, and the workflows themselves are linted](archived/046-ci-gate-and-workflow-lint.md) | — | `.` | none |
+| [047 systemd socket activation cannot survive the Bun port](047-socket-activation-after-bun.md) | 040 | `deploy` | none |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -101,7 +102,7 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 13 | 034, 035, 036, 037, 038, 044, 045 | 7 |
 | 14 | 039, 043, 046 | 3 |
 | 15 | 040 | 1 |
-| 16 | 041 | 1 |
+| 16 | 041, 047 | 2 |
 | 17 | 042 | 1 |
 
 Waves 13 and 14 are the current front: `037`, `038`, and `044` close out the
@@ -116,12 +117,12 @@ button, and two that need a second host.
 
 Waves 14–17 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039,
 043 and 046 are done: CI is the gate on every push, with the workflows
-themselves linted by actionlint, zizmor, and pinact. 040 lands under that
-gate: the port's acceptance is entirely local (the gate, the integration
-suite, the dev rig), waiting on a real deployment was judged too early a
-requirement for the project's age, but it touches the whole toolchain,
-so it runs alone and under a gate. 041 chains behind 040 and 046, 042
-behind 041.
+themselves linted by actionlint, zizmor, and pinact. 040 is done too: Bun
+runs the workspace and compiles the three executables the fleet installs,
+and the rig now drives those binaries with no Node on PATH. 041 chains
+behind it, 042 behind 041. 047 is the port's bill — Bun cannot accept an
+inherited descriptor, so the systemd units have to get agentd its socket
+some other way.
 
 
 ## Shared components
@@ -184,11 +185,13 @@ Verified against upstream; re-check before assuming any of it drifted.
 | Socket Mode removes the need for a public request URL | https://docs.slack.dev/apis/events-api/using-socket-mode |
 | Free Slack plan caps installs at 10 apps | https://slack.com/help/articles/115002422943 |
 | `tsnet.Server` exposes `AdvertiseTags`, `Dial`, `LocalClient().WhoIs` | https://pkg.go.dev/tailscale.com/tsnet |
-| `@slack/socket-mode` detects a dead socket in seconds via its own ping loop, but reconnection fetches the wss URL through a WebClient whose default `retryConfig: {retries: 100, factor: 1.3}` retries invisibly and uncancellably for up to hours; bound it via `clientOptions.retryConfig` | `@slack/socket-mode@2.0.7` `dist/src/SocketModeClient.js`, `SlackWebSocket.js` |
-| A `createSdkMcpServer` instance serves exactly one session: the second session to receive the same instance reports the server "failed to connect". Build a fresh instance per subprocess generation | observed live, `@anthropic-ai/claude-agent-sdk` 0.3.247 |
+| `@slack/socket-mode` detects a dead socket in seconds via its own ping loop, but reconnection fetches the wss URL through a WebClient whose default `retryConfig: {retries: 100, factor: 1.3}` retries invisibly and uncancellably for up to hours; bound it via `clientOptions.retryConfig`. Holds under Bun: with the bound in place a refused `apps.connections.open` surfaces to the supervisor in ~350ms, which then backs off visibly (1s, 5s, 15s, 60s) | `@slack/socket-mode@2.0.7` `dist/src/SocketModeClient.js`, `SlackWebSocket.js`; re-observed under Bun 1.4.0, 2026-08-29 |
+| A `createSdkMcpServer` instance serves exactly one session: the second session to receive the same instance reports the server "failed to connect". Build a fresh instance per subprocess generation. Holds under Bun: two threads against one compiled agentd each drove the toolbelt | observed live, `@anthropic-ai/claude-agent-sdk` 0.3.247; re-observed under Bun 1.4.0, 2026-08-29 |
 | `chat.startStream` requires `recipient_user_id` and `recipient_team_id` when streaming anywhere that is not a DM (`missing_recipient_team_id` otherwise); the team id comes from `auth.test` | https://docs.slack.dev/reference/methods/chat.startStream, observed live |
 | `chat.postMessage` truncates text past 40,000 chars; guidance is ≤4,000 per message, and Slack may split longer ones itself at arbitrary points (observed: 4,692 chars became 3,610+1,081). A streamed message hits `msg_too_long` around ~3k chars of text plus cards | https://docs.slack.dev/reference/methods/chat.postMessage, rate-limits guide, observed live |
 | Task-card icons are not emoji: the `icon` field takes `{"type":"icon","name":…}` from a fixed ~52-name set (code, globe, refine, file, edit, gear, bot, …) | https://docs.slack.dev/reference/block-kit/composition-objects/slack-icon-object |
 | `chat.postMessage` `text` is parsed as mrkdwn (bold `*x*`, no `#` headings); real markdown goes in the separate `markdown_text` argument (12k cap, exclusive with `text`/`blocks`) — the dialect `chat.appendStream` chunks already use | https://docs.slack.dev/reference/methods/chat.postMessage, observed live |
-| AskUserQuestion is offered to the model only when `canUseTool` is registered; a bare headless `query()` lists no such tool. With the callback present, a `PreToolUse` hook answering `permissionDecision: "defer"` ends the turn with `terminal_reason: tool_deferred` and `deferred_tool_use.input` carrying the full structured questions/options; the session's next send is the answer, and later questions defer again while the input stream stays open (a closed stream turns the deferral into a denial) | observed live, `@anthropic-ai/claude-agent-sdk` 0.3.247 |
+| AskUserQuestion is offered to the model only when `canUseTool` is registered; a bare headless `query()` lists no such tool. With the callback present, a `PreToolUse` hook answering `permissionDecision: "defer"` ends the turn with `terminal_reason: tool_deferred` and `deferred_tool_use.input` carrying the full structured questions/options; the session's next send is the answer, and later questions defer again while the input stream stays open (a closed stream turns the deferral into a denial). Holds under Bun: the question came back as blocks and a typed answer resumed the same session | observed live, `@anthropic-ai/claude-agent-sdk` 0.3.247; re-observed under Bun 1.4.0, 2026-08-29 |
 | `tailcfg.Node.Tags []string` carries peer tags | `tailcfg/tailcfg.go` |
+| Bun cannot listen on a descriptor it did not open. `node:net` refuses with `EINVAL` ("Bun does not support listening on a file descriptor"); `node:http` resolves `listen({fd})`, reports success and then accepts nothing — a daemon that comes up mute. systemd socket activation therefore cannot work under Bun | observed, Bun 1.4.0, 2026-08-29; [047](047-socket-activation-after-bun.md) |
+| A `bun build --compile` binary carries no `node_modules`, so `@anthropic-ai/claude-agent-sdk` cannot reach the per-platform CLI it ships as an optional dependency: the turn fails with "Native CLI binary for <platform> not found". Pass `pathToClaudeCodeExecutable` — the account's own `claude` is the right one | observed live, `@anthropic-ai/claude-agent-sdk` 0.3.247 under Bun 1.4.0, 2026-08-29 |

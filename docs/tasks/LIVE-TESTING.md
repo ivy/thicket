@@ -12,13 +12,16 @@ has been watched working.
 ## The rig
 
 ```sh
-./deploy/dev/rig.sh restart   # after every build — a running process holds the old code
+mise exec -- pnpm compile     # the rig runs dist-bin/, not src/
+./deploy/dev/rig.sh restart   # after every compile — a running process holds the old code
 ./deploy/dev/rig.sh status    # per-process, plus whether the agent card actually answers
 ```
 
-Restarting is not optional housekeeping. Rebuild without it and every live
-check measures the previous commit, which is worse than no check at all
-because it looks like one.
+Recompiling and restarting is not optional housekeeping. Skip either and
+every live check measures the previous commit, which is worse than no check
+at all because it looks like one. agentd and the bridge run as the same
+standalone binaries an agent account installs; only the netd stand-ins are
+still scripts, run under `bun`.
 
 Five processes, all local, under `~/thicket-test/`:
 
@@ -44,7 +47,7 @@ overrides:
 THICKET_AGENTS_FILE=~/thicket-test/config/thicket/agents.yaml \
 THICKET_MCP_ENDPOINTS='{"hearth":"http://127.0.0.1:8791"}' \
 THICKET_EGRESS_SOCKET=~/thicket-test/run/thicket/netd-egress.sock \
-  mise exec -- node apps/cli/dist/bin.js fleet      # or: mcp
+  ./dist-bin/bun-darwin-arm64/thicket fleet          # or: mcp
 ```
 
 The endpoint is the peer-tag proxy in front of agentd, so the call arrives

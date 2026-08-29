@@ -13,7 +13,9 @@
 
 ## Repo map
 
-pnpm workspace (`packages/*`, `apps/*`, `tests/*`) plus one Go module.
+pnpm workspace (`packages/*`, `apps/*`, `tests/*`) plus one Go module. Bun is the
+runtime: it executes the TypeScript directly and compiles it into the standalone
+binaries an agent account installs.
 
 | Path | Role |
 |---|---|
@@ -28,6 +30,7 @@ pnpm workspace (`packages/*`, `apps/*`, `tests/*`) plus one Go module.
 | `deploy/` | systemd units, launchd plists, and `deploy/dev/` stand-ins |
 | `docs/tasks/` | The work queue — one file per task, status in YAML frontmatter |
 | `.github/` | The CI gate and the Dependabot policy that moves its action pins |
+| `scripts/compile.ts` | `bun build --compile` → `dist-bin/<target>/{thicket,thicket-agentd,thicket-bridge}` |
 
 `agents.yaml` is the source of truth. Manifests, per-account config, and tailnet
 identities are all rendered from it; anything hand-edited afterwards is a generator bug.
@@ -38,10 +41,11 @@ Toolchain is pinned in `mise.toml` — prefix commands with `mise exec --`.
 
 ```sh
 mise exec -- pnpm install
-mise exec -- pnpm build      # tsc -b across the workspace
-mise exec -- pnpm test       # builds first, then `pnpm -r test`
+mise exec -- pnpm build      # tsc -b: the typecheck, declarations only
+mise exec -- pnpm test       # bun test, straight from src/
 mise exec -- pnpm lint       # eslint, then actionlint + zizmor + pinact over .github/
 mise exec -- pnpm build:netd && go test ./netd/...
+mise exec -- pnpm compile    # standalone binaries; --all for every fleet platform
 ```
 
 Before landing anything: **build, test, lint — all three, from the repo root.**
@@ -56,8 +60,9 @@ fail CI fails at the desk first.
 
 Two traps worth knowing:
 
-- **Tests run from compiled `dist/`,** so a stale build tests the previous commit. Use
-  `pnpm test` (it builds) rather than calling `node --test` directly.
+- **The rig runs `dist-bin/`, not `src/`.** A live check measures the binaries, so
+  `pnpm compile` before `./deploy/dev/rig.sh restart` or you are testing the last
+  compile. `dist/` holds declarations only; nothing executes from it.
 - **Run from the repo root.** Scripts differ per member, and workspace imports do not
   resolve from a package directory.
 

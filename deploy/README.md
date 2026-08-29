@@ -11,7 +11,7 @@ The bridge is deployed the same way (its own account, its own `netd`), swapping
 - A Linux host with systemd (user units) and internet access, or a Mac (see
   [macOS](#macos)).
 - The operator machine has this repo checked out with `mise install` run and
-  `pnpm build && pnpm build:netd` passing.
+  `pnpm build && pnpm compile && pnpm build:netd` passing.
 - A Slack workspace where you can create apps, and an
   [app configuration token](https://api.slack.com/authentication/config-tokens)
   (they expire after 12 hours; the CLI rotates them automatically once seeded).
@@ -79,17 +79,21 @@ sudo -u hearth cp -r /tmp/hearth-config/. ~hearth/.config/thicket/
 
 ## 5. Install binaries (as the agent account)
 
+Every thicket process is a single executable: the account needs no JavaScript
+runtime and no checkout, only the Claude Code CLI the harness drives.
+
 ```sh
 mkdir -p ~/.local/bin
 # netd (single Go binary)
 cp /path/to/repo/netd/bin/netd ~/.local/bin/thicket-netd
-# agentd and bridge are node programs; install Node >= 22 for the account
-# (mise or the distro package), then:
-cd /path/to/repo && pnpm build
-ln -sf /path/to/repo/apps/agentd/dist/bin.js ~/.local/bin/thicket-agentd
-ln -sf /path/to/repo/apps/bridge/dist/bin.js ~/.local/bin/thicket-bridge
-# Claude Code CLI for the harness:
-npm install -g @anthropic-ai/claude-code   # or mise
+# agentd, bridge and the CLI, compiled by `pnpm compile --all` on a build
+# machine. bun-linux-x64 here; bun-darwin-arm64 on a Mac.
+cp /path/to/repo/dist-bin/bun-linux-x64/thicket-agentd ~/.local/bin/
+cp /path/to/repo/dist-bin/bun-linux-x64/thicket-bridge ~/.local/bin/
+cp /path/to/repo/dist-bin/bun-linux-x64/thicket        ~/.local/bin/
+# Claude Code CLI for the harness. agentd resolves it on PATH at startup and
+# logs which one it found; `claude_executable` in agentd.json overrides that.
+mise use -g "npm:@anthropic-ai/claude-code"
 ```
 
 ## 6. Install and start the units (as the agent account)
@@ -107,6 +111,12 @@ systemctl --user enable --now thicket-agentd.socket thicket-netd.service
 `thicket-agentd.service` has no install section on purpose: the socket starts
 it on the first request, and it stays resident after that (the hot session
 pool is the point).
+
+**This does not work under Bun today.** Bun cannot listen on a descriptor it
+did not open, so an agentd handed one refuses to start rather than coming up
+mute. Until [047](../docs/tasks/047-socket-activation-after-bun.md) settles
+what replaces activation, a Linux host has to start `thicket-agentd.service`
+directly and let agentd create its own socket, as launchd already does.
 
 The bridge account instead installs `thicket-bridge.service` (plus its own
 `thicket-netd.service`) and enables both.

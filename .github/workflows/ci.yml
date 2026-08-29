@@ -44,6 +44,10 @@ jobs:
       - run: pnpm build:netd
       - run: go test ./netd/...
 
+      # Cross-compiles both fleet platforms. The release pipeline ships what
+      # this proves buildable, so a broken compile should not reach a tag.
+      - run: pnpm compile --all
+
   workflows:
     name: workflows
     runs-on: ubuntu-latest
