@@ -1,7 +1,7 @@
 ---
 id: "050"
 title: The gate lints TypeScript but not Go
-status: in-progress
+status: done
 component: .
 language: none
 depends_on: []
@@ -44,9 +44,27 @@ would notice if it stopped being.
 - [x] `pnpm lint` from the repo root fails on unformatted Go and on a `go vet`
       finding, with the tool's own message.
 - [x] `gofmt -l netd/` is empty and `go vet ./netd/...` is clean.
-- [ ] CI runs both, observed green through `gh run`.
+- [x] CI runs both, observed green through `gh run`.
 
 ## Out of scope
 
 A third-party Go linter (golangci-lint, staticcheck) — more opinions than this
 module has earned. Formatting or vetting anything outside the Go module.
+
+## Verified (2026-08-29)
+
+`pnpm lint` now fails on either half, each with the tool's own words:
+
+```
+netd/config_test.go
+-		"missing hostname": `{"tag": "tag:thicket-hearth"}`
++		"missing hostname":   `{"tag": "tag:thicket-hearth"}`
+```
+
+```
+netd/proxy.go:60:43: (*log.Logger).Printf format %v reads arg #2, but call has 1 arg
+```
+
+The first was the file already in the tree; the second was a dropped argument
+put in on purpose and taken back out. Run 33241870750 on `main` shows CI
+running `lint:go` between `lint:js` and `lint:workflows`, green.
