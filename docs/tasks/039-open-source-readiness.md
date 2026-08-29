@@ -13,9 +13,9 @@ parallel_safe: true
 
 ## Context
 
-The repo has never been pushed — no remote exists, and the history is ~50
-commits. The decision is to build in the open: public releases are what let
-every agent account pull artifacts with no per-account token
+The repo lives at `ivy/thicket` on GitHub, private, with a small history.
+The decision is to build in the open: public releases are what let every
+agent account pull artifacts with no per-account token
 ([041](041-release-pipeline.md)), and the pre-publication scrub costs minutes
 now where in six months it would be an audit. The committed `agents.yaml` is
 already an example roster; the real one lives in `~/.config/thicket/`, and
@@ -33,10 +33,9 @@ token files have lived outside the repo from the start.
 - Skim the leak-prone docs — `docs/tasks/`, `LIVE-TESTING.md`,
   `docs/runbook.md` — for identifiers that should not publish: Slack team and
   channel IDs, tailnet hostnames, personal paths.
-- Operator handoff: creating the public repo and pushing is the operator's
-  act — agents never touch a remote. The deploy recipe already assumes the
-  name `ivy/thicket`. The task ends with a ready-to-push note recording what
-  was checked and with which tools.
+- Operator handoff: flipping the repo public is the operator's act. The task
+  ends with a ready-to-flip note recording what was checked and with which
+  tools.
 
 ## Acceptance criteria
 
@@ -45,8 +44,7 @@ token files have lived outside the repo from the start.
 - [ ] The full-history secrets scan ran clean; tool and invocation recorded
       here.
 - [ ] The docs skim found nothing unpublishable, or what it found was fixed.
-- [ ] Repo creation and push are documented as the operator step — not
-      performed.
+- [ ] The public flip is documented as the operator step — not performed.
 
 ## Out of scope
 
