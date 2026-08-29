@@ -64,6 +64,11 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [036 Fallback posts speak markdown, like the stream they stand in for](036-fallback-markdown-dialect.md) | 032 | `apps/bridge` | typescript |
 | [037 Agent questions render as Slack UI, and a tap answers them](037-agent-questions-ui.md) | 014, 015 | `apps/bridge` | typescript |
 | [038 One-shot scheduled prompts](038-one-shot-schedule.md) | 022 | `apps/agentd` | typescript |
+| [039 Open the repo — ISC license, README, and a clean history](039-open-source-readiness.md) | — | `.` | none |
+| [040 Bun port — one runtime, standalone executables](040-bun-port.md) | 013 | `.` | typescript |
+| [041 Release pipeline — a tag becomes attested artifacts](041-release-pipeline.md) | 039, 040 | `.` | none |
+| [042 thicket install — the last mile after mise](042-cli-install.md) | 041 | `apps/cli` | typescript |
+| [043 Project channels know their workspace](043-channel-workspace-binding.md) | 006, 009 | `apps/bridge` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -86,6 +91,9 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 11 | 016, 021 | 2 |
 | 12 | 022, 031 | 2 |
 | 13 | 034, 035, 036, 037, 038 | 5 |
+| 14 | 039, 040, 043 | 3 |
+| 15 | 041 | 1 |
+| 16 | 042 | 1 |
 
 `005` and `006` are the hard ones and sit in the widest wave — start them first.
 `003` is Go and shares no files with anything else.
@@ -100,6 +108,11 @@ Everything in these waves is verifiable live — see
 028) are parked for reasons written in each: a research task whose output
 needs arguing with, a feature whose acceptance needs a human tapping a
 button, and two that need a second host.
+
+Waves 14–16 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039,
+040, and 043 are independent openers — but 040 touches the whole toolchain,
+so don't run it concurrently with anything. 041 chains behind the first two,
+042 behind 041.
 
 
 ## Shared components
