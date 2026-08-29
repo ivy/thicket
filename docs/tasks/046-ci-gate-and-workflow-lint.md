@@ -79,11 +79,11 @@ through mise (`aqua:` backend), which keeps "toolchain pinned in
       in the pre-commit hook.
 - [ ] Every `uses:` in the repo is SHA-pinned with a version comment;
       `pinact run --check` and zizmor's `unpinned-uses` audit are clean.
-- [ ] On GitHub, a push to `main` runs both jobs green, and a pull request
-      that breaks a workflow fails the `workflows` job — observed in the
-      Actions UI. Pushing is the operator's act while PROMPT.md's push
-      rule stands; the task ends `blocked` on that observation if the
-      rule has not been lifted by then.
+- [ ] On GitHub, a push to `main` runs both jobs green — observed through
+      `gh run` — and a workflow change that breaks a rule fails the
+      `workflows` job on a push of its own before being reverted. The
+      operator has allowed pushing `main` for exactly this (PROMPT.md);
+      the repo is still private, which CI does not mind.
 - [ ] AGENTS.md no longer claims there is no CI, and names the linters.
 
 ## Out of scope

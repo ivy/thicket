@@ -73,7 +73,9 @@ capability so manifests, cards, and per-account config cannot drift.
 Task 002.
 ```
 
-- **Local commits only. Never `git push`. Never open a PR. Never touch a remote.**
+- Commit locally as you go. **Pushing `main` to `origin` is allowed when a task's
+  acceptance needs it** — CI observed on GitHub — and only then; push what is landed,
+  never force, never open a PR, never change a remote.
 
 Then stop and let the loop hand you the next task.
 
@@ -136,7 +138,8 @@ loop, or think you should stop. If the loop should end, it will end on its own t
 - One task per iteration. No exceptions.
 - Never mark a task `done` with an unchecked acceptance criterion.
 - Never check a criterion you have not verified by observation.
-- Never push, never open a PR, never modify git remotes.
+- Push only `main` to `origin`, only when a criterion needs it. Never force-push, never
+  open a PR, never modify git remotes.
 - Never commit `.claude/ralph-loop.local.md` — add `.claude/*.local.*` to `.gitignore`
   as part of task 001.
 - Never edit `PROMPT.md`.
