@@ -30,8 +30,13 @@ function plain(text: string, max: number) {
   return { type: "plain_text", text: clip(text, max), emoji: true };
 }
 
+/** Section text keeps its line breaks; only the length is bounded. */
 function mrkdwn(text: string) {
-  return { type: "mrkdwn", text: clip(text, SECTION_MAX) };
+  const trimmed = text.trim();
+  return {
+    type: "mrkdwn",
+    text: trimmed.length <= SECTION_MAX ? trimmed : `${trimmed.slice(0, SECTION_MAX - 1)}…`,
+  };
 }
 
 function blockId(index: number): string {

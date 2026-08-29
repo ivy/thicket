@@ -39,6 +39,11 @@ test("one question, one answer: the options are buttons, and a tap is the answer
     blocks.map((b) => b.type),
     ["section", "actions"],
   );
+  assert.equal(
+    (blocks[0] as unknown as { text: { text: string } }).text.text,
+    "*Target*\nWhich environment should I deploy to?",
+    "the header sits on its own line above the question",
+  );
   const buttons = blocks[1]!.elements!;
   assert.deepEqual(
     buttons.map((b) => b.type),

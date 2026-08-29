@@ -422,7 +422,14 @@ export class TurnTranslator {
     const folded = this.takeFolded(turn.send, queued);
     const { state, message } = this.terminalStateFor(frame, turn);
     this.recordAccounting(frame, turn, state, queued);
-    this.closeOpenActivities(turn, state === TaskState.TASK_STATE_COMPLETED ? "done" : "failed");
+    // A question the agent stopped to ask is a step that finished, not one
+    // that failed; only a turn that died leaves its cards in error.
+    this.closeOpenActivities(
+      turn,
+      state === TaskState.TASK_STATE_COMPLETED || state === TaskState.TASK_STATE_INPUT_REQUIRED
+        ? "done"
+        : "failed",
+    );
     this.flushText(turn, true);
 
     if (!turn.terminalEmitted) {

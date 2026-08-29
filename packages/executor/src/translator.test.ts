@@ -298,6 +298,11 @@ test("agent question with deferred_tool_use: input-required, not terminal", () =
 
   const status = terminalStatus(h.events);
   assert.equal(status.status?.state, TaskState.TASK_STATE_INPUT_REQUIRED);
+  // The question's card closes as a finished step, not a failed one.
+  assert.deepEqual(
+    activities(h.events).map((card) => card.status),
+    ["running", "done"],
+  );
   // The options ride along so a client can render them as something to tap.
   assert.deepEqual(status.metadata?.[META_QUESTIONS], [
     {

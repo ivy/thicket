@@ -5,7 +5,9 @@
     "apiKeySource": "none",
     "claude_code_version": "2.1.0",
     "cwd": "/home/hearth",
-    "tools": ["AskUserQuestion"],
+    "tools": [
+      "AskUserQuestion"
+    ],
     "mcp_servers": [],
     "model": "claude-opus-5",
     "permissionMode": "default",
@@ -13,7 +15,9 @@
     "output_style": "default",
     "skills": [],
     "plugins": [],
-    "capabilities": ["interrupt_receipt_v1"],
+    "capabilities": [
+      "interrupt_receipt_v1"
+    ],
     "uuid": "88888888-0000-0000-0000-000000000001",
     "session_id": "sess-8"
   },
@@ -24,9 +28,41 @@
       "type": "message",
       "role": "assistant",
       "model": "claude-opus-5",
-      "content": [{ "type": "text", "text": "Which environment should I deploy to?" }],
+      "content": [
+        {
+          "type": "text",
+          "text": "Which environment should I deploy to?"
+        },
+        {
+          "type": "tool_use",
+          "id": "toolu_ask_1",
+          "name": "AskUserQuestion",
+          "input": {
+            "questions": [
+              {
+                "question": "Which environment should I deploy to?",
+                "header": "Target",
+                "options": [
+                  {
+                    "label": "staging",
+                    "description": "Rehearse first"
+                  },
+                  {
+                    "label": "production",
+                    "description": "Straight to the real thing"
+                  }
+                ],
+                "multiSelect": false
+              }
+            ]
+          }
+        }
+      ],
       "stop_reason": "tool_use",
-      "usage": { "input_tokens": 18, "output_tokens": 7 }
+      "usage": {
+        "input_tokens": 18,
+        "output_tokens": 7
+      }
     },
     "parent_tool_use_id": null,
     "user_message_uuid": "send-question",
@@ -43,7 +79,10 @@
     "result": "Which environment should I deploy to?",
     "stop_reason": "tool_use",
     "total_cost_usd": 0.01,
-    "usage": { "input_tokens": 18, "output_tokens": 7 },
+    "usage": {
+      "input_tokens": 18,
+      "output_tokens": 7
+    },
     "modelUsage": {},
     "permission_denials": [],
     "queued_turn_count": 0,
@@ -56,8 +95,14 @@
             "question": "Which environment should I deploy to?",
             "header": "Target",
             "options": [
-              { "label": "staging", "description": "Rehearse first" },
-              { "label": "production", "description": "Straight to the real thing" }
+              {
+                "label": "staging",
+                "description": "Rehearse first"
+              },
+              {
+                "label": "production",
+                "description": "Straight to the real thing"
+              }
             ],
             "multiSelect": false
           }
