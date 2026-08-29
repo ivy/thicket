@@ -1,7 +1,7 @@
 ---
 id: "035"
 title: Task cards carry an icon that says what kind of step this is
-status: todo
+status: in-progress
 component: packages/executor
 language: typescript
 depends_on: ["015"]
