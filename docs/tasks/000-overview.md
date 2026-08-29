@@ -75,6 +75,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [042 thicket install — the last mile after mise](042-cli-install.md) | 041 | `apps/cli` | typescript |
 | [043 Project channels know their workspace](043-channel-workspace-binding.md) | 006, 009, 044 | `apps/bridge` | typescript |
 | [044 The agent knows which Slack thread it is in](archived/044-agent-knows-its-thread.md) | 005, 009, 020 | `packages/executor` | typescript |
+| [045 The dev egress stand-in refuses what netd accepts](045-dev-egress-absolute-form.md) | 012 | `deploy` | none |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -96,7 +97,7 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 10 | 020 | 1 |
 | 11 | 016, 021 | 2 |
 | 12 | 022, 031 | 2 |
-| 13 | 034, 035, 036, 037, 038, 044 | 6 |
+| 13 | 034, 035, 036, 037, 038, 044, 045 | 7 |
 | 14 | 039, 040, 043 | 3 |
 | 15 | 041 | 1 |
 | 16 | 042 | 1 |
