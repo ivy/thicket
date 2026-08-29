@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { join } from "node:path";
 
 import { cacheDir, configDir, socketPath, stateDir } from "@thicket/roster";
@@ -76,7 +77,16 @@ export function loadConfig(path: string): AgentdConfig {
     );
   }
   return {
-    agentsFile: raw.agents_file ?? join(configDir(), "agents.yaml"),
+    // Relative to this config file, not the process cwd: provision
+    // renders `"agents_file": "agents.yaml"` meaning the roster copied in
+    // beside it, and agentd is started by systemd or a rig from whatever
+    // directory happens to be current.
+    agentsFile:
+      raw.agents_file === undefined
+        ? join(configDir(), "agents.yaml")
+        : isAbsolute(raw.agents_file)
+          ? raw.agents_file
+          : resolve(dirname(path), raw.agents_file),
     agent: raw.agent,
     allowedPeerTags: raw.allowed_peer_tags,
     dbPath: raw.db_path ?? join(stateDir(), "agentd", "tasks.db"),
