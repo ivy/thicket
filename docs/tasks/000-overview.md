@@ -112,11 +112,14 @@ Everything in these waves is verifiable live — see
 needs arguing with, a feature whose acceptance needs a human tapping a
 button, and two that need a second host.
 
-Waves 14–16 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039,
-040, and 043 are independent openers — but 040 touches the whole toolchain,
-so don't run it concurrently with anything, and 043 waits on 044 for the
-thread coordinates it builds on. 041 chains behind the first two, 042
-behind 041.
+Waves 14–16 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039
+and 043 are done. 040 is `blocked` behind 013 — its own acceptance is
+local, but the roadmap sequences the port after the first real
+deployment, and it touches the whole toolchain, so don't run it
+concurrently with anything. 041 chains behind 040, 042 behind 041; each
+file's Blocked section says what unblocks it. The queue has nothing the
+loop can pick up until the operator either unblocks 013 or drops 040's
+dependency on it.
 
 
 ## Shared components

@@ -1,7 +1,7 @@
 ---
 id: "040"
 title: Bun port — one runtime, standalone executables
-status: todo
+status: blocked
 component: .
 language: typescript
 depends_on: ["013"]
@@ -61,3 +61,24 @@ commit" trap can disappear rather than be worked around.
 The release workflow ([041](041-release-pipeline.md)). `netd` — already a
 static Go binary. The `claude-code` CLI each account installs — its own
 tool, its own pin.
+
+## Blocked
+
+Recorded 2026-08-28. Its one dependency, [013](013-integration.md), is
+blocked on infrastructure only the operator holds — a Linux/systemd host,
+a tailnet with `tag:thicket-*` authority, a Slack app configuration
+token, per-account Anthropic credentials. Nothing in this task's own
+acceptance needs that deployment: the three-command gate, the
+integration suite, the dev-rig soak, and the external-facts
+re-verification are all local. The dependency is sequencing — the
+roadmap's Arc 2 puts the port after the first real deployment, and this
+task touches the whole toolchain — so reordering it is the operator's
+decision, not the loop's.
+
+What unblocks it, either:
+
+- unblock 013 by walking `deploy/README.md` for `hearth`; or
+- if the port should come first, remove `"013"` from `depends_on` above.
+  The loop picks it up on its next iteration.
+
+Nothing was started here; there is no partial state to resume.

@@ -1,7 +1,7 @@
 ---
 id: "041"
 title: Release pipeline — a tag becomes attested artifacts
-status: todo
+status: blocked
 component: .
 language: none
 depends_on: ["039", "040"]
@@ -65,3 +65,12 @@ design exists to avoid.
 
 `thicket install` and the unit files ([042](042-cli-install.md)). Publishing
 to any registry beyond GitHub releases. Changelog automation.
+
+## Blocked
+
+Recorded 2026-08-28. Blocked behind [040](040-bun-port.md): the
+per-platform archives are `bun build --compile` outputs, which do not
+exist until the port lands. Beyond that it needs the public flip — 039's
+operator step, documented there — or the PAT escape hatch from the
+context above, and a Linux host to observe the `mise install` criterion
+on both platforms. Unblocks when 040 lands.
