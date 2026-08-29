@@ -1,7 +1,7 @@
 ---
 id: "038"
 title: One-shot scheduled prompts — "check on this tomorrow at 9"
-status: todo
+status: in-progress
 component: apps/agentd
 language: typescript
 depends_on: ["022"]
