@@ -14,13 +14,15 @@ import type { AgentExecutionEvent, ExecutionEventBus, RequestContext } from "@a2
 import { ServerCallContext } from "@a2a-js/sdk/server";
 
 import { AttachmentStore, META_FILE_SIZE } from "./attachments.js";
-import { ClaudeAgentExecutor } from "./executor.js";
+import { ClaudeAgentExecutor, threadPreamble } from "./executor.js";
 import {
   META_CANCELLED,
   META_CONTEXT_ONLY,
   META_PRIORITY,
   META_QUEUE_STATE,
   META_SHOULD_QUERY,
+  META_SLACK_CHANNEL,
+  META_SLACK_THREAD,
   META_STILL_QUEUED,
   type SessionHandle,
 } from "./types.js";
@@ -387,6 +389,39 @@ async function untilSent(session: FakeSession, count = 1): Promise<void> {
   }
   throw new Error(`timed out waiting for send #${count}`);
 }
+
+test("a message from Slack tells the model where it is; one from anywhere else does not", async () => {
+  const session = fakeSession(undefined);
+  const executor = new ClaudeAgentExecutor({
+    sessions: { sessionFor: () => session },
+    uuid: () => "uuid-1",
+  });
+  const events: AgentExecutionEvent[] = [];
+  const ctx = requestContext("task-1", "ctx-1", "read this thread back", {
+    [META_SLACK_CHANNEL]: "D0123",
+    [META_SLACK_THREAD]: "1724650000.000100",
+  });
+  const running = executor.execute(ctx, stubBus(events));
+  await untilSent(session);
+  session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
+  await running;
+
+  const prompt = String(session.sent[0]?.message.content);
+  assert.match(prompt, /channel D0123, thread 1724650000\.000100/);
+  assert.match(prompt, /channel=D0123 with thread_ts=1724650000\.000100/);
+  assert.ok(
+    prompt.indexOf("D0123") < prompt.indexOf("read this thread back"),
+    "where you are is context; the user's words stay the instruction",
+  );
+
+  // The MCP path and scheduled prompts carry no coordinates: no line at all.
+  assert.equal(threadPreamble(requestContext("t", "c", "hi").userMessage), "");
+  assert.equal(
+    threadPreamble(requestContext("t", "c", "hi", { [META_SLACK_CHANNEL]: "D0123" }).userMessage),
+    "",
+    "half a location is no location",
+  );
+});
 
 test("an attached file is fetched and its path leads the prompt", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "exec-attach-"));

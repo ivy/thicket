@@ -151,5 +151,11 @@ export interface SlackApi {
 
 // Metadata keys and the activity shape are thicket's A2A extension; the
 // executor package owns their definitions so the two ends cannot drift.
-export { META_QUEUED_TURN_COUNT, META_QUESTIONS, META_SHOULD_QUERY } from "@thicket/executor";
+export {
+  META_QUEUED_TURN_COUNT,
+  META_QUESTIONS,
+  META_SHOULD_QUERY,
+  META_SLACK_CHANNEL,
+  META_SLACK_THREAD,
+} from "@thicket/executor";
 export type { AgentActivity, AgentQuestion } from "@thicket/executor";

@@ -64,6 +64,13 @@ export const META_TRIGGER = "thicket.trigger";
 /** Stamped on the synthetic task acknowledging a context-only message. */
 export const META_CONTEXT_ONLY = "thicket.contextOnly";
 /**
+ * Where the message came from, when it came from Slack: the channel id
+ * and the thread root ts. Ids only, never content. The turn's preamble
+ * names them so "this thread" means something to the toolbelt.
+ */
+export const META_SLACK_CHANNEL = "thicket.slackChannel";
+export const META_SLACK_THREAD = "thicket.slackThread";
+/**
  * On the acknowledgment task of a send that was coalesced into another
  * send's turn: the task id that actually carries the answer.
  */

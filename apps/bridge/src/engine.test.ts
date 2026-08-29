@@ -14,6 +14,8 @@ import {
   META_QUEUED_TURN_COUNT,
   META_QUESTIONS,
   META_SHOULD_QUERY,
+  META_SLACK_CHANNEL,
+  META_SLACK_THREAD,
   type A2AEvent,
   type AgentActivity,
   type AgentClient,
@@ -763,6 +765,30 @@ test("non-mention message in an engaged thread: shouldQuery false, no turn", asy
   assert.equal(r.client.sent[0]?.metadata?.[META_SHOULD_QUERY], false);
   assert.equal(r.client.streamed.length, 1, "no second turn streamed");
   assert.equal(r.slack.calls.length, before, "no status change, no reply");
+  r.state.close();
+});
+
+test("every message to the agent says which channel and thread it came from — ids only", async () => {
+  const r = rig({
+    script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
+  });
+  await r.engine.handleEvent(dm("where am I?"));
+  await r.engine.handleEvent({
+    kind: "thread_message",
+    channel: CH,
+    threadTs: TH,
+    text: "fyi",
+    messageTs: "1724650002.000001",
+    files: [],
+    authorId: HUMAN,
+    viaApp: false,
+  });
+  for (const message of [r.client.streamed[0]!, r.client.sent[0]!]) {
+    assert.equal(message.metadata?.[META_SLACK_CHANNEL], CH);
+    assert.equal(message.metadata?.[META_SLACK_THREAD], TH);
+    const values = Object.values(message.metadata ?? {}).map(String);
+    assert.equal(values.some((v) => /where am I|fyi/.test(v)), false, "no content in metadata");
+  }
   r.state.close();
 });
 

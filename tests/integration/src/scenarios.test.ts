@@ -44,7 +44,13 @@ test("scenario 1: DM round trip through bridge, A2A, agentd, session", async (t)
 
   assert.equal(bridge.slack.statuses()[0], "processing", "status went processing first");
   assert.equal(bridge.slack.statuses().at(-1), "active", "released to active");
-  assert.match(bridge.slack.streamedText(), /answer\(what is 2\+2\?\)/, "reply streamed back");
+  // The fake CLI echoes its prompt: the bridge's coordinates reached the
+  // session as the preamble, ahead of the user's words.
+  assert.match(
+    bridge.slack.streamedText(),
+    /answer\(You are in Slack channel C42, thread 1724650000\.000100\.[\s\S]*\n\nwhat is 2\+2\?\)/,
+    "reply streamed back, prompt led by where it came from",
+  );
   const stops = bridge.slack.calls.filter((c) => c.type === "stop");
   assert.equal(stops.length, 1, "stream closed");
   assert.equal(agent.cli.turnsRun, 1);

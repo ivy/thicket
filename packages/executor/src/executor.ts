@@ -24,6 +24,8 @@ import {
   META_PRIORITY,
   META_QUEUE_STATE,
   META_SHOULD_QUERY,
+  META_SLACK_CHANNEL,
+  META_SLACK_THREAD,
   META_STILL_QUEUED,
   type SessionHandle,
   type SessionProvider,
@@ -56,6 +58,25 @@ export function messageText(message: Message): string {
   return message.parts
     .map((part) => (part.content?.$case === "text" ? part.content.value : ""))
     .join("");
+}
+
+/**
+ * One line saying where the conversation is, when it is in Slack: the
+ * ids the toolbelt's thread-taking tools want, so "read this thread back"
+ * is answerable. A message from anywhere else — local Claude Code over
+ * MCP, a schedule — carries no coordinates and gets no line.
+ */
+export function threadPreamble(inbound: Message): string {
+  const channel = inbound.metadata?.[META_SLACK_CHANNEL];
+  const thread = inbound.metadata?.[META_SLACK_THREAD];
+  if (typeof channel !== "string" || channel === "" || typeof thread !== "string" || thread === "") {
+    return "";
+  }
+  return (
+    `You are in Slack channel ${channel}, thread ${thread}. For your thicket ` +
+    `tools, "this thread" is channel=${channel} with thread_ts=${thread} ` +
+    `(read_thread takes it as ts).\n\n`
+  );
 }
 
 /**
@@ -154,6 +175,10 @@ export class ClaudeAgentExecutor implements AgentExecutor {
    * question in the message is usually still answerable.
    */
   private async preamble(contextId: string, inbound: Message): Promise<string> {
+    return threadPreamble(inbound) + (await this.attachmentsPreamble(contextId, inbound));
+  }
+
+  private async attachmentsPreamble(contextId: string, inbound: Message): Promise<string> {
     const refs = attachmentRefs(inbound);
     if (refs.length === 0) {
       return "";

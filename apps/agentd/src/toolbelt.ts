@@ -362,7 +362,9 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
         "post_message",
         "Post a message to Slack as this agent. Works only where the agent's app " +
           "already is: a channel it has been added to, or a DM it has with someone. " +
-          "channel takes a channel ID (C…/D…); thread_ts replies in a thread.",
+          "channel takes a channel ID (C…/D…); thread_ts replies in a thread. To " +
+          "post in the conversation you are answering, use the channel and " +
+          "thread_ts named at the top of the turn.",
         {
           channel: z.string().min(1).describe("channel ID, e.g. C0123456789"),
           text: z.string().min(1).describe("message text (Slack markdown)"),
@@ -373,7 +375,9 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
       tool(
         "upload_file",
         "Upload a local file to a Slack conversation as this agent. Same reach as " +
-          "post_message: the agent's app must already be in the channel or DM.",
+          "post_message: the agent's app must already be in the channel or DM. The " +
+          "conversation you are answering is the channel and thread_ts named at the " +
+          "top of the turn.",
         {
           path: z.string().min(1).describe("file path; relative paths resolve against the session cwd"),
           channel: z.string().min(1).describe("channel ID to share the file into"),
@@ -422,7 +426,9 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
       tool(
         "read_thread",
         "Read a Slack thread's messages, oldest first, given its channel and the " +
-          "parent message's ts.",
+          "parent message's ts. \"This thread\" — the one you are answering in — is " +
+          "the channel and thread_ts named at the top of the turn; pass that " +
+          "thread_ts as ts.",
         {
           channel: z.string().min(1).describe("channel ID the thread lives in"),
           ts: z.string().min(1).describe("the thread parent's ts"),

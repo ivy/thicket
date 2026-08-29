@@ -15,6 +15,8 @@ import {
   META_QUEUED_TURN_COUNT,
   META_QUESTIONS,
   META_SHOULD_QUERY,
+  META_SLACK_CHANNEL,
+  META_SLACK_THREAD,
   type A2AEvent,
   type AgentClient,
   type InboundEvent,
@@ -535,7 +537,13 @@ export class BridgeEngine {
           }),
         ),
       ],
-      metadata: shouldQuery ? {} : { [META_SHOULD_QUERY]: false },
+      metadata: {
+        // Where this is happening — ids only — so the agent's toolbelt can
+        // reach "this thread" without the model being told by a person.
+        [META_SLACK_CHANNEL]: channel,
+        [META_SLACK_THREAD]: threadTs,
+        ...(shouldQuery ? {} : { [META_SHOULD_QUERY]: false }),
+      },
       extensions: [],
       referenceTaskIds: [],
     };
