@@ -172,6 +172,34 @@ func TestInboundProxyRejectsWhenIdentityUnavailable(t *testing.T) {
 	}
 }
 
+// A request that arrives before agentd exists is refused, and the next one
+// after it comes up is served — by the same proxy, with nothing restarted in
+// between. The systemd units order nothing against agentd because of this, so
+// it is a deployment contract rather than an implementation detail: the dial
+// has to stay inside DialContext, once per request.
+func TestInboundProxyServesOnceTheUpstreamAppears(t *testing.T) {
+	socket := shortSocketPath(t, "agentd.sock")
+	ident := &fakeIdentifier{tags: []string{"tag:thicket-bridge"}}
+	front := httptest.NewServer(newInboundProxy(socket, ident, testLogger(t)))
+	defer front.Close()
+
+	req, _ := http.NewRequest("GET", front.URL+"/a2a/v1", nil)
+	if status, _, _ := getJSON(t, front.Client(), req); status != http.StatusBadGateway {
+		t.Fatalf("status with no upstream = %d, want 502", status)
+	}
+
+	echoServer(t, socket)
+
+	req2, _ := http.NewRequest("GET", front.URL+"/a2a/v1", nil)
+	status, _, body := getJSON(t, front.Client(), req2)
+	if status != http.StatusOK {
+		t.Fatalf("status once the upstream appeared = %d, want 200", status)
+	}
+	if body["path"] != "/a2a/v1" {
+		t.Errorf("path = %v, want /a2a/v1", body["path"])
+	}
+}
+
 func TestEgressProxyAbsoluteForm(t *testing.T) {
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello from %s", r.Host)

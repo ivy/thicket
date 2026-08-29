@@ -1,7 +1,7 @@
 ---
 id: "049"
 title: netd's tolerance of an absent agentd is untested
-status: in-progress
+status: done
 component: netd
 language: go
 depends_on: ["047"]
@@ -40,7 +40,7 @@ connection, would break the deployment model and pass every test.
 
 ## Acceptance criteria
 
-- [ ] The test exists and passes, and fails if the dial is hoisted out of
+- [x] The test exists and passes, and fails if the dial is hoisted out of
       `DialContext`.
 
 ## Out of scope
@@ -48,3 +48,16 @@ connection, would break the deployment model and pass every test.
 Changing netd's behaviour. Retry or wait semantics — the 502 is the contract
 [047](archived/047-socket-activation-after-bun.md) documented, not a
 shortcoming.
+
+## Verified (2026-08-29)
+
+`TestInboundProxyServesOnceTheUpstreamAppears` passes against the current
+proxy. Hoisting the dial to construction — `net.Dial` once, the result handed
+back from `DialContext` — makes it fail on the half that matters:
+
+```
+proxy_test.go:196: status once the upstream appeared = 502, want 200
+```
+
+so the test is anchored to the property rather than to the 502 alone, which a
+hoisted dial would still produce.

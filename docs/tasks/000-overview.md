@@ -79,7 +79,8 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [046 CI gate on every push, and the workflows themselves are linted](archived/046-ci-gate-and-workflow-lint.md) | — | `.` | none |
 | [047 systemd socket activation cannot survive the Bun port](archived/047-socket-activation-after-bun.md) | 040 | `deploy` | none |
 | [048 Agents review a pull request together (research)](048-pr-review-conversation.md) | 023, 024, 028 | `.` | none |
-| [049 netd's tolerance of an absent agentd is untested](049-netd-late-upstream-test.md) | 047 | `netd` | go |
+| [049 netd's tolerance of an absent agentd is untested](archived/049-netd-late-upstream-test.md) | 047 | `netd` | go |
+| [050 The gate lints TypeScript but not Go](050-go-formatting-gate.md) | — | `.` | none |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -102,7 +103,7 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 11 | 016, 021 | 2 |
 | 12 | 022, 031 | 2 |
 | 13 | 034, 035, 036, 037, 038, 044, 045 | 7 |
-| 14 | 039, 043, 046 | 3 |
+| 14 | 039, 043, 046, 050 | 4 |
 | 15 | 040 | 1 |
 | 16 | 041, 047 | 2 |
 | 17 | 042, 049 | 2 |
