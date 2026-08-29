@@ -5,3 +5,4 @@ netd/bin/
 netd/netd
 .claude/*.local.*
 dist-bin/
+dist-release/

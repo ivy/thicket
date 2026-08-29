@@ -21,10 +21,10 @@ BUN="${THICKET_BUN:-$(mise which bun)}"
 # The rig runs the artifacts an agent account would install, not a checkout,
 # so a live check measures what ships. `mise exec -- pnpm compile` refreshes
 # them; only the netd stand-ins stay scripts, because netd is not one of them.
-host_target() {
+host_platform() {
   local os arch
   case "$(uname -s)" in
-    Darwin) os=darwin ;;
+    Darwin) os=macos ;;
     Linux) os=linux ;;
     *) echo "unsupported platform $(uname -s)" >&2; exit 2 ;;
   esac
@@ -33,9 +33,9 @@ host_target() {
     x86_64 | amd64) arch=x64 ;;
     *) echo "unsupported architecture $(uname -m)" >&2; exit 2 ;;
   esac
-  echo "bun-$os-$arch"
+  echo "$os-$arch"
 }
-BIN_DIR="${THICKET_BIN_DIR:-$REPO/dist-bin/$(host_target)}"
+BIN_DIR="${THICKET_BIN_DIR:-$REPO/dist-bin/$(host_platform)}"
 
 export XDG_CONFIG_HOME="$HOME_DIR/config"
 export XDG_STATE_HOME="$HOME_DIR/state"

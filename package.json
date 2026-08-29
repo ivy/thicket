@@ -10,7 +10,8 @@
     "lint:js": "bun --bun eslint .",
     "lint:workflows": "actionlint && zizmor --offline --no-progress .github/ && pinact run --check",
     "build:netd": "go build -o netd/bin/netd ./netd",
-    "compile": "bun run scripts/compile.ts"
+    "compile": "bun run scripts/compile.ts",
+    "package": "bun run scripts/package.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",

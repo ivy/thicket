@@ -87,10 +87,10 @@ mkdir -p ~/.local/bin
 # netd (single Go binary)
 cp /path/to/repo/netd/bin/netd ~/.local/bin/thicket-netd
 # agentd, bridge and the CLI, compiled by `pnpm compile --all` on a build
-# machine. bun-linux-x64 here; bun-darwin-arm64 on a Mac.
-cp /path/to/repo/dist-bin/bun-linux-x64/thicket-agentd ~/.local/bin/
-cp /path/to/repo/dist-bin/bun-linux-x64/thicket-bridge ~/.local/bin/
-cp /path/to/repo/dist-bin/bun-linux-x64/thicket        ~/.local/bin/
+# machine. linux-x64 here; macos-arm64 on a Mac.
+cp /path/to/repo/dist-bin/linux-x64/thicket-agentd ~/.local/bin/
+cp /path/to/repo/dist-bin/linux-x64/thicket-bridge ~/.local/bin/
+cp /path/to/repo/dist-bin/linux-x64/thicket        ~/.local/bin/
 # Claude Code CLI for the harness. agentd resolves it on PATH at startup and
 # logs which one it found; `claude_executable` in agentd.json overrides that.
 mise use -g "npm:@anthropic-ai/claude-code"

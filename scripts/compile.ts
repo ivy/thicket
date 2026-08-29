@@ -4,58 +4,79 @@
  *
  * The deploy model is versioned artifacts pulled by mise: an agent account
  * gets a binary, not a checkout and a toolchain. One file per (executable,
- * platform) under `dist-bin/<target>/`.
+ * platform) under `dist-bin/<platform>/`.
  *
- *   bun run scripts/compile.ts                 # this machine's platform
- *   bun run scripts/compile.ts --all           # every platform the fleet has
- *   bun run scripts/compile.ts --target=bun-linux-x64
+ *   bun run scripts/compile.ts                    # this machine's platform
+ *   bun run scripts/compile.ts --all              # every platform the fleet has
+ *   bun run scripts/compile.ts --platform=linux-x64
  */
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-/** Bun's own name for a compile target, per platform the fleet runs on. */
-const TARGETS = ["bun-darwin-arm64", "bun-linux-x64"] as const;
+import { PLATFORMS, hostPlatform, type Platform } from "./platforms.ts";
 
-const EXECUTABLES = [
+export const EXECUTABLES = [
   { name: "thicket", entry: "apps/cli/src/bin.ts" },
   { name: "thicket-agentd", entry: "apps/agentd/src/bin.ts" },
   { name: "thicket-bridge", entry: "apps/bridge/src/bin.ts" },
 ] as const;
 
-function hostTarget(): string {
-  const arch = process.arch === "arm64" ? "arm64" : "x64";
-  return `bun-${process.platform}-${arch}`;
-}
-
-function chosenTargets(argv: string[]): string[] {
+export function chosenPlatforms(argv: string[]): Platform[] {
   if (argv.includes("--all")) {
-    return [...TARGETS];
+    return [...PLATFORMS];
   }
-  const explicit = argv
-    .filter((a) => a.startsWith("--target="))
-    .map((a) => a.slice("--target=".length));
-  return explicit.length > 0 ? explicit : [hostTarget()];
+  const named = argv
+    .filter((a) => a.startsWith("--platform="))
+    .map((a) => a.slice("--platform=".length));
+  if (named.length > 0) {
+    return named.map((name) => {
+      const found = PLATFORMS.find((p) => p.name === name);
+      if (found === undefined) {
+        throw new Error(
+          `unknown platform ${name}; the fleet has ${PLATFORMS.map((p) => p.name).join(", ")}`,
+        );
+      }
+      return found;
+    });
+  }
+  const host = hostPlatform();
+  if (host === undefined) {
+    throw new Error(
+      `no fleet platform for ${process.platform}-${process.arch}; pass --platform=`,
+    );
+  }
+  return [host];
 }
 
-const outRoot = process.env.THICKET_DIST ?? "dist-bin";
-let failed = false;
-
-for (const target of chosenTargets(process.argv.slice(2))) {
-  const outDir = join(outRoot, target);
+/** Compiles every executable for one platform into `outDir`. Returns their paths. */
+export function compileInto(platform: Platform, outDir: string): string[] {
   mkdirSync(outDir, { recursive: true });
-  for (const { name, entry } of EXECUTABLES) {
+  return EXECUTABLES.map(({ name, entry }) => {
     const outfile = join(outDir, name);
     const proc = Bun.spawnSync(
-      ["bun", "build", "--compile", `--target=${target}`, "--outfile", outfile, entry],
+      [
+        "bun",
+        "build",
+        "--compile",
+        `--target=${platform.bunTarget}`,
+        "--outfile",
+        outfile,
+        entry,
+      ],
       { stdout: "inherit", stderr: "inherit" },
     );
     if (proc.exitCode !== 0) {
-      process.stderr.write(`compile failed: ${name} for ${target}\n`);
-      failed = true;
-      continue;
+      throw new Error(`compile failed: ${name} for ${platform.name}`);
     }
-    process.stdout.write(`${outfile}\n`);
-  }
+    return outfile;
+  });
 }
 
-process.exit(failed ? 1 : 0);
+if (import.meta.main) {
+  const outRoot = process.env.THICKET_DIST ?? "dist-bin";
+  for (const platform of chosenPlatforms(process.argv.slice(2))) {
+    for (const path of compileInto(platform, join(outRoot, platform.name))) {
+      process.stdout.write(`${path}\n`);
+    }
+  }
+}

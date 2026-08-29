@@ -1,0 +1,94 @@
+# A tag becomes attested artifacts. Deploying thicket is repinning
+# (`mise use -g github:ivy/thicket@1.2.3`), so the only thing this has to
+# produce is one archive per platform that mise can find, verify and unpack.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  # A half-published release is worse than a slow one, so a run already
+  # publishing is never cancelled by the next tag.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    uses: ./.github/workflows/gate.yml
+
+  publish:
+    name: publish
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the release
+      id-token: write # mint the provenance signing certificate
+      attestations: write # record the attestation against the repository
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          # What is published is built from the tag, never from a cache
+          # anything else could have written to.
+          cache: false
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the release archives
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: pnpm run package "$VERSION" --all
+
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-path: dist-release/*.tar.gz
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          args=(--generate-notes)
+          # A tag with a pre-release suffix stays out of `latest`.
+          case "$VERSION" in
+            *-*) args+=(--prerelease) ;;
+          esac
+          gh release create "$VERSION" "${args[@]}" dist-release/*.tar.gz
+
+  verify:
+    name: verify (linux-x64)
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          cache: false
+
+      # The install is the test of the asset names: mise has to pick this
+      # platform's archive out of the release on its own, verify what GitHub
+      # attested, and put every executable on PATH.
+      - name: Install the release through mise
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cd "$RUNNER_TEMP"
+          mise use "github:${GITHUB_REPOSITORY}@${VERSION#v}" 2>&1 | tee install.log
+          grep -q "attestations verified" install.log
+          PATH="$(mise bin-paths | tr '\n' ':')$PATH"
+          for bin in thicket thicket-agentd thicket-bridge thicket-netd; do
+            command -v "$bin"
+          done

@@ -47,7 +47,7 @@ overrides:
 THICKET_AGENTS_FILE=~/thicket-test/config/thicket/agents.yaml \
 THICKET_MCP_ENDPOINTS='{"hearth":"http://127.0.0.1:8791"}' \
 THICKET_EGRESS_SOCKET=~/thicket-test/run/thicket/netd-egress.sock \
-  ./dist-bin/bun-darwin-arm64/thicket fleet          # or: mcp
+  ./dist-bin/macos-arm64/thicket fleet               # or: mcp
 ```
 
 The endpoint is the peer-tag proxy in front of agentd, so the call arrives
