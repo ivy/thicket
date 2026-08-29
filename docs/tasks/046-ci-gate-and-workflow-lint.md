@@ -1,7 +1,7 @@
 ---
 id: "046"
 title: CI gate on every push, and the workflows themselves are linted
-status: todo
+status: in-progress
 component: .
 language: none
 depends_on: []
