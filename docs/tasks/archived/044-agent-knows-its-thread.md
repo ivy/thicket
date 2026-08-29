@@ -1,7 +1,7 @@
 ---
 id: "044"
 title: The agent knows which Slack thread it is in
-status: in-progress
+status: done
 component: packages/executor
 language: typescript
 depends_on: ["005", "009", "020"]
@@ -43,13 +43,25 @@ premise true.
 
 ## Acceptance criteria
 
-- [ ] In a DM, "read this thread back with your thicket tool" succeeds and
-      the reply quotes the thread — observed live.
-- [ ] The same in a channel thread the agent was mentioned in.
-- [ ] A turn started from the local MCP server carries no coordinates and
-      the preamble says nothing about a thread.
-- [ ] The bridge log still records no message content — the new metadata is
-      ids only.
+- [x] In a DM, "read this thread back with your thicket tool" succeeds and
+      the reply quotes the thread — observed live. 2026-08-28, hearth DM:
+      asked to read the thread back, it called `read_thread` and quoted all
+      three messages with their ts, then said "I used channel = D0BT2RF1G9F
+      and thread ts = 1787977850.195929" — the thread it was in.
+- [x] The same in a channel thread the agent was mentioned in. Mentioned in
+      `#thicket-test`, it quoted all four messages and named channel
+      `C0BSM7B5GK1`, thread_ts `1787977901.763659` — again its own thread.
+- [x] A turn started from the local MCP server carries no coordinates and
+      the preamble says nothing about a thread. The MCP path's own
+      `A2aJsonRpcClient.ask` against the rig, "which channel and thread are
+      you in?": "No thread." Its message carries `metadata: {}`; the
+      executor test pins that a message without both keys gets no line.
+      The integration scenario watches the coordinates arrive in the
+      session prompt when they are present.
+- [x] The bridge log still records no message content — the new metadata is
+      ids only. After both live turns, `grep -c` over the bridge log for
+      the thread's words and for `slackChannel|slackThread`: 0 and 0; the
+      `slack event` lines carry type, channel type, and `acted` only.
 
 ## Out of scope
 

@@ -74,7 +74,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [041 Release pipeline — a tag becomes attested artifacts](041-release-pipeline.md) | 039, 040 | `.` | none |
 | [042 thicket install — the last mile after mise](042-cli-install.md) | 041 | `apps/cli` | typescript |
 | [043 Project channels know their workspace](043-channel-workspace-binding.md) | 006, 009, 044 | `apps/bridge` | typescript |
-| [044 The agent knows which Slack thread it is in](044-agent-knows-its-thread.md) | 005, 009, 020 | `packages/executor` | typescript |
+| [044 The agent knows which Slack thread it is in](archived/044-agent-knows-its-thread.md) | 005, 009, 020 | `packages/executor` | typescript |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
