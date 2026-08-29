@@ -23,6 +23,9 @@ on:
 
 permissions:
   contents: read
+  # Listing what GitHub attested is a separate permission from reading the
+  # release; without it mise's verification fails 403 rather than skipping.
+  attestations: read
 
 jobs:
   install:
