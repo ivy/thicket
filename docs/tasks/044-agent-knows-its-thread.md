@@ -1,7 +1,7 @@
 ---
 id: "044"
 title: The agent knows which Slack thread it is in
-status: todo
+status: in-progress
 component: packages/executor
 language: typescript
 depends_on: ["005", "009", "020"]
