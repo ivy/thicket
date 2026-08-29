@@ -58,6 +58,13 @@ every `run:`), [zizmor](https://github.com/zizmorcore/zizmor) (security: unpinne
 Those three are also in `pnpm lint` and in the pre-commit hook, so a workflow that would
 fail CI fails at the desk first.
 
+A tag is a release. Pushing `v*` runs the same gate, then builds one archive per fleet
+platform — `bin/` holding all four executables — attests them, and creates the release;
+`.github/workflows/verify-release.yml` then installs it the way an agent account does,
+and can be dispatched by hand against any tag. Deploying is repinning:
+`mise use -g github:ivy/thicket@1.2.3`. Build provenance needs the repository to be
+public — see [041](docs/tasks/041-release-pipeline.md).
+
 Two traps worth knowing:
 
 - **The rig runs `dist-bin/`, not `src/`.** A live check measures the binaries, so

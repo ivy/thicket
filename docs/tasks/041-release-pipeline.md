@@ -1,7 +1,7 @@
 ---
 id: "041"
 title: Release pipeline — a tag becomes attested artifacts
-status: in-progress
+status: blocked
 component: .
 language: none
 depends_on: ["039", "040", "046"]
@@ -61,15 +61,62 @@ design exists to avoid.
 
 - [ ] Pushing a tag produces a release: per-platform archives with
       attestations, and the gate ran first.
-- [ ] A red gate produces no release.
-- [ ] `mise install github:ivy/thicket@<tag>` on darwin-arm64 and linux
+- [x] A red gate produces no release.
+- [x] `mise install github:ivy/thicket@<tag>` on darwin-arm64 and linux
       verifies the attestation (observed in mise's output) and puts all four
-      executables on PATH.
-- [ ] The release workflow passes the `workflows` lint job and grants
+      executables on PATH. The attestation mise verified is the one GitHub
+      writes for a release, not build provenance — see `## Blocked`.
+- [x] The release workflow passes the `workflows` lint job and grants
       write permissions only where the release is created.
-- [ ] AGENTS.md describes the release flow.
+- [x] AGENTS.md describes the release flow.
 
 ## Out of scope
 
 `thicket install` and the unit files ([042](042-cli-install.md)). Publishing
 to any registry beyond GitHub releases. Changelog automation.
+
+## Blocked
+
+**What is needed: the repository made public.** That is 039's operator step,
+still outstanding.
+
+`actions/attest-build-provenance` refuses outright on a user-owned private
+repository (run 33239963963, 2026-08-29):
+
+```
+Failed to persist attestation: Feature not available for user-owned private
+repositories. To enable this feature, please make this repository public.
+```
+
+There is no flag, plan setting or alternative endpoint for it — the API says
+what it wants. Everything before that step ran: the gate passed, the archives
+built for both platforms, and the provenance predicate was generated. The step
+after it, creating the release, never ran, so `v0.1.0-rc.1` produced no
+release of its own.
+
+### What was verified anyway
+
+`v0.1.0-rc.1`'s archives were published by hand from exactly the artifacts the
+pipeline built, so the rest of the design could be checked rather than assumed:
+
+- mise's autodetection picked `thicket-v0.1.0-rc.1-macos-arm64.tar.gz` on this
+  Mac and `…-linux-x64.tar.gz` on an ubuntu runner, with no `asset_pattern`;
+  the archive's root `bin/` was found with no `bin_path`, and all four
+  executables landed on PATH on both.
+- mise printed `✓ GitHub artifact attestations verified` on both. That is
+  **not** the build provenance this task wants: creating a release makes
+  GitHub attest it automatically, with an
+  `in-toto.io/attestation/release/v0.2` predicate over the tag and the asset
+  digests. It proves the assets are the ones attached to that release; it says
+  nothing about which workflow built them.
+- A job that installs a release needs `attestations: read`. Without it mise
+  fails with a 403 rather than skipping verification.
+
+### To unblock
+
+1. Flip the repository public (039's `## Ready to flip`).
+2. Delete the `v0.1.0-rc.1` release and its tag — they were a fixture, and the
+   release was not built by the workflow.
+3. Push a fresh tag and check the remaining criterion: the run publishes
+   per-platform archives carrying SLSA build provenance, and `verify` passes
+   without being dispatched by hand.
