@@ -12,6 +12,12 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 HOME_DIR="${THICKET_TEST_HOME:-$HOME/thicket-test}"
 
+# Resolve the toolchain before XDG_* is redirected below. mise keeps its
+# trust records under XDG_STATE_HOME, so a relocated one makes every
+# `mise exec` reject the operator's global config ("not trusted") and the
+# whole rig dies before a single process binds.
+NODE="${THICKET_NODE:-$(mise which node)}"
+
 export XDG_CONFIG_HOME="$HOME_DIR/config"
 export XDG_STATE_HOME="$HOME_DIR/state"
 export XDG_RUNTIME_DIR="$HOME_DIR/run"
@@ -19,7 +25,13 @@ export XDG_CACHE_HOME="$HOME_DIR/cache"
 
 SOCKETS="$XDG_RUNTIME_DIR/thicket"
 AGENTD_PORT=8791   # bridge -> agentd, carrying the bridge's tag
-BRIDGE_PORT=8792   # agent -> bridge file surface, carrying hearth's tag
+BRIDGE_PORT=8792   # agent -> bridge file surface, carrying the agent's tag
+
+# The agent this rig fronts. The stand-ins assert its tag and the bridge is
+# told where to reach it, so both must name the same agent as the roster —
+# a mismatch looks like Slack silently never delivering.
+AGENT="${THICKET_DEV_AGENT:-$(sed -n 's/^  \([a-z0-9][a-z0-9-]*\):$/\1/p' \
+  "$XDG_CONFIG_HOME/thicket/agents.yaml" 2>/dev/null | head -1)}"
 
 pidfile() { echo "$HOME_DIR/$1.pid"; }
 logfile() { echo "$HOME_DIR/$1.log"; }
@@ -48,19 +60,23 @@ start_one() {
 }
 
 start() {
+  if [[ -z "$AGENT" ]]; then
+    echo "no agent in $XDG_CONFIG_HOME/thicket/agents.yaml; set THICKET_DEV_AGENT" >&2
+    exit 2
+  fi
   mkdir -p "$SOCKETS" "$HOME_DIR"
 
   # netd stand-ins first: the bridge dials the agent through one of them.
   UPSTREAM="$SOCKETS/agentd.sock" PEER_TAG=tag:thicket-bridge PORT="$AGENTD_PORT" \
-    start_one proxy mise exec -- node "$REPO/deploy/dev/peer-tag-proxy.mjs"
-  UPSTREAM="$SOCKETS/bridge.sock" PEER_TAG=tag:thicket-hearth PORT="$BRIDGE_PORT" \
-    start_one bridge-proxy mise exec -- node "$REPO/deploy/dev/peer-tag-proxy.mjs"
+    start_one proxy "$NODE" "$REPO/deploy/dev/peer-tag-proxy.mjs"
+  UPSTREAM="$SOCKETS/bridge.sock" PEER_TAG="tag:thicket-$AGENT" PORT="$BRIDGE_PORT" \
+    start_one bridge-proxy "$NODE" "$REPO/deploy/dev/peer-tag-proxy.mjs"
   SOCKET="$SOCKETS/netd-egress.sock" \
-    start_one egress mise exec -- node "$REPO/deploy/dev/egress-proxy.mjs"
+    start_one egress "$NODE" "$REPO/deploy/dev/egress-proxy.mjs"
 
-  start_one agentd mise exec -- node "$REPO/apps/agentd/dist/bin.js"
-  THICKET_BRIDGE_ENDPOINTS="{\"hearth\":\"http://127.0.0.1:$AGENTD_PORT\"}" \
-    start_one bridge mise exec -- node "$REPO/apps/bridge/dist/bin.js"
+  start_one agentd "$NODE" "$REPO/apps/agentd/dist/bin.js"
+  THICKET_BRIDGE_ENDPOINTS="{\"$AGENT\":\"http://127.0.0.1:$AGENTD_PORT\"}" \
+    start_one bridge "$NODE" "$REPO/apps/bridge/dist/bin.js"
 }
 
 stop() {
