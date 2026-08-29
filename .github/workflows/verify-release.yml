@@ -1,0 +1,54 @@
+# Installs a published release the way an agent account does, and fails if
+# anything about that install is not what the deploy model assumes: mise
+# picks this platform's archive on its own, the artifact verifies against
+# what GitHub attested, and every executable lands on PATH.
+#
+# Runs as the last step of a release, and on demand against any tag when a
+# release needs re-checking.
+name: verify release
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag to install, e.g. v0.1.0.
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to install, e.g. v0.1.0.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: install (linux-x64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          cache: false
+
+      - name: Install the release through mise
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          cd "$RUNNER_TEMP"
+          : > mise.toml
+          export MISE_TRUSTED_CONFIG_PATHS="$RUNNER_TEMP"
+          mise use "github:${GITHUB_REPOSITORY}[prerelease=true]@${TAG#v}" 2>&1 | tee install.log
+          grep -q "attestations verified" install.log
+          PATH="$(mise bin-paths | tr '\n' ':')$PATH"
+          for bin in thicket thicket-agentd thicket-bridge thicket-netd; do
+            command -v "$bin"
+          done

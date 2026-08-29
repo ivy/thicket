@@ -64,31 +64,7 @@ jobs:
           gh release create "$VERSION" "${args[@]}" dist-release/*.tar.gz
 
   verify:
-    name: verify (linux-x64)
     needs: publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-        with:
-          persist-credentials: false
-
-      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
-        with:
-          cache: false
-
-      # The install is the test of the asset names: mise has to pick this
-      # platform's archive out of the release on its own, verify what GitHub
-      # attested, and put every executable on PATH.
-      - name: Install the release through mise
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          VERSION: ${{ github.ref_name }}
-        run: |
-          cd "$RUNNER_TEMP"
-          mise use "github:${GITHUB_REPOSITORY}@${VERSION#v}" 2>&1 | tee install.log
-          grep -q "attestations verified" install.log
-          PATH="$(mise bin-paths | tr '\n' ':')$PATH"
-          for bin in thicket thicket-agentd thicket-bridge thicket-netd; do
-            command -v "$bin"
-          done
+    uses: ./.github/workflows/verify-release.yml
+    with:
+      tag: ${{ github.ref_name }}
