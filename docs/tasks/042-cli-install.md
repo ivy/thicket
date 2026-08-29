@@ -1,7 +1,7 @@
 ---
 id: "042"
 title: thicket install — the last mile after mise
-status: todo
+status: blocked
 component: apps/cli
 language: typescript
 depends_on: ["041"]
@@ -64,3 +64,31 @@ The root-owned account setup (useradd, linger) — operator runbook, by
 design. Fleet-wide orchestration of updates across accounts — a script or a
 future `thicket fleet update`, once updating by hand has been annoying for
 longer than an evening.
+
+## Blocked (2026-08-29)
+
+**What is needed: the repository made public**, the same operator step
+[041](041-release-pipeline.md) waits on.
+
+The first acceptance criterion is the whole point of the command — a fresh
+account going from nothing to a listening agentd socket through
+`mise use -g github:ivy/thicket@X && thicket install`. That needs a published
+release whose CLI contains `thicket install`, and 041 cannot publish one:
+`actions/attest-build-provenance` refuses on a user-owned private repository,
+so the release job never runs. Building the command against a release that
+cannot exist would leave its central claim unverifiable.
+
+### What is not blocked
+
+Being honest about the size of this: four of the five criteria do not need a
+release. The launchd path is verifiable on the Mac today, idempotency and role
+detection are local behaviour, and the deploy/README rewrite is prose. They
+are not being built ahead because the loop does not start a task whose
+dependency is blocked (PROMPT.md §2), not because they are impossible — if the
+flip is going to be a while, this task is worth splitting rather than waiting.
+
+### To unblock
+
+1. Flip the repository public (039's `## Ready to flip`), which unblocks 041.
+2. Land 041's remaining criterion — a tag that publishes attested archives.
+3. Start this task; the recipe it documents is then testable end to end.

@@ -123,11 +123,15 @@ Waves 14–17 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039,
 themselves linted by actionlint, zizmor, and pinact. 040 is done too: Bun
 runs the workspace and compiles the three executables the fleet installs,
 and the rig now drives those binaries with no Node on PATH. 041 chains
-behind it, 042 behind 041. 041 is built and blocked: GitHub refuses build
-provenance on a user-owned private repository, so the release half waits on
-039's operator step, the public flip. 047 paid the port's bill — agentd now
-creates its own socket on Linux as it always has on macOS, and CI starts it
-under systemd on every push.
+behind it, 042 behind 041. 047 paid the port's bill — agentd now creates its
+own socket on Linux as it always has on macOS, and CI starts it under systemd
+on every push.
+
+041 and 042 are both blocked on one operator step. GitHub refuses build
+provenance on a user-owned private repository, so 041's release job cannot
+publish, and 042's whole recipe — `mise use -g github:ivy/thicket@X` then
+`thicket install` — has nothing to install from. Everything else in the
+deployment arc is done. See 039's `## Ready to flip`.
 
 
 ## Shared components
