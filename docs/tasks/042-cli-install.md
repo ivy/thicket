@@ -18,7 +18,7 @@ The per-account deploy recipe is three steps:
 ```sh
 mise use -g github:ivy/thicket@1.2.3
 thicket install
-systemctl --user restart thicket-netd thicket-agentd.socket
+systemctl --user restart thicket-netd thicket-agentd
 ```
 
 With artifacts arriving via mise there is no repo checkout on the host, so
@@ -38,9 +38,9 @@ fork them per account.
   restart what is already running. Idempotent — a re-run with nothing
   changed does nothing and says so. Refuses to run as root. `--dry-run`
   prints the plan.
-- Role awareness: an agent account installs netd + the agentd socket/service
-  pair; the bridge account installs netd + `thicket-bridge.service` and no
-  agentd. Whether the role comes from the rendered config present in the
+- Role awareness: an agent account installs `thicket-netd.service` and
+  `thicket-agentd.service`; the bridge account installs netd plus
+  `thicket-bridge.service` and no agentd. Whether the role comes from the rendered config present in the
   account or from a flag is an implementation decision — but a wrong guess
   must fail loudly, never install the wrong role.
 - Post-install, run the in-account doctor probes that apply (lingering,

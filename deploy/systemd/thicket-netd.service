@@ -3,8 +3,11 @@
 # use specifiers (%h home, %S state root, %t runtime root), never literals.
 [Unit]
 Description=thicket netd (tailnet transport shim)
-After=network-online.target thicket-agentd.socket
-Wants=network-online.target thicket-agentd.socket
+# No ordering against agentd: netd dials its socket per request, so a
+# request that arrives before agentd is up gets a 502 and the next one
+# succeeds. Nothing here has to wait for anything there.
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 ExecStart=%h/.local/bin/thicket-netd

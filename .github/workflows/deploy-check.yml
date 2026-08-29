@@ -1,0 +1,74 @@
+# The deploy artifacts, checked on a host that actually has systemd.
+#
+# `deploy/check.sh` is static and runs anywhere; the smoke test is the part
+# that cannot be faked — install the units into a user manager, start agentd,
+# and ask the socket it created for the agent card.
+name: deploy check
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  systemd:
+    name: systemd (user units)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+
+      - run: ./deploy/check.sh
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Compile agentd for this host
+        run: pnpm compile --platform=linux-x64
+
+      - name: Install the units the way deploy/README says
+        run: |
+          mkdir -p ~/.local/bin ~/.config/systemd/user ~/.config/thicket
+          cp dist-bin/linux-x64/thicket-agentd ~/.local/bin/
+          cp deploy/systemd/thicket-agentd.service ~/.config/systemd/user/
+          cat agents.yaml > ~/.config/thicket/agents.yaml
+          agent="$(sed -n 's/^  \([a-z0-9][a-z0-9-]*\):$/\1/p' agents.yaml | head -1)"
+          echo "agent=$agent" >> "$GITHUB_ENV"
+          printf '%s\n' "{\"agent\": \"$agent\", \"allowed_peer_tags\": [\"tag:thicket-bridge\"]}" \
+            > ~/.config/thicket/agentd.json
+
+      - name: Start agentd under systemd and ask its socket
+        run: |
+          # A GitHub runner has no login session, so the user manager has to
+          # be started before `systemctl --user` has a bus to talk to.
+          sudo loginctl enable-linger "$USER"
+          XDG_RUNTIME_DIR="/run/user/$(id -u)"
+          export XDG_RUNTIME_DIR
+          systemctl --user daemon-reload
+          systemctl --user start thicket-agentd.service
+          for _ in $(seq 1 30); do
+            if [ -S "$XDG_RUNTIME_DIR/thicket/agentd.sock" ]; then break; fi
+            sleep 1
+          done
+          systemctl --user --no-pager status thicket-agentd.service || true
+          journalctl --user -u thicket-agentd.service --no-pager | tail -30
+
+          # The socket agentd made, at the mode the trust model assumes.
+          test -S "$XDG_RUNTIME_DIR/thicket/agentd.sock"
+          [ "$(stat -c %a "$XDG_RUNTIME_DIR/thicket/agentd.sock")" = 600 ]
+          [ "$(stat -c %a "$XDG_RUNTIME_DIR/thicket")" = 700 ]
+
+          card="$(curl -fsS --unix-socket "$XDG_RUNTIME_DIR/thicket/agentd.sock" \
+            http://x/.well-known/agent-card.json)"
+          echo "$card"
+          echo "$card" | grep -q "\"name\":\"$agent\""
+
+          # SIGTERM drains and exits clean, which is what TimeoutStopSec buys.
+          systemctl --user stop thicket-agentd.service
+          ! test -e "$XDG_RUNTIME_DIR/thicket/agentd.sock" || \
+            echo "note: socket file outlived the process"

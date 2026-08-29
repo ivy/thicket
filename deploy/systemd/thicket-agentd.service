@@ -1,9 +1,12 @@
-# thicket agentd — the A2A daemon. Socket-activated, then resident: the
-# hot Claude Code session pool is the point of staying alive.
+# thicket agentd — the A2A daemon. Starts with the session and stays
+# resident: the hot Claude Code session pool is the point of staying alive.
+#
+# agentd creates its own 0600 socket inside %t/thicket, the way it already
+# does under launchd. It cannot be socket-activated: Bun will not listen on
+# a descriptor it did not open, and agentd refuses that path rather than
+# coming up mute. See docs/tasks/archived/047-socket-activation-after-bun.md.
 [Unit]
 Description=thicket agentd (A2A server)
-Requires=thicket-agentd.socket
-After=thicket-agentd.socket
 
 [Service]
 ExecStart=%h/.local/bin/thicket-agentd
@@ -22,9 +25,13 @@ PrivateTmp=yes
 ProtectSystem=strict
 StateDirectory=thicket
 RuntimeDirectory=thicket
+# Nothing but this account has any business in the socket directory; the
+# socket itself is 0600 as well, which is what agentd's trust in the
+# peer-tags header rests on.
+RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
 ReadWritePaths=%h
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 
-# Deliberately no install section: this unit starts via
-# thicket-agentd.socket, never directly at boot.
+[Install]
+WantedBy=default.target

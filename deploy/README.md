@@ -4,7 +4,7 @@ One agent = one unix account = one tailnet node = one Slack app. Everything belo
 runs **as that account or as the operator** — never as root except where marked.
 
 The bridge is deployed the same way (its own account, its own `netd`), swapping
-`thicket-bridge.service` for the agentd socket/service pair.
+`thicket-bridge.service` for `thicket-agentd.service`.
 
 ## 0. Prerequisites
 
@@ -101,25 +101,37 @@ mise use -g "npm:@anthropic-ai/claude-code"
 ```sh
 mkdir -p ~/.config/systemd/user
 cp /path/to/repo/deploy/systemd/thicket-netd.service \
-   /path/to/repo/deploy/systemd/thicket-agentd.socket \
    /path/to/repo/deploy/systemd/thicket-agentd.service \
    ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now thicket-agentd.socket thicket-netd.service
+systemctl --user enable --now thicket-agentd.service thicket-netd.service
+loginctl enable-linger "$USER"   # so the units survive logout
 ```
-
-`thicket-agentd.service` has no install section on purpose: the socket starts
-it on the first request, and it stays resident after that (the hot session
-pool is the point).
-
-**This does not work under Bun today.** Bun cannot listen on a descriptor it
-did not open, so an agentd handed one refuses to start rather than coming up
-mute. Until [047](../docs/tasks/047-socket-activation-after-bun.md) settles
-what replaces activation, a Linux host has to start `thicket-agentd.service`
-directly and let agentd create its own socket, as launchd already does.
 
 The bridge account instead installs `thicket-bridge.service` (plus its own
 `thicket-netd.service`) and enables both.
+
+### Who creates the socket, and what a caller in the gap sees
+
+agentd does, at `$XDG_RUNTIME_DIR/thicket/agentd.sock`, mode 0600, inside the
+0700 `RuntimeDirectory=` its unit owns. There is no `.socket` unit and no
+socket activation: Bun will not listen on a descriptor it did not open, and
+agentd refuses that path outright rather than starting up mute.
+
+Nothing needs to be ordered against it. netd dials that path once per
+request, not once at startup, so a request arriving before agentd is up gets
+`502 Bad Gateway` and the next one is served — no restart, no retry loop, no
+`After=`. The cost of dropping activation is exactly that window, which is
+the seconds between the two units starting.
+
+If a host still has an old `thicket-agentd.socket` unit enabled, agentd will
+refuse to start and say so, naming `LISTEN_FDS`. Disable it:
+
+```sh
+systemctl --user disable --now thicket-agentd.socket
+rm ~/.config/systemd/user/thicket-agentd.socket
+systemctl --user daemon-reload
+```
 
 ### The bridge's netd faces inward too
 
@@ -160,15 +172,16 @@ declined in-thread rather than turned into links nothing can follow.
 This needs an ACL edge that did not exist before — agents dial the bridge,
 where previously only the bridge dialed agents. Authorization is still a tag
 read plus a lookup in the bridge's own state, so an agent can fetch only files
-uploaded to its own threads, and no token is minted or distributed. Note that
-`thicket-netd.service` carries `Wants=thicket-agentd.socket`; in the bridge
-account that unit is absent, which systemd tolerates.
+uploaded to its own threads, and no token is minted or distributed. The same
+`thicket-netd.service` file serves both roles: it orders itself against nothing
+but the network, so the absence of an agentd in this account is not a missing
+dependency.
 
 ## 7. Verify
 
 ```sh
-systemctl --user status thicket-netd thicket-agentd.socket   # as the account
-thicket doctor                                               # as the operator
+systemctl --user status thicket-netd thicket-agentd   # as the account
+thicket doctor                                        # as the operator
 ```
 
 `doctor` checks the roster, each card, tailnet tags, Slack app state, the
@@ -177,10 +190,11 @@ workspace app cap, and lingering — and exits non-zero on any failure.
 Useful spot checks:
 
 ```sh
-# socket activation: with agentd stopped, a request must start it
+# agentd owns its socket: stopped, the path answers nothing; started, it does
 systemctl --user stop thicket-agentd.service
 curl --unix-socket "$XDG_RUNTIME_DIR/thicket/agentd.sock" http://x/.well-known/agent-card.json
-systemctl --user status thicket-agentd.service   # now running
+systemctl --user start thicket-agentd.service
+curl --unix-socket "$XDG_RUNTIME_DIR/thicket/agentd.sock" http://x/.well-known/agent-card.json
 
 # agentd restarts independently of netd
 systemctl --user restart thicket-agentd.service  # netd untouched
@@ -188,8 +202,8 @@ systemctl --user restart thicket-agentd.service  # netd untouched
 
 ## macOS
 
-No systemd: use the launchd plists. No socket activation either — `agentd`
-creates its own 0600 socket.
+No systemd: use the launchd plists. `agentd` creates its own 0600 socket here
+too — the two platforms now start it the same way.
 
 ```sh
 cp /path/to/repo/deploy/launchd/com.thicket.netd.plist \

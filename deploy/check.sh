@@ -21,17 +21,22 @@ if grep -nE '%i' "$dir"/systemd/*; then
 fi
 
 # --- systemd invariants ----------------------------------------------------
-grep -q 'ListenStream=%t/thicket/agentd.sock' "$dir/systemd/thicket-agentd.socket" ||
-  err "agentd.socket must listen at %t/thicket/agentd.sock (socketPath convention)"
-grep -q 'SocketMode=0600' "$dir/systemd/thicket-agentd.socket" ||
-  err "agentd.socket must be mode 0600"
-grep -q 'Requires=thicket-agentd.socket' "$dir/systemd/thicket-agentd.service" ||
-  err "agentd.service must require its socket"
-if grep -q '\[Install\]' "$dir/systemd/thicket-agentd.service"; then
-  err "agentd.service must not have an [Install] section (socket-activated)"
+# agentd creates its own socket: Bun will not listen on a descriptor it did
+# not open, so there is no socket unit to hand it one.
+if ls "$dir"/systemd/*.socket >/dev/null 2>&1; then
+  err "a .socket unit is back; agentd cannot be socket-activated under Bun"
 fi
+if grep -nE 'thicket-agentd\.socket' "$dir"/systemd/*; then
+  err "a unit still references thicket-agentd.socket"
+fi
+grep -q 'RuntimeDirectory=thicket' "$dir/systemd/thicket-agentd.service" ||
+  err "agentd.service must own %t/thicket, where it creates its socket"
+grep -q 'RuntimeDirectoryMode=0700' "$dir/systemd/thicket-agentd.service" ||
+  err "agentd.service: the socket directory must be 0700"
+grep -q '\[Install\]' "$dir/systemd/thicket-agentd.service" ||
+  err "agentd.service must have an [Install] section; nothing else starts it"
 # netd and agentd restart independently: no hard dependency edge between
-# the two services in either direction (the socket unit is the only link).
+# the two services in either direction.
 if grep -nE '^(Requires|BindsTo|PartOf)=.*thicket-agentd\.service' "$dir/systemd/thicket-netd.service"; then
   err "netd.service must not hard-depend on agentd.service"
 fi
