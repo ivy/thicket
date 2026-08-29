@@ -1,7 +1,7 @@
 ---
 id: "049"
 title: netd's tolerance of an absent agentd is untested
-status: todo
+status: in-progress
 component: netd
 language: go
 depends_on: ["047"]
