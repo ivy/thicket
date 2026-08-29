@@ -127,12 +127,22 @@ in this account, in `~/.config/thicket/netd.json`:
 }
 ```
 
-and tell the bridge the address agents will reach it on, in
-`~/.config/thicket/bridge.json`:
+and write the bridge's own config, `~/.config/thicket/bridge.json`:
 
 ```json
-{ "file_base_url": "https://thicket-bridge.tailXXXX.ts.net" }
+{
+  "file_base_url": "https://thicket-bridge.tailXXXX.ts.net",
+  "agents": {
+    "hearth": { "app_token": "xapp-...", "bot_token": "xoxb-..." }
+  }
+}
 ```
+
+`agents` is required: one entry per agent this bridge serves. Neither token
+comes from `provision`, because neither exists until the app is installed.
+Once it is, both are on that app's own page — Basic Information →
+App-Level Tokens, generated with the `connections:write` scope, gives the
+`xapp-`; OAuth & Permissions gives the bot `xoxb-`. Mode 0600.
 
 Omit `file_base_url` and the file surface never binds: attachments are
 declined in-thread rather than turned into links nothing can follow.

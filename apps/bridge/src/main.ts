@@ -88,6 +88,26 @@ async function startFileServer(
   return { close: () => server.close() };
 }
 
+/**
+ * Each agent needs its own Slack credentials: an app-level token for the
+ * Socket Mode connection and a bot token for the Web API. Neither is
+ * rendered by provision — they do not exist until the app is installed —
+ * so a config that omits them is the ordinary first-run mistake, and it
+ * deserves better than a TypeError out of Object.entries(undefined).
+ */
+export function assertAgentsConfigured(
+  config: { agents?: Record<string, unknown> },
+  configPath: string,
+): void {
+  if (config.agents === undefined || Object.keys(config.agents).length === 0) {
+    throw new Error(
+      `bridge config ${configPath}: "agents" must map each agent to its Slack ` +
+        `tokens, as {"<agent>": {"app_token": "xapp-…", "bot_token": "xoxb-…"}} — ` +
+        `mint both on the agent's app page after installing it`,
+    );
+  }
+}
+
 export async function run(
   configPath: string = process.env.THICKET_BRIDGE_CONFIG ?? join(configDir(), "bridge.json"),
 ): Promise<void> {
@@ -96,6 +116,8 @@ export async function run(
   const roster = parseRoster(
     readFileSync(config.agents_file ?? join(configDir(), "agents.yaml"), "utf8"),
   );
+  assertAgentsConfigured(config, configPath);
+
   const state = new BridgeState(config.db_path ?? join(stateDir(), "bridge", "bridge.db"));
 
   // Per-agent base-URL overrides for local development (no tailnet):
