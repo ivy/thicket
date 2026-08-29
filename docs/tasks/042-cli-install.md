@@ -1,7 +1,7 @@
 ---
 id: "042"
 title: thicket install — the last mile after mise
-status: blocked
+status: todo
 component: apps/cli
 language: typescript
 depends_on: ["041"]
@@ -64,12 +64,3 @@ The root-owned account setup (useradd, linger) — operator runbook, by
 design. Fleet-wide orchestration of updates across accounts — a script or a
 future `thicket fleet update`, once updating by hand has been annoying for
 longer than an evening.
-
-## Blocked
-
-Recorded 2026-08-28. Blocked behind [041](041-release-pipeline.md):
-`thicket install` ships inside the compiled CLI that 041 publishes, and
-its first criterion is a fresh account pulling a pinned release through
-mise. The systemd path also needs the Linux host on 013's list; the
-launchd path can be verified on the Mac once a release exists. Unblocks
-when 041 lands.

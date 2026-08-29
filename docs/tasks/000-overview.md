@@ -70,7 +70,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [037 Agent questions render as Slack UI, and a tap answers them](037-agent-questions-ui.md) | 014, 015 | `apps/bridge` | typescript |
 | [038 One-shot scheduled prompts](archived/038-one-shot-schedule.md) | 022 | `apps/agentd` | typescript |
 | [039 Open the repo — ISC license, README, and a clean history](archived/039-open-source-readiness.md) | — | `.` | none |
-| [040 Bun port — one runtime, standalone executables](040-bun-port.md) | 013 | `.` | typescript |
+| [040 Bun port — one runtime, standalone executables](040-bun-port.md) | — | `.` | typescript |
 | [041 Release pipeline — a tag becomes attested artifacts](041-release-pipeline.md) | 039, 040 | `.` | none |
 | [042 thicket install — the last mile after mise](042-cli-install.md) | 041 | `apps/cli` | typescript |
 | [043 Project channels know their workspace](archived/043-channel-workspace-binding.md) | 006, 009, 044 | `apps/bridge` | typescript |
@@ -113,13 +113,11 @@ needs arguing with, a feature whose acceptance needs a human tapping a
 button, and two that need a second host.
 
 Waves 14–16 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039
-and 043 are done. 040 is `blocked` behind 013 — its own acceptance is
-local, but the roadmap sequences the port after the first real
-deployment, and it touches the whole toolchain, so don't run it
-concurrently with anything. 041 chains behind 040, 042 behind 041; each
-file's Blocked section says what unblocks it. The queue has nothing the
-loop can pick up until the operator either unblocks 013 or drops 040's
-dependency on it.
+and 043 are done. 040 has no dependencies — its acceptance is entirely
+local (the gate, the integration suite, the dev rig), and waiting on a
+real deployment was judged too early a requirement for the project's
+age — but it touches the whole toolchain, so don't run it concurrently
+with anything. 041 chains behind 040, 042 behind 041.
 
 
 ## Shared components
