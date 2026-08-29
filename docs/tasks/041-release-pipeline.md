@@ -1,7 +1,7 @@
 ---
 id: "041"
 title: Release pipeline — a tag becomes attested artifacts
-status: todo
+status: in-progress
 component: .
 language: none
 depends_on: ["039", "040", "046"]
@@ -22,10 +22,10 @@ is only: turn a tag into per-platform archives with attestations, gated by
 the same three commands that gate everything else.
 
 The gate itself — CI on every push, and the workflow linters — is
-[046](046-ci-gate-and-workflow-lint.md); this task adds the release half
+[046](archived/046-ci-gate-and-workflow-lint.md); this task adds the release half
 to a repo that already has CI, and holds it to the same bar.
 
-Depends on [039](039-open-source-readiness.md) because public releases are
+Depends on [039](archived/039-open-source-readiness.md) because public releases are
 what make tokenless pulls work. If the flip is delayed, the escape hatch is a
 fine-grained PAT (Contents: read-only, scoped to `ivy/thicket`) per account
 in `~/.config/mise/github_tokens.toml` — workable, but it is a secret to
