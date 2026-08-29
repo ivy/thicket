@@ -1,7 +1,7 @@
 ---
 id: "037"
 title: Agent questions render as Slack UI, and a tap answers them
-status: todo
+status: in-progress
 component: apps/bridge
 language: typescript
 depends_on: ["014", "015"]
