@@ -10,7 +10,7 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 
 import { PushQueue } from "./push-queue.js";
-import { SessionManager, type QueryFn } from "./session-manager.js";
+import { QUESTION_TOOL, deferQuestion, denyUnanswerable, SessionManager, type QueryFn } from "./session-manager.js";
 import type { SessionHandle } from "./types.js";
 
 const TTL_S = 300;
@@ -424,6 +424,44 @@ test("harness permissionMode reaches the query options", async () => {
   await session.send(userMessage("hi", "u1"));
   await until(() => cli.processes.length === 1, "spawned");
   assert.equal(cli.processes[0]?.options.permissionMode, "auto");
+  await manager.shutdown();
+});
+
+test("every session gets the permission surface that makes questions exist, and the defer hook", async () => {
+  const cli = makeFakeCli();
+  const manager = makeManager(cli);
+  const session = manager.sessionFor("ctx-question");
+  collect(session);
+  await session.send(userMessage("hi", "u1"));
+  await until(() => cli.processes.length === 1, "spawned");
+  const options = cli.processes[0]!.options;
+
+  assert.equal(options.canUseTool, denyUnanswerable);
+  const verdict = await denyUnanswerable("Bash", {}, {
+    signal: new AbortController().signal,
+    toolUseID: "toolu_1",
+    requestId: "req_1",
+  } as Parameters<typeof denyUnanswerable>[2]);
+  assert.equal(verdict?.behavior, "deny", "the surface exists so the tool does; it grants nothing");
+
+  const matcher = options.hooks?.PreToolUse?.find((m) => m.matcher === QUESTION_TOOL);
+  assert.ok(matcher, "AskUserQuestion has a PreToolUse matcher");
+  assert.deepEqual(matcher.hooks, [deferQuestion]);
+  const decision = await deferQuestion(
+    {
+      hook_event_name: "PreToolUse",
+      tool_name: QUESTION_TOOL,
+      tool_input: {},
+      session_id: "s",
+      transcript_path: "",
+      cwd: "/",
+    } as Parameters<typeof deferQuestion>[0],
+    undefined,
+    { signal: new AbortController().signal },
+  );
+  assert.deepEqual(decision, {
+    hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "defer" },
+  });
   await manager.shutdown();
 });
 

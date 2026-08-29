@@ -23,14 +23,22 @@ options should be three buttons.
 What already exists, so the work is the delta — and the SDK offers two
 hook shapes for AskUserQuestion specifically:
 
-- **The deferred path (build on this).** With no dialog callback
-  registered — thicket's situation — AskUserQuestion defers: the turn
-  ends and the result frame carries
-  `deferred_tool_use: {id, name, input}`, where `input` is the tool's
-  full structured payload (questions, headers, options, multiSelect).
-  The translator sees it (`translator.ts`, input-required mapping) and
-  today discards the structure. The answer is simply the session's next
-  send — which is why a button tap can reduce to the typed-reply path.
+- **The deferred path (build on this).** Observed 2026-08-28 against
+  SDK 0.3.247, correcting what this file first claimed: with no
+  `canUseTool` callback — thicket's situation until now — the tool is
+  not deferred, it is *absent*: the init frame's tool list has no
+  AskUserQuestion at all, and the agent says so when asked to use it.
+  Register a `canUseTool` and the tool appears; a `PreToolUse` hook
+  returning `permissionDecision: "defer"` for it then ends the turn with
+  `terminal_reason: tool_deferred` and `deferred_tool_use: {id, name,
+  input}`, `input` being the full structured payload (questions,
+  headers, options, multiSelect). The session's next send is the answer
+  — the model carried on with "staging" as the environment — and the
+  next question defers again as long as the input stream stays open.
+  The callback itself denies, which is what a headless `ask` already
+  was. The translator maps the deferral to input-required and today
+  discards the structure; this is why a button tap can reduce to the
+  typed-reply path.
 - **The live-dialog path (noted, not chosen).** The SDK also has
   `canUseTool`/`onUserDialog` callbacks: with one registered the
   question parks the *running turn* awaiting a structured answer, with
@@ -47,6 +55,9 @@ hook shapes for AskUserQuestion specifically:
 
 ## Scope
 
+- **Make the question exist.** The session manager registers the
+  permission surface (deny — nothing new is allowed) and the defer hook,
+  so an agent can ask at all.
 - **Carry the structure.** The translator surfaces the deferred tool's
   `input` (questions, options) as metadata on the input-required status
   event, alongside the prose it already emits.

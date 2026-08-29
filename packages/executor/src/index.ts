@@ -44,7 +44,10 @@ export {
 export { deriveSessionId, uuidv5, THICKET_NAMESPACE } from "./session-id.js";
 export { PushQueue } from "./push-queue.js";
 export {
+  QUESTION_TOOL,
   SessionManager,
+  deferQuestion,
+  denyUnanswerable,
   type QueryFn,
   type SessionManagerOptions,
 } from "./session-manager.js";

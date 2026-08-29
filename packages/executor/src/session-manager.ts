@@ -3,6 +3,8 @@ import { randomUUID } from "node:crypto";
 import {
   getSessionInfo,
   query,
+  type CanUseTool,
+  type HookCallback,
   type Options,
   type Query,
   type SDKControlInterruptResponse,
@@ -15,6 +17,30 @@ import { PushQueue } from "./push-queue.js";
 import type { SessionHandle, SessionProvider } from "./types.js";
 
 /** The subset of query() the manager needs; injectable for tests. */
+/**
+ * The tool an agent asks a question with. It is offered to the model only
+ * when the session has a permission surface — a bare headless query()
+ * never lists it (observed: absent from the init frame's tools without a
+ * canUseTool callback, present with one). The surface itself keeps the
+ * headless rule that an `ask` nobody can answer is a denial, and the
+ * PreToolUse hook below turns the question into a deferral: the turn ends
+ * with the structured question on its result frame, and the session's
+ * next send is the answer (observed, repeatedly, with the input stream
+ * held open).
+ */
+export const QUESTION_TOOL = "AskUserQuestion";
+
+/** PreToolUse hook: end the turn with the question instead of running the tool. */
+export const deferQuestion: HookCallback = async () => ({
+  hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "defer" },
+});
+
+/** The permission surface: present so questions exist, answering nothing. */
+export const denyUnanswerable: CanUseTool = async (toolName) => ({
+  behavior: "deny",
+  message: `${toolName} needs a permission this agent has no prompt to grant.`,
+});
+
 export type QueryFn = (args: {
   prompt: AsyncIterable<SDKUserMessage>;
   options: Options;
@@ -329,6 +355,8 @@ export class SessionManager implements SessionProvider {
         : {}),
       ...(this.mcpServers === undefined ? {} : { mcpServers: this.mcpServers() }),
       ...(this.allowedTools === undefined ? {} : { allowedTools: this.allowedTools }),
+      canUseTool: denyUnanswerable,
+      hooks: { PreToolUse: [{ matcher: QUESTION_TOOL, hooks: [deferQuestion] }] },
       // Appended to the claude_code preset, never replacing it: the
       // harness's own prompt is what makes Claude Code work at all.
       ...(persona === undefined || persona === ""
