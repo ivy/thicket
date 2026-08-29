@@ -1,7 +1,7 @@
 ---
 id: "050"
 title: The gate lints TypeScript but not Go
-status: todo
+status: in-progress
 component: .
 language: none
 depends_on: []
