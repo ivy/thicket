@@ -1,7 +1,7 @@
 ---
 id: "047"
 title: systemd socket activation cannot survive the Bun port
-status: todo
+status: in-progress
 component: deploy
 language: none
 depends_on: ["040"]
