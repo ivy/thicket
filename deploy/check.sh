@@ -51,8 +51,18 @@ for unit in thicket-netd.service thicket-agentd.service thicket-bridge.service; 
 done
 
 # systemd-analyze exists only on systemd hosts; use it when available.
+# ExecStart points into ~/.local/bin, so on a machine where thicket is not
+# installed verify reports that and nothing else — a fact about the host, not
+# about the artifact this script checks. Drop those lines and judge the rest;
+# verify prints a line for every problem it finds, so an empty remainder is a
+# pass.
 if command -v systemd-analyze >/dev/null 2>&1; then
-  systemd-analyze verify --user "$dir"/systemd/*.service || err "systemd-analyze verify failed"
+  verdict=$(systemd-analyze verify --user "$dir"/systemd/*.service 2>&1 |
+    grep -v 'Command .* is not executable: No such file or directory' || true)
+  if [ -n "$verdict" ]; then
+    echo "$verdict" >&2
+    err "systemd-analyze verify failed"
+  fi
 fi
 
 # --- launchd invariants ----------------------------------------------------
