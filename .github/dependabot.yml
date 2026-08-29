@@ -1,0 +1,11 @@
+version: 2
+
+updates:
+  # The `uses:` pins are full commit SHAs; they move by pull request, not by hand.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Let a fresh release sit long enough to be withdrawn before we pin to it.
+    cooldown:
+      default-days: 7

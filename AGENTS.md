@@ -27,6 +27,7 @@ pnpm workspace (`packages/*`, `apps/*`, `tests/*`) plus one Go module.
 | `tests/integration/` | Real agentd + real bridge over HTTP; only Slack is faked |
 | `deploy/` | systemd units, launchd plists, and `deploy/dev/` stand-ins |
 | `docs/tasks/` | The work queue — one file per task, status in YAML frontmatter |
+| `.github/` | The CI gate and the Dependabot policy that moves its action pins |
 
 `agents.yaml` is the source of truth. Manifests, per-account config, and tailnet
 identities are all rendered from it; anything hand-edited afterwards is a generator bug.
@@ -39,12 +40,19 @@ Toolchain is pinned in `mise.toml` — prefix commands with `mise exec --`.
 mise exec -- pnpm install
 mise exec -- pnpm build      # tsc -b across the workspace
 mise exec -- pnpm test       # builds first, then `pnpm -r test`
-mise exec -- pnpm lint       # eslint .
+mise exec -- pnpm lint       # eslint, then actionlint + zizmor + pinact over .github/
 mise exec -- pnpm build:netd && go test ./netd/...
 ```
 
-Before landing anything: **build, test, lint — all three, from the repo root.** There is
-no CI; these commands are the only gate.
+Before landing anything: **build, test, lint — all three, from the repo root.**
+`.github/workflows/ci.yml` runs exactly those on every push to `main` and every pull
+request, in a `gate` job; a `workflows` job re-runs the three workflow linters —
+[actionlint](https://github.com/rhysd/actionlint) (syntax, expressions, shellcheck over
+every `run:`), [zizmor](https://github.com/zizmorcore/zizmor) (security: unpinned
+`uses:`, template injection, over-broad permissions) and
+[pinact](https://github.com/suzuki-shunsuke/pinact) (`uses:` pinned to a commit SHA).
+Those three are also in `pnpm lint` and in the pre-commit hook, so a workflow that would
+fail CI fails at the desk first.
 
 Two traps worth knowing:
 

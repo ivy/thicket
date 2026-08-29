@@ -71,20 +71,20 @@ through mise (`aqua:` backend), which keeps "toolchain pinned in
 
 ## Acceptance criteria
 
-- [ ] `pnpm lint` from the repo root runs actionlint, zizmor, and pinact
+- [x] `pnpm lint` from the repo root runs actionlint, zizmor, and pinact
       over `.github/` and passes; a deliberately unpinned `uses:` or a
       `run:` interpolating `github.event.*` makes it fail, with the tool's
       own message.
-- [ ] A commit touching `.github/workflows/*.yml` runs the same linters
+- [x] A commit touching `.github/workflows/*.yml` runs the same linters
       in the pre-commit hook.
-- [ ] Every `uses:` in the repo is SHA-pinned with a version comment;
+- [x] Every `uses:` in the repo is SHA-pinned with a version comment;
       `pinact run --check` and zizmor's `unpinned-uses` audit are clean.
 - [ ] On GitHub, a push to `main` runs both jobs green — observed through
       `gh run` — and a workflow change that breaks a rule fails the
       `workflows` job on a push of its own before being reverted. The
       operator has allowed pushing `main` for exactly this (PROMPT.md);
       the repo is still private, which CI does not mind.
-- [ ] AGENTS.md no longer claims there is no CI, and names the linters.
+- [x] AGENTS.md no longer claims there is no CI, and names the linters.
 
 ## Out of scope
 

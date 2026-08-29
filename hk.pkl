@@ -1,0 +1,29 @@
+amends "package://github.com/jdx/hk/releases/download/v1.50.0/hk@1.50.0#/Config.pkl"
+
+// hk merges this file with the operator's global config rather than replacing it:
+// with a project hk.pkl present, a pre-commit run executes these steps *and* the
+// global gitleaks step. Verified against hk 1.50.0.
+
+local workflows = new Mapping<String, Step> {
+    ["actionlint"] {
+        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+        check = "actionlint {{files}}"
+    }
+    ["zizmor"] {
+        glob = List(".github/**/*.yml", ".github/**/*.yaml")
+        check = "zizmor --offline --no-progress {{files}}"
+    }
+    ["pinact"] {
+        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
+        check = "pinact run --check {{files}}"
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        steps = workflows
+    }
+    ["check"] {
+        steps = workflows
+    }
+}
