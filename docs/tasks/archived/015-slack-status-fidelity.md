@@ -13,8 +13,7 @@ parallel_safe: true
 
 ## Context
 
-Filed from the first live DM round trips
-(https://ivyevans.slack.com/archives/D0BT2RF1G9F/p1787802189980879 — Slack →
+Filed from the first live DM round trips (a DM with hearth: Slack →
 bridge → A2A → agentd → real Claude session). The answers are good; the
 thread feels dead while they are produced. A turn that spends thirty seconds
 reading files and running commands shows a spinner and nothing else, then a

@@ -69,7 +69,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [036 Fallback posts speak markdown, like the stream they stand in for](archived/036-fallback-markdown-dialect.md) | 032 | `apps/bridge` | typescript |
 | [037 Agent questions render as Slack UI, and a tap answers them](037-agent-questions-ui.md) | 014, 015 | `apps/bridge` | typescript |
 | [038 One-shot scheduled prompts](archived/038-one-shot-schedule.md) | 022 | `apps/agentd` | typescript |
-| [039 Open the repo — ISC license, README, and a clean history](039-open-source-readiness.md) | — | `.` | none |
+| [039 Open the repo — ISC license, README, and a clean history](archived/039-open-source-readiness.md) | — | `.` | none |
 | [040 Bun port — one runtime, standalone executables](040-bun-port.md) | 013 | `.` | typescript |
 | [041 Release pipeline — a tag becomes attested artifacts](041-release-pipeline.md) | 039, 040 | `.` | none |
 | [042 thicket install — the last mile after mise](042-cli-install.md) | 041 | `apps/cli` | typescript |

@@ -1,6 +1,7 @@
 {
   "name": "thicket",
   "private": true,
+  "license": "ISC",
   "type": "module",
   "scripts": {
     "build": "tsc -b",
