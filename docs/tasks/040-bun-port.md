@@ -1,7 +1,7 @@
 ---
 id: "040"
 title: Bun port — one runtime, standalone executables
-status: todo
+status: in-progress
 component: .
 language: typescript
 depends_on: ["046"]
@@ -22,7 +22,7 @@ subprocess/MCP quirks in 000-overview's external-facts table were all
 observed under Node. The port is not done when it compiles; it is done when
 those facts are re-observed under Bun.
 
-It lands under CI ([046](046-ci-gate-and-workflow-lint.md)) rather than
+It lands under CI ([046](archived/046-ci-gate-and-workflow-lint.md)) rather than
 before it: a change to the whole toolchain is the one that most needs the
 gate run by something other than the person making it. The three-command
 contract is what keeps the workflow valid across the port.
