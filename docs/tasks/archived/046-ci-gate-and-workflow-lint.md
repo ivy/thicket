@@ -1,7 +1,7 @@
 ---
 id: "046"
 title: CI gate on every push, and the workflows themselves are linted
-status: in-progress
+status: done
 component: .
 language: none
 depends_on: []
@@ -79,7 +79,7 @@ through mise (`aqua:` backend), which keeps "toolchain pinned in
       in the pre-commit hook.
 - [x] Every `uses:` in the repo is SHA-pinned with a version comment;
       `pinact run --check` and zizmor's `unpinned-uses` audit are clean.
-- [ ] On GitHub, a push to `main` runs both jobs green — observed through
+- [x] On GitHub, a push to `main` runs both jobs green — observed through
       `gh run` — and a workflow change that breaks a rule fails the
       `workflows` job on a push of its own before being reverted. The
       operator has allowed pushing `main` for exactly this (PROMPT.md);

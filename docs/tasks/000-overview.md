@@ -76,7 +76,7 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [043 Project channels know their workspace](archived/043-channel-workspace-binding.md) | 006, 009, 044 | `apps/bridge` | typescript |
 | [044 The agent knows which Slack thread it is in](archived/044-agent-knows-its-thread.md) | 005, 009, 020 | `packages/executor` | typescript |
 | [045 The dev egress stand-in refuses what netd accepts](archived/045-dev-egress-absolute-form.md) | 012 | `deploy` | none |
-| [046 CI gate on every push, and the workflows themselves are linted](046-ci-gate-and-workflow-lint.md) | — | `.` | none |
+| [046 CI gate on every push, and the workflows themselves are linted](archived/046-ci-gate-and-workflow-lint.md) | — | `.` | none |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -114,10 +114,10 @@ Everything in these waves is verifiable live — see
 needs arguing with, a feature whose acceptance needs a human tapping a
 button, and two that need a second host.
 
-Waves 14–17 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039
-and 043 are done. 046 brings CI — the gate on every push, and the
-workflows linted by actionlint, zizmor, and pinact — and 040 lands under
-it: the port's acceptance is entirely local (the gate, the integration
+Waves 14–17 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039,
+043 and 046 are done: CI is the gate on every push, with the workflows
+themselves linted by actionlint, zizmor, and pinact. 040 lands under that
+gate: the port's acceptance is entirely local (the gate, the integration
 suite, the dev rig), waiting on a real deployment was judged too early a
 requirement for the project's age, but it touches the whole toolchain,
 so it runs alone and under a gate. 041 chains behind 040 and 046, 042
