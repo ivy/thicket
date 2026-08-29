@@ -70,12 +70,13 @@ parallel_safe: true            # false if it edits files another in-flight task 
 | [037 Agent questions render as Slack UI, and a tap answers them](037-agent-questions-ui.md) | 014, 015 | `apps/bridge` | typescript |
 | [038 One-shot scheduled prompts](archived/038-one-shot-schedule.md) | 022 | `apps/agentd` | typescript |
 | [039 Open the repo — ISC license, README, and a clean history](archived/039-open-source-readiness.md) | — | `.` | none |
-| [040 Bun port — one runtime, standalone executables](040-bun-port.md) | — | `.` | typescript |
-| [041 Release pipeline — a tag becomes attested artifacts](041-release-pipeline.md) | 039, 040 | `.` | none |
+| [040 Bun port — one runtime, standalone executables](040-bun-port.md) | 046 | `.` | typescript |
+| [041 Release pipeline — a tag becomes attested artifacts](041-release-pipeline.md) | 039, 040, 046 | `.` | none |
 | [042 thicket install — the last mile after mise](042-cli-install.md) | 041 | `apps/cli` | typescript |
 | [043 Project channels know their workspace](archived/043-channel-workspace-binding.md) | 006, 009, 044 | `apps/bridge` | typescript |
 | [044 The agent knows which Slack thread it is in](archived/044-agent-knows-its-thread.md) | 005, 009, 020 | `packages/executor` | typescript |
 | [045 The dev egress stand-in refuses what netd accepts](archived/045-dev-egress-absolute-form.md) | 012 | `deploy` | none |
+| [046 CI gate on every push, and the workflows themselves are linted](046-ci-gate-and-workflow-lint.md) | — | `.` | none |
 
 Generated from task frontmatter; regenerate rather than hand-edit.
 
@@ -98,9 +99,10 @@ Tasks in a wave have no dependencies on each other and can run concurrently.
 | 11 | 016, 021 | 2 |
 | 12 | 022, 031 | 2 |
 | 13 | 034, 035, 036, 037, 038, 044, 045 | 7 |
-| 14 | 039, 040, 043 | 3 |
-| 15 | 041 | 1 |
-| 16 | 042 | 1 |
+| 14 | 039, 043, 046 | 3 |
+| 15 | 040 | 1 |
+| 16 | 041 | 1 |
+| 17 | 042 | 1 |
 
 Waves 13 and 14 are the current front: `037`, `038`, and `044` close out the
 Slack surface ([roadmap](../roadmap.md) Arc 1) while `039`–`043` open the
@@ -112,12 +114,14 @@ Everything in these waves is verifiable live — see
 needs arguing with, a feature whose acceptance needs a human tapping a
 button, and two that need a second host.
 
-Waves 14–16 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039
-and 043 are done. 040 has no dependencies — its acceptance is entirely
-local (the gate, the integration suite, the dev rig), and waiting on a
-real deployment was judged too early a requirement for the project's
-age — but it touches the whole toolchain, so don't run it concurrently
-with anything. 041 chains behind 040, 042 behind 041.
+Waves 14–17 are the deployment arc ([roadmap](../roadmap.md) Arc 2). 039
+and 043 are done. 046 brings CI — the gate on every push, and the
+workflows linted by actionlint, zizmor, and pinact — and 040 lands under
+it: the port's acceptance is entirely local (the gate, the integration
+suite, the dev rig), waiting on a real deployment was judged too early a
+requirement for the project's age, but it touches the whole toolchain,
+so it runs alone and under a gate. 041 chains behind 040 and 046, 042
+behind 041.
 
 
 ## Shared components

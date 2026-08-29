@@ -4,7 +4,7 @@ title: Release pipeline — a tag becomes attested artifacts
 status: todo
 component: .
 language: none
-depends_on: ["039", "040"]
+depends_on: ["039", "040", "046"]
 blocks: ["042"]
 parallel_safe: true
 ---
@@ -21,8 +21,9 @@ the verifier, and no custom signing machinery is needed. The pipeline's job
 is only: turn a tag into per-platform archives with attestations, gated by
 the same three commands that gate everything else.
 
-This is the repo's first CI. AGENTS.md's "there is no CI" sentence retires
-with it.
+The gate itself — CI on every push, and the workflow linters — is
+[046](046-ci-gate-and-workflow-lint.md); this task adds the release half
+to a repo that already has CI, and holds it to the same bar.
 
 Depends on [039](039-open-source-readiness.md) because public releases are
 what make tokenless pulls work. If the flip is delayed, the escape hatch is a
@@ -45,11 +46,16 @@ design exists to avoid.
   exists.
 - Attest the archives with `actions/attest-build-provenance`; create the
   release.
-- A plain CI job on push running the same gate, so a tag never discovers red
-  first.
+- The release workflow runs the gate first — reuse 046's job, so a tag
+  never discovers red first — and meets 046's bar: every `uses:`
+  SHA-pinned, `permissions` least-privilege with `contents: write`,
+  `id-token: write`, and `attestations: write` granted only to the job
+  that publishes, a `concurrency` group, `timeout-minutes`, and a clean
+  pass from actionlint, zizmor, and pinact in the `workflows` job.
 - Asset names the autodetector scores correctly — verified, not assumed, by
   installing on both platforms.
-- Update AGENTS.md's CI fact.
+- AGENTS.md's release facts: how a tag becomes a release, and that the
+  gate guards it.
 
 ## Acceptance criteria
 
@@ -59,7 +65,9 @@ design exists to avoid.
 - [ ] `mise install github:ivy/thicket@<tag>` on darwin-arm64 and linux
       verifies the attestation (observed in mise's output) and puts all four
       executables on PATH.
-- [ ] AGENTS.md no longer claims there is no CI.
+- [ ] The release workflow passes the `workflows` lint job and grants
+      write permissions only where the release is created.
+- [ ] AGENTS.md describes the release flow.
 
 ## Out of scope
 
