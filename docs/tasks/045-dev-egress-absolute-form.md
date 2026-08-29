@@ -1,7 +1,7 @@
 ---
 id: "045"
 title: The dev egress stand-in refuses what netd accepts
-status: todo
+status: in-progress
 component: deploy
 language: none
 depends_on: ["012"]
