@@ -1,7 +1,7 @@
 ---
 id: "039"
 title: Open the repo — ISC license, README, and a clean history
-status: todo
+status: in-progress
 component: .
 language: none
 depends_on: []
