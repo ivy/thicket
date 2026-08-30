@@ -1,0 +1,307 @@
+{"t":"2026-08-30T08:44:39.183Z","ms":47778,"dir":"http","path":"/status","signatureValid":true,"form":{"Called":"+15550100001","ToState":"","CallerCountry":"US","Direction":"outbound-api","Timestamp":"Sun, 30 Aug 2026 08:44:38 +0000","CallbackSource":"call-progress-events","CallerState":"","ToZip":"","SequenceNumber":"0","CallSid":"CA00000000000000000000000000000002","To":"+15550100001","CallerZip":"","ToCountry":"US","CalledZip":"","ApiVersion":"2010-04-01","CalledCity":"","CallStatus":"initiated","From":"+15550100001","AccountSid":"AC00000000000000000000000000000000","CalledCountry":"US","CallerCity":"","ToCity":"","FromCountry":"US","Caller":"+15550100001","FromCity":"","CalledState":"","FromZip":"","FromState":""}}
+{"t":"2026-08-30T08:44:39.297Z","ms":47892,"dir":"http","path":"/voice","signatureValid":true,"form":{"Called":"+15550100001","ToState":"","CallerCountry":"US","Direction":"inbound","CallerState":"","ToZip":"","CallSid":"CA00000000000000000000000000000001","To":"+15550100001","CallerZip":"","ToCountry":"US","StirVerstat":"TN-Validation-Passed-C","CallToken":"<redacted>","CalledZip":"","ApiVersion":"2010-04-01","CalledCity":"","CallStatus":"ringing","From":"+15550100001","AccountSid":"AC00000000000000000000000000000000","CalledCountry":"US","CallerCity":"","ToCity":"","FromCountry":"US","Caller":"+15550100001","FromCity":"","CalledState":"","FromZip":"","FromState":""}}
+{"t":"2026-08-30T08:44:39.297Z","ms":47892,"dir":"http","path":"/voice","response":"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response><Connect action=\"https://phone.example.net/action\"><ConversationRelay url=\"wss://phone.example.net/relay/fixture\" welcomeGreeting=\"This is the spike. Say something, or press a key.\" transcriptionProvider=\"Deepgram\" speechModel=\"flux\" partialPrompts=\"true\" dtmfDetection=\"true\" interruptible=\"any\" reportInputDuringAgentSpeech=\"any\" events=\"speaker-events tokens-played\"/></Connect></Response>","nextAction":"hangup"}
+{"t":"2026-08-30T08:44:39.323Z","ms":47918,"dir":"http","path":"/status","signatureValid":true,"form":{"Called":"+15550100001","ToState":"","CallerCountry":"US","Direction":"outbound-api","Timestamp":"Sun, 30 Aug 2026 08:44:38 +0000","CallbackSource":"call-progress-events","CallerState":"","ToZip":"","SequenceNumber":"1","StirStatus":"C","CallSid":"CA00000000000000000000000000000002","To":"+15550100001","CallerZip":"","ToCountry":"US","CalledZip":"","ApiVersion":"2010-04-01","CalledCity":"","CallStatus":"ringing","From":"+15550100001","AccountSid":"AC00000000000000000000000000000000","CalledCountry":"US","CallerCity":"","ToCity":"","FromCountry":"US","Caller":"+15550100001","FromCity":"","CalledState":"","FromZip":"","FromState":""}}
+{"t":"2026-08-30T08:44:39.745Z","ms":48340,"dir":"ws","event":"handshake","id":"24152254","signaturePresent":true,"signatureMatched":{"wss":true,"https":false,"ws":false,"http":false},"headers":{"accept-encoding":"gzip","cache-control":"no-cache","connection":"Upgrade","host":"phone.example.net","pragma":"no-cache","sec-websocket-key":"<redacted>","sec-websocket-version":"13","tailscale-funnel-request":"?1","upgrade":"websocket","user-agent":"Jetty/11.0.24","x-amzn-bedrock-agentcore-runtime-custom-twilio-signature":"<redacted>","x-forwarded-for":"203.0.113.1","x-forwarded-host":"phone.example.net","x-forwarded-proto":"https"}}
+{"t":"2026-08-30T08:44:39.745Z","ms":48340,"dir":"ws","event":"open","id":"24152254"}
+{"t":"2026-08-30T08:44:39.745Z","ms":48340,"dir":"in","session":1,"frame":{"type":"setup","sessionId":"VX00000000000000000000000000000001","callSid":"CA00000000000000000000000000000001","parentCallSid":"","from":"+15550100001","to":"+15550100001","forwardedFrom":"+15550100001","callerName":"","direction":"inbound","callType":"PSTN","callStatus":"RINGING","accountSid":"AC00000000000000000000000000000000","customParameters":{}}}
+{"t":"2026-08-30T08:44:40.007Z","ms":48602,"dir":"http","path":"/status","signatureValid":true,"form":{"Called":"+15550100001","ToState":"","CallerCountry":"US","Direction":"outbound-api","Timestamp":"Sun, 30 Aug 2026 08:44:39 +0000","CallbackSource":"call-progress-events","CallerState":"","ToZip":"","SequenceNumber":"2","StirStatus":"C","CallSid":"CA00000000000000000000000000000002","To":"+15550100001","CallerZip":"","ToCountry":"US","CalledZip":"","ApiVersion":"2010-04-01","CalledCity":"","CallStatus":"in-progress","From":"+15550100001","AccountSid":"AC00000000000000000000000000000000","CalledCountry":"US","CallerCity":"","ToCity":"","FromCountry":"US","Caller":"+15550100001","FromCity":"","CalledState":"","FromZip":"","FromState":""}}
+{"t":"2026-08-30T08:44:40.488Z","ms":49083,"dir":"in","session":1,"frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T08:44:43.065Z","ms":51660,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":"This is the spike. Say something, or press a key."}}
+{"t":"2026-08-30T08:44:43.066Z","ms":51661,"dir":"in","session":1,"frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T08:44:44.924Z","ms":53519,"dir":"in","session":1,"frame":{"type":"dtmf","digit":"2"}}
+{"t":"2026-08-30T08:44:44.924Z","ms":53519,"dir":"note","command":"busy-digits","source":"dtmf:2"}
+{"t":"2026-08-30T08:44:44.925Z","ms":53520,"dir":"out","session":1,"frame":{"type":"text","token":"Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.925Z","ms":53520,"dir":"out","session":1,"frame":{"type":"text","token":" 1","last":false}}
+{"t":"2026-08-30T08:44:44.925Z","ms":53520,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.925Z","ms":53520,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.925Z","ms":53520,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.925Z","ms":53520,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.926Z","ms":53521,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.926Z","ms":53521,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.926Z","ms":53521,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.926Z","ms":53521,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.926Z","ms":53521,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.926Z","ms":53521,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.926Z","ms":53521,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.926Z","ms":53521,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" 2","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.927Z","ms":53522,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.928Z","ms":53523,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" 3","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.929Z","ms":53524,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" 4","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.930Z","ms":53525,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" 5","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.931Z","ms":53526,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" 6","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.932Z","ms":53527,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.933Z","ms":53528,"dir":"out","session":1,"frame":{"type":"text","token":" 7","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.934Z","ms":53529,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" 8","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.935Z","ms":53530,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" 9","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.936Z","ms":53531,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" 10","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.937Z","ms":53532,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" 11","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.938Z","ms":53533,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" Sentence","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" 12","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" of","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" twelve:","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" quick","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" brown","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" fox","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" jumps","last":false}}
+{"t":"2026-08-30T08:44:44.939Z","ms":53534,"dir":"out","session":1,"frame":{"type":"text","token":" over","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" lazy","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" dog","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" while","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" spike","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" keeps","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" talking","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" so","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" you","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" can","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" interrupt","last":false}}
+{"t":"2026-08-30T08:44:44.940Z","ms":53535,"dir":"out","session":1,"frame":{"type":"text","token":" it.","last":true}}
+{"t":"2026-08-30T08:44:45.251Z","ms":53846,"dir":"in","session":1,"frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T08:44:46.484Z","ms":55079,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":"Sentence 1 of twelve:"}}
+{"t":"2026-08-30T08:44:47.942Z","ms":56537,"dir":"out","session":1,"frame":{"type":"sendDigits","digits":"1234#"}}
+{"t":"2026-08-30T08:44:51.025Z","ms":59620,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" the quick brown fox jumps over the lazy dog while the spike keeps talking so you can interrupt it."}}
+{"t":"2026-08-30T08:44:52.265Z","ms":60860,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" Sentence 2 of twelve:"}}
+{"t":"2026-08-30T08:44:57.085Z","ms":65680,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" the quick brown fox jumps over the lazy dog while the spike keeps talking so you can interrupt it."}}
+{"t":"2026-08-30T08:44:58.424Z","ms":67019,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" Sentence 3 of twelve:"}}
+{"t":"2026-08-30T08:45:02.965Z","ms":71560,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" the quick brown fox jumps over the lazy dog while the spike keeps talking so you can interrupt it."}}
+{"t":"2026-08-30T08:45:04.244Z","ms":72839,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" Sentence 4 of twelve:"}}
+{"t":"2026-08-30T08:45:08.785Z","ms":77380,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" the quick brown fox jumps over the lazy dog while the spike keeps talking so you can interrupt it."}}
+{"t":"2026-08-30T08:45:10.165Z","ms":78760,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" Sentence 5 of twelve:"}}
+{"t":"2026-08-30T08:45:14.644Z","ms":83239,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" the quick brown fox jumps over the lazy dog while the spike keeps talking so you can interrupt it."}}
+{"t":"2026-08-30T08:45:15.925Z","ms":84520,"dir":"in","session":1,"frame":{"type":"info","name":"tokensPlayed","value":" Sentence 6 of twelve:"}}
+{"t":"2026-08-30T08:45:16.497Z","ms":85092,"dir":"http","path":"/gather","signatureValid":true,"form":{"msg":"Gather End","Called":"+15550100001","Digits":"","ToState":"","CallerCountry":"US","Direction":"outbound-api","CallerState":"","ToZip":"","CallSid":"CA00000000000000000000000000000002","To":"+15550100001","CallerZip":"","ToCountry":"US","FinishedOnKey":"","CalledZip":"","ApiVersion":"2010-04-01","CalledCity":"","CallStatus":"in-progress","From":"+15550100001","AccountSid":"AC00000000000000000000000000000000","CalledCountry":"US","CallerCity":"","ToCity":"","FromCountry":"US","Caller":"+15550100001","FromCity":"","CalledState":"","FromZip":"","FromState":""}}
+{"t":"2026-08-30T08:45:19.610Z","ms":88205,"dir":"ws","event":"close","id":"24152254","code":1000,"reason":"Closing websocket session","session":1,"sinceSetupMs":39865}
+{"t":"2026-08-30T08:45:20.177Z","ms":88772,"dir":"http","path":"/action","signatureValid":true,"form":{"Called":"+15550100001","ToState":"","CallerCountry":"US","Direction":"inbound","SessionDuration":"40","CallerState":"","ToZip":"","SessionStatus":"completed","CallSid":"CA00000000000000000000000000000001","To":"+15550100001","CallerZip":"","ToCountry":"US","SessionId":"VX00000000000000000000000000000001","CalledZip":"","ApiVersion":"2010-04-01","CalledCity":"","CallStatus":"completed","From":"+15550100001","AccountSid":"AC00000000000000000000000000000000","CalledCountry":"US","CallerCity":"","ToCity":"","FromCountry":"US","Caller":"+15550100001","FromCity":"","CalledState":"","FromZip":"","FromState":""}}
+{"t":"2026-08-30T08:45:20.177Z","ms":88772,"dir":"http","path":"/action","response":"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response><Hangup/></Response>","nextAction":"hangup"}
+{"t":"2026-08-30T08:45:20.976Z","ms":89571,"dir":"http","path":"/status","signatureValid":true,"form":{"Called":"+15550100001","ToState":"","CallerCountry":"US","Direction":"outbound-api","Timestamp":"Sun, 30 Aug 2026 08:45:20 +0000","CallbackSource":"call-progress-events","SipResponseCode":"200","CallerState":"","ToZip":"","SequenceNumber":"3","CallSid":"CA00000000000000000000000000000002","To":"+15550100001","CallerZip":"","ToCountry":"US","CalledZip":"","ApiVersion":"2010-04-01","CalledCity":"","CallStatus":"completed","Duration":"1","From":"+15550100001","CallDuration":"40","AccountSid":"AC00000000000000000000000000000000","CalledCountry":"US","CallerCity":"","ToCity":"","FromCountry":"US","Caller":"+15550100001","FromCity":"","CalledState":"","FromZip":"","FromState":""}}

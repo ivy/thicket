@@ -1,10 +1,7 @@
 # Phone bridge
 
 The design the phone milestones (`M0`–`M3` on the board) assume. It states what the
-bridge is and where its edges are; the issues say what to build next. The facts under
-*External facts* were read from the vendors' documentation on 2026-08-29 and are
-**not yet verified live** — the M0 spike observes them and moves what it confirms into
-[reference.md](reference.md).
+bridge is and where its edges are; the issues say what to build next.
 
 ## What it is
 
@@ -104,30 +101,38 @@ keyterms, three TTS vendors, an undocumented concurrency cap — the transport h
 replaced by Twilio Media Streams with our own Flux (`/v2/listen`) and TTS sockets, and
 everything from the PIN onward is unchanged.
 
-## External facts (documented, unverified live)
+## External facts
 
-ConversationRelay (`<Connect action="…"><ConversationRelay url="wss://…" …>`):
+Verified on the wire by the M0 spike on 2026-08-30 and recorded, with the fixture that
+shows each one, in [reference.md](reference.md); `tests/fixtures/conversationrelay/`
+holds the recordings. The ones that shape the design:
 
-- `speechModel="flux"` is **not** the default (`nova-3-general` is) and only exists under
-  `transcriptionProvider="Deepgram"`. Flux knobs are `eotThreshold` (0.5–0.9, default
-  0.8), `partialPrompts` (unfinalized transcripts *and* eager end-of-turn both arrive as
-  `prompt{last:false}`, indistinguishable), `speechTimeout` (forwarded as a maximum
-  silence). No `StartOfTurn` / `TurnResumed` message exists over the socket.
+- `speechModel="flux"` is **not** the default and only exists under
+  `transcriptionProvider="Deepgram"`. With `partialPrompts="true"`, unfinalized
+  transcripts arrive as `prompt{last:false}` every 200–300 ms and nothing marks Flux's
+  eager end-of-turn, so speculative turns have no signal through ConversationRelay.
 - Inbound: `setup`, `prompt{voicePrompt,lang,last}`, `dtmf{digit}` (one per keypress,
-  needs `dtmfDetection="true"`), `interrupt{utteranceUntilInterrupt,durationUntilInterruptMs}`,
-  `error{description}`; `agentSpeaking`/`clientSpeaking` with `events="speaker-events"`.
-- Outbound: `text{token,last,lang?,interruptible?,preemptible?}` (stream tokens, `last`
-  on the final one; `preemptible:true` replaces what is playing), `play`, `sendDigits`
-  (`0-9 w # *` only), `language{ttsLanguage,transcriptionLanguage}`, `end{handoffData}`.
-- `end` ends the relay leg, not the call; `action` decides what happens next. Our socket
-  dropping fails the call — Twilio never reconnects. Ten malformed frames → close 1007.
-- `X-Twilio-Signature` is on the WebSocket handshake; only the account's primary auth
-  token validates it — an API key secret cannot. REST calls use a Restricted API key.
-- `reportInputDuringAgentSpeech` defaults to `none` (was `any` before May 2025).
-- Pricing: $0.07/min for ConversationRelay plus Voice ($0.0085/min inbound local);
-  whether STT/TTS are bundled is unpublished.
+  also during the greeting, and a barge-in under `interruptible="any"`),
+  `interrupt{utteranceUntilInterrupt,durationUntilInterruptMs}`, `error{description}`,
+  and `info{name,value}` for `agentSpeaking`, `clientSpeaking` and `tokensPlayed`.
+- Outbound: `text{token,last,preemptible?}` — `preemptible` marks the message that may
+  be cut off by a later one; `sendDigits` (`0-9 w # *`) sits in the same play queue as
+  text and waits behind it; `end{handoffData}`.
+- A barge-in purges everything queued; `utteranceUntilInterrupt` is what was heard.
+- `end` ends the relay leg, not the call; `action` decides what happens next, and a fresh
+  `<Connect><ConversationRelay>` reconnects on the same `CallSid`. Our socket dropping
+  does **not** fail the call either: `action` fires with `SessionStatus=failed`,
+  `ErrorCode=64105`, and its TwiML decides. Twilio never reconnects on its own. Ten
+  malformed frames → close 1007.
+- `X-Twilio-Signature` is on the WebSocket handshake over the `wss://` URL exactly as
+  written, and only the account's primary auth token validates it.
+- 88 s of silence ends nothing; a TTS voice's spoken 8-digit PIN transcribes as words,
+  not digits, in one prompt. A person in a car is still unmeasured.
+- Twilio failing to reach the socket leaves the caller hearing busy; only the Alerts API
+  says why.
 
-Deepgram Flux (`wss://api.deepgram.com/v2/listen`; v1 does not serve Flux):
+Deepgram Flux direct (`wss://api.deepgram.com/v2/listen`; v1 does not serve Flux),
+documented and unverified live — the hedge's transport half would need it:
 
 - Events `Update` (~0.25 s cadence, cumulative transcript), `StartOfTurn`,
   `EagerEndOfTurn` (opt-in via `eager_eot_threshold`), `TurnResumed`, `EndOfTurn`
@@ -135,12 +140,6 @@ Deepgram Flux (`wss://api.deepgram.com/v2/listen`; v1 does not serve Flux):
   preceding `EagerEndOfTurn` transcript, or `TurnResumed` came first.
 - ~260 ms p50 end-of-turn detection at defaults; eager mode costs 50–70 % more LLM calls
   for ~100–200 ms. Deepgram's docs never mention ConversationRelay.
-
-To be observed in M0: how a spoken 8-digit PIN transcribes; whether keypad digits during
-the greeting arrive; what a long silence does to the session; `sendDigits` during
-speech; whether an interrupt purges queued text; `UpdateCall Status=completed` versus
-`action`; what a caller-side drop looks like and how fast; max call duration; the
-concurrency default.
 
 Sources: the Twilio and Deepgram pages listed in the planning artifact
 (https://claude.ai/code/artifact/b4ad1b75-13bf-4bfe-b61b-b1d4e4bb7b18), chiefly
