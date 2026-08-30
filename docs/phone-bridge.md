@@ -106,9 +106,11 @@ Deterministic, following `deriveSessionId`:
 Build the bridge in two halves from day one: a *transport half* (the relay codec and
 socket) and a *conversation half* (state machine, registry, A2A, alerts). If
 ConversationRelay proves limiting — no `TurnResumed`, no `ForceEndTurn`, no mid-call
-keyterms, three TTS vendors, an undocumented concurrency cap — the transport half is
-replaced by Twilio Media Streams with our own Flux (`/v2/listen`) and TTS sockets, and
-everything from the PIN onward is unchanged.
+keyterms, no speaker labels or confidence for a noisy far end, three TTS vendors, an
+undocumented concurrency cap — the transport half is replaced by Twilio Media Streams
+with our own Flux (`/v2/listen`) and TTS sockets, and everything from the PIN onward is
+unchanged. Calling strangers is expected to trigger it: the outbound arc is gated on
+that swap (#59), while the operator console lives within ConversationRelay's ceiling.
 
 ## External facts
 
