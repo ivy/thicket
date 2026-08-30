@@ -4,6 +4,11 @@
       "command": "mise",
       "args": ["exec", "--", "bun", "apps/cli/src/bin.ts", "slack-test-mcp"],
       "env": {}
+    },
+    "phone-test": {
+      "command": "mise",
+      "args": ["exec", "--", "bun", "apps/cli/src/bin.ts", "phone-test-mcp"],
+      "env": {}
     }
   }
 }

@@ -128,11 +128,12 @@ seen to lag a restart by a minute. Twilio's Alerts page is where a call
 that "just got busy" explains itself (`64102`: it could not reach the
 socket).
 
-**Placing a call.** Save the number in your phone as `<number>,<pin>#` and
+**Placing a call.** Save the number in your phone as `<number>,<pin>` and
 dial it: the comma is a two-second pause, the digits are the PIN as DTMF,
 and the call opens in silence until they are accepted — then Aiva says
-hello and names the agents. The bridge log shows the whole thing, shape
-only:
+hello and names the agents. (No trailing `#` — the PIN is exactly eight
+digits, and the ninth keypress barges in on the hello, #54.) The bridge
+log shows the whole thing, shape only:
 
 ```
 webhook path=/voice          Twilio asked how to answer; relay TwiML, no greeting
@@ -155,11 +156,30 @@ operator waits through; `toFirstChunkMs` is the agent's share of it. With
 message the moment it is chosen, so its subprocess is up before the first
 question; set it `false` for the comparison the vertical slice asks for.
 
-**Without a phone.** `mise exec -- bun spikes/conversationrelay/call.ts hold-short`
-makes Twilio dial the number from itself. That number is not on the
-allow-list, so what it proves is the refusal: `setup`, then
-`alert kind=caller_rejected`, then `end` with no word spoken, then
-`/action reason=rejected`. It cannot get past the gate, which is the point.
+**Without a phone: the synthetic operator.** The `phone-test` MCP server
+(`.mcp.json`; `thicket phone-test-mcp`) is the operator's seat as tools —
+the phone's `slack-test`. `phone_call` places a real self-call whose
+caller leg is its own ConversationRelay session (the rig allow-lists the
+bridge's number for exactly this), keys the PIN post-dial, and retries
+when the Funnel edge refuses — which it does often in the minutes after
+any funnel change (`11200`/`64102`; four of five runs on 2026-08-30 needed
+attempt two). Then `phone_say`, `phone_await_reply` (the assertion most
+checks reduce to — match distinctive words, the transcript is Flux hearing
+a TTS voice), `phone_press` / `phone_enter_pin`, `phone_status`,
+`phone_transcript` (digits always `########`), `phone_hangup`.
+
+It needs its own 0600 config, `~/.config/thicket/phone-test.json`
+(`apps/cli/src/phone-test/config.ts` is the schema; the server refuses to
+start without it, naming the path) — the Twilio credentials, the number,
+the PIN, and the Funnel origin. Its recordings land in the real state dir
+(`~/.local/state/thicket/phone-test/recordings/`), spike-format, ready for
+`redact.ts`; the PIN appears in none of it. The `/operator` funnel path it
+answers on is opened by `rig.sh` and shown by `status` as `funnel-op`.
+
+What the tool cannot check stays human: how it *sounds*. And what it
+cannot do is fail the caller gate — its calls authenticate — so the
+refusal path (`caller_rejected`, unlisted number) is the fake-relay
+integration tests' job until a second caller identity exists.
 
 **Reading the registry.** Every call the bridge saw, with why it ended:
 

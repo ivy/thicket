@@ -46,6 +46,7 @@ SOCKETS="$XDG_RUNTIME_DIR/thicket"
 AGENTD_PORT=8791   # bridge -> agentd, carrying the bridge's tag
 BRIDGE_PORT=8792   # agent -> bridge file surface, carrying the agent's tag
 PHONE_PORT=8793    # Twilio -> phone bridge, through Tailscale Funnel
+PHONE_TEST_PORT=8797  # the synthetic operator's caller leg (thicket phone-test-mcp), path /operator on the same Funnel
 
 # Funnel is the phone bridge's public ingress on the laptop, the shape netd
 # takes in M3. The App Store client keeps the CLI inside the bundle.
@@ -128,14 +129,22 @@ funnel_on() {
   fi
   if "$TAILSCALE" funnel status 2>/dev/null | grep -q "127.0.0.1:$PHONE_PORT"; then
     echo "funnel already on"
-    return
-  fi
   # --bg returns once the tailnet accepts the config; the hostname is public
   # from then on, and scanners find it within seconds.
-  if "$TAILSCALE" funnel --bg "$PHONE_PORT" >/dev/null 2>&1; then
+  elif "$TAILSCALE" funnel --bg "$PHONE_PORT" >/dev/null 2>&1; then
     echo "funnel on ($(funnel_host))"
   else
     echo "funnel FAILED: run '$TAILSCALE funnel --bg $PHONE_PORT' by hand to see why" >&2
+    return
+  fi
+  # The synthetic operator's caller leg shares the hostname on its own path;
+  # harmless while the tool is not running (the edge answers 502 there).
+  if ! "$TAILSCALE" funnel status 2>/dev/null | grep -q "127.0.0.1:$PHONE_TEST_PORT"; then
+    if "$TAILSCALE" funnel --bg --set-path /operator "$PHONE_TEST_PORT" >/dev/null 2>&1; then
+      echo "funnel /operator on"
+    else
+      echo "funnel /operator FAILED: run '$TAILSCALE funnel --bg --set-path /operator $PHONE_TEST_PORT' by hand" >&2
+    fi
   fi
 }
 
@@ -207,6 +216,19 @@ status() {
     fi
   else
     printf '%-14s off\n' "funnel"
+  fi
+  # The synthetic operator's path: informational, because the tool only runs
+  # while something drives it — 502 there means routed but idle.
+  if [[ -n "$TAILSCALE" ]] && "$TAILSCALE" funnel status 2>/dev/null | grep -q "127.0.0.1:$PHONE_TEST_PORT"; then
+    host="$(funnel_host)"
+    code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' "https://$host/operator/probe" 2>/dev/null || true)"
+    if [[ "$code" == 404 ]]; then
+      printf '%-14s ok    https://%s/operator\n' "funnel-op" "$host"
+    else
+      printf '%-14s routed, tool idle (http %s)\n' "funnel-op" "${code:-none}"
+    fi
+  else
+    printf '%-14s off\n' "funnel-op"
   fi
   return "$ok"
 }

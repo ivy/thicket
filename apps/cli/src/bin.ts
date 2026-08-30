@@ -19,7 +19,8 @@ function usage(): never {
       "       thicket fleet\n" +
       "       thicket journal [--cost] [--failures] [--trigger T] [--days N] [--limit N] [--db PATH]\n" +
       "       thicket mcp\n" +
-      "       thicket slack-test-mcp   (development: drives Slack as you)\n",
+      "       thicket slack-test-mcp   (development: drives Slack as you)\n" +
+      "       thicket phone-test-mcp   (development: drives the phone bridge as the operator)\n",
   );
   process.exit(2);
 }
@@ -150,6 +151,56 @@ async function main(): Promise<void> {
       process.exit(2);
     }
     const server = buildSlackTestServer({ client: new SlackTestClient({ token }) });
+    await server.connect(new StdioServerTransport());
+    return; // serves until stdio closes
+  }
+
+  if (command === "phone-test-mcp") {
+    const { StdioServerTransport } = await import(
+      "@modelcontextprotocol/sdk/server/stdio.js"
+    );
+    const { loadPhoneTestConfig, PhoneTestConfigError } = await import("./phone-test/config.js");
+    const { CallerLeg } = await import("./phone-test/leg.js");
+    const { HttpTwilioRest } = await import("./phone-test/caller.js");
+    const { buildPhoneTestServer } = await import("./phone-test/server.js");
+    const { stateDir } = await import("@thicket/roster");
+    let config: import("./phone-test/config.js").PhoneTestConfig;
+    try {
+      config = loadPhoneTestConfig(
+        process.env.THICKET_PHONE_TEST_CONFIG ?? join(configDir(), "phone-test.json"),
+      );
+    } catch (err) {
+      process.stderr.write((err instanceof PhoneTestConfigError ? err.message : String(err)) + "\n");
+      process.exit(2);
+    }
+    // stdout is the MCP transport; every line of the leg's goes to stderr.
+    const write = (level: string, msg: string, fields?: Record<string, unknown>) => {
+      process.stderr.write(JSON.stringify({ ts: new Date().toISOString(), level, msg, ...fields }) + "\n");
+    };
+    const leg = new CallerLeg({
+      publicBaseUrl: config.public_base_url,
+      pathPrefix: config.path_prefix,
+      authToken: config.twilio.auth_token,
+      pin: config.pin,
+      rest: new HttpTwilioRest({
+        accountSid: config.twilio.account_sid,
+        authToken: config.twilio.auth_token,
+        ...(config.twilio.api_key_sid === undefined ? {} : { apiKeySid: config.twilio.api_key_sid }),
+        ...(config.twilio.api_key_secret === undefined ? {} : { apiKeySecret: config.twilio.api_key_secret }),
+        to: config.number,
+        ...(config.from === undefined ? {} : { from: config.from }),
+      }),
+      recordingsDir: config.recordings_dir ?? join(stateDir(), "phone-test", "recordings"),
+      logger: {
+        info: (msg, fields) => write("info", msg, fields),
+        warn: (msg, fields) => write("warn", msg, fields),
+      },
+    });
+    const httpServer = leg.createServer();
+    const [hostname, port] = config.listen.split(":");
+    await new Promise<void>((resolve) => httpServer.listen(Number(port), hostname, () => resolve()));
+    write("info", "caller leg listening", { listen: config.listen });
+    const server = buildPhoneTestServer({ leg });
     await server.connect(new StdioServerTransport());
     return; // serves until stdio closes
   }
