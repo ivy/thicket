@@ -13,7 +13,7 @@ every time — never from memory.** They are the state; your recollection is not
 - The board is the queue: https://github.com/users/ivy/projects/42 — only its **Ready** column.
 
   ```sh
-  gh project item-list 42 --owner ivy --format json --jq '.items[] | select(.status == "Ready 🤖" or .status == "In Progress 🚧") | "\(.status)\t#\(.content.number)\t\(.milestone.title // "-")\t\(.assignees | join(","))\t\(.title)"'
+  gh project item-list 42 --owner ivy --limit 200 --format json --jq '.items[] | select(.status == "Ready 🤖" or .status == "In Progress 🚧") | "\(.status)\t#\(.content.number)\t\(.milestone.title // "-")\t\((.assignees // []) | join(","))\t\(.title)"'
   ```
 
   Milestones are arcs in order (`M0`, `M1`, …); the operator moves issues into Ready, never
@@ -40,7 +40,7 @@ Never work two issues in one iteration.
 
 ```sh
 gh issue edit NNN --add-assignee @me
-item=$(gh project item-list 42 --owner ivy --format json --jq '.items[] | select(.content.number == NNN) | .id')
+item=$(gh project item-list 42 --owner ivy --limit 200 --format json --jq '.items[] | select(.content.number == NNN) | .id')
 gh project item-edit --project-id PVT_kwHOADgWUM4Bh47V --id "$item" \
   --field-id PVTSSF_lAHOADgWUM4Bh47Vzhgy8nY --single-select-option-id dacd8d8c   # In Progress 🚧
 ```
