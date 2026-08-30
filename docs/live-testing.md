@@ -23,17 +23,20 @@ at all because it looks like one. agentd and the bridge run as the same
 standalone binaries an agent account installs; only the netd stand-ins are
 still scripts, run under `bun`.
 
-Five processes, all local, under `~/thicket-test/`:
+Six processes, all local, under `~/thicket-test/`:
 
 | | |
 |---|---|
 | `agentd` | the agent, on a unix socket |
 | `bridge` | Slack Socket Mode ↔ A2A, plus the file surface on its own socket |
+| `phone` | Twilio ConversationRelay ↔ A2A, on `127.0.0.1:8793`, with `tailscale funnel` in front so Twilio can reach it |
 | `peer-tag-proxy` ×2 | `deploy/dev/peer-tag-proxy.mjs`, standing in for netd inbound — one in front of agentd carrying `tag:thicket-bridge`, one in front of the bridge carrying `tag:thicket-hearth` |
 | `egress-proxy` | `deploy/dev/egress-proxy.mjs`, standing in for netd outbound |
 
 Both stand-ins assert an identity that netd would verify, which is exactly
-why they are development-only.
+why they are development-only. The phone bridge dials the agent through
+the same stand-in the Slack bridge uses, so it arrives carrying the
+bridge's tag; in deployment it has its own.
 
 Logs and pidfiles sit beside each other in `~/thicket-test/`, one pair per
 process. `status` checks liveness rather than presence — it asks the agent
@@ -100,6 +103,67 @@ Confine live traffic to `#thicket-test` where a channel is needed. It is a
 development workspace, so noise is cheap, but a wall of test messages in a
 DM makes the next real conversation harder to read.
 
+## Driving the phone
+
+The phone bridge is the one component the public internet reaches, so a
+live check needs three things the rig cannot make for you:
+
+1. **`~/thicket-test/config/thicket/phone.json`, mode 0600** — the
+   operator's numbers, the PIN, the Twilio credentials and number, the
+   alerts channel, and `"listen": "127.0.0.1:8793"`. Its schema is
+   `apps/phone/src/config.ts`; `rig.sh start` skips the phone bridge when
+   the file is absent and says so. The values are the ones parked in
+   `.env`; the bridge never reads `.env`.
+2. **`phone.enabled: true` and a `spokenName`** on the agent in the rig's
+   `agents.yaml`, or Aiva has nobody to offer.
+3. **The Twilio number pointed at the rig, by hand**, until provisioning
+   exists: in the Console (or over REST) the number's voice URL is
+   `$THICKET_PUBLIC_BASE_URL/voice` (POST) and its status callback
+   `$THICKET_PUBLIC_BASE_URL/status`. `rig.sh` never touches Twilio.
+
+`rig.sh start` then brings the bridge up and opens the Funnel; `status`
+prints whether the local port answers and whether the public hostname
+does — the second is the one Twilio's connect depends on, and it has been
+seen to lag a restart by a minute. Twilio's Alerts page is where a call
+that "just got busy" explains itself (`64102`: it could not reach the
+socket).
+
+**Placing a call.** Save the number in your phone as `<number>,<pin>#` and
+dial it: the comma is a two-second pause, the digits are the PIN as DTMF,
+and the call opens in silence until they are accepted — then Aiva says
+hello and names the agents. The bridge log shows the whole thing, shape
+only:
+
+```
+webhook path=/voice          Twilio asked how to answer; relay TwiML, no greeting
+relay connected
+frame kind=setup             the socket is up (~0.4 s after /voice)
+frame kind=key ×8            the PIN, never its digits
+command type=text last=true  Aiva's hello and the picker
+frame kind=speech final=true "Hearth"
+alert kind=session_started   agent, contextId — the row in the registry gains its agent
+command type=text …          the agent's reply, one token per chunk, last on the final one
+alert kind=session_ended     durationMs
+webhook path=/action         reason=goodbye (or completed, or failed:64105 for a drop)
+```
+
+**Without a phone.** `mise exec -- bun spikes/conversationrelay/call.ts hold-short`
+makes Twilio dial the number from itself. That number is not on the
+allow-list, so what it proves is the refusal: `setup`, then
+`alert kind=caller_rejected`, then `end` with no word spoken, then
+`/action reason=rejected`. It cannot get past the gate, which is the point.
+
+**Reading the registry.** Every call the bridge saw, with why it ended:
+
+```sh
+sqlite3 ~/thicket-test/state/thicket/phone/phone.db \
+  'select call_sid, direction, agent, end_reason, ended_ms - started_ms as ms from calls order by started_ms desc limit 5'
+sqlite3 ~/thicket-test/state/thicket/phone/phone.db 'select * from sessions'
+```
+
+`sessions` is what the next call is offered back — one row per agent, the
+contextId that doubles as the Claude session id.
+
 ## Reading what happened
 
 The bridge logs one line per inbound Slack event (shape only, never content)
@@ -112,6 +176,7 @@ those lines existed.
 ```
 tail -f ~/thicket-test/bridge.log
 tail -f ~/thicket-test/agentd.log
+tail -f ~/thicket-test/phone.log
 ```
 
 The task store holds what the agent actually answered:
@@ -131,6 +196,11 @@ commit, and they get walked through together.
   saying yes is not the client showing it.
 - **A second host.** Anything needing real systemd, a real tailnet, or a
   second agent account.
+- **Hearing the call.** The log proves what was sent to Twilio; whether the
+  greeting is audible, whether a reply was cut off, how the PIN from a real
+  phone's dial string arrives, are heard, not read. The synthetic caller
+  cannot get past the allow-list, so a call that authenticates is always a
+  person's.
 
 ## Rules
 

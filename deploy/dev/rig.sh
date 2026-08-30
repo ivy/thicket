@@ -45,6 +45,12 @@ export XDG_CACHE_HOME="$HOME_DIR/cache"
 SOCKETS="$XDG_RUNTIME_DIR/thicket"
 AGENTD_PORT=8791   # bridge -> agentd, carrying the bridge's tag
 BRIDGE_PORT=8792   # agent -> bridge file surface, carrying the agent's tag
+PHONE_PORT=8793    # Twilio -> phone bridge, through Tailscale Funnel
+
+# Funnel is the phone bridge's public ingress on the laptop, the shape netd
+# takes in M3. The App Store client keeps the CLI inside the bundle.
+TAILSCALE="${THICKET_TAILSCALE:-/Applications/Tailscale.app/Contents/MacOS/Tailscale}"
+[[ -x "$TAILSCALE" ]] || TAILSCALE="$(command -v tailscale || true)"
 
 # The agent this rig fronts. The stand-ins assert its tag and the bridge is
 # told where to reach it, so both must name the same agent as the roster —
@@ -84,7 +90,7 @@ start() {
     exit 2
   fi
   local name
-  for name in thicket-agentd thicket-bridge; do
+  for name in thicket-agentd thicket-bridge thicket-phone; do
     if [[ ! -x "$BIN_DIR/$name" ]]; then
       echo "no $BIN_DIR/$name — run: mise exec -- pnpm compile" >&2
       exit 2
@@ -103,11 +109,52 @@ start() {
   start_one agentd "$BIN_DIR/thicket-agentd"
   THICKET_BRIDGE_ENDPOINTS="{\"$AGENT\":\"http://127.0.0.1:$AGENTD_PORT\"}" \
     start_one bridge "$BIN_DIR/thicket-bridge"
+
+  # The phone bridge reads $XDG_CONFIG_HOME/thicket/phone.json (0600) and
+  # dials the agent through the same stand-in the Slack bridge uses.
+  if [[ -f "$XDG_CONFIG_HOME/thicket/phone.json" ]]; then
+    THICKET_PHONE_ENDPOINTS="{\"$AGENT\":\"http://127.0.0.1:$AGENTD_PORT\"}" \
+      start_one phone "$BIN_DIR/thicket-phone"
+    funnel_on
+  else
+    echo "phone not started: no $XDG_CONFIG_HOME/thicket/phone.json (see docs/live-testing.md)"
+  fi
+}
+
+funnel_on() {
+  if [[ -z "$TAILSCALE" ]]; then
+    echo "funnel not started: no tailscale CLI"
+    return
+  fi
+  if "$TAILSCALE" funnel status 2>/dev/null | grep -q "127.0.0.1:$PHONE_PORT"; then
+    echo "funnel already on"
+    return
+  fi
+  # --bg returns once the tailnet accepts the config; the hostname is public
+  # from then on, and scanners find it within seconds.
+  if "$TAILSCALE" funnel --bg "$PHONE_PORT" >/dev/null 2>&1; then
+    echo "funnel on ($(funnel_host))"
+  else
+    echo "funnel FAILED: run '$TAILSCALE funnel --bg $PHONE_PORT' by hand to see why" >&2
+  fi
+}
+
+funnel_off() {
+  [[ -n "$TAILSCALE" ]] || return 0
+  if "$TAILSCALE" funnel status 2>/dev/null | grep -q "127.0.0.1:$PHONE_PORT"; then
+    "$TAILSCALE" funnel --https=443 off >/dev/null 2>&1 && echo "funnel off"
+  fi
+}
+
+# The MagicDNS name Funnel serves, e.g. host.tailnet.ts.net.
+funnel_host() {
+  "$TAILSCALE" status --json 2>/dev/null | sed -n 's/.*"DNSName": *"\([^"]*\)\.".*/\1/p' | head -1
 }
 
 stop() {
   local name pid
-  for name in bridge agentd egress bridge-proxy proxy; do
+  funnel_off
+  for name in phone bridge agentd egress bridge-proxy proxy; do
     pid="$(cat "$(pidfile "$name")" 2>/dev/null || true)"
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
@@ -121,7 +168,7 @@ stop() {
 
 status() {
   local name pid ok=0
-  for name in agentd bridge proxy bridge-proxy egress; do
+  for name in agentd bridge phone proxy bridge-proxy egress; do
     pid="$(cat "$(pidfile "$name")" 2>/dev/null || true)"
     if running "$name"; then
       printf '%-14s up    %s\n' "$name" "$pid"
@@ -137,6 +184,29 @@ status() {
   else
     printf '%-14s UNREACHABLE\n' "agent card"
     ok=1
+  fi
+  # The phone bridge answers 404 to a bare GET; anything else is Funnel or
+  # nothing talking. Checked locally, then through the public hostname —
+  # the second is the one Twilio's connect depends on.
+  local host code
+  code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PHONE_PORT/" 2>/dev/null || true)"
+  if [[ "$code" == 404 ]]; then
+    printf '%-14s ok    127.0.0.1:%s\n' "phone" "$PHONE_PORT"
+  else
+    printf '%-14s UNREACHABLE (local http %s)\n' "phone" "${code:-none}"
+    ok=1
+  fi
+  if [[ -n "$TAILSCALE" ]] && "$TAILSCALE" funnel status 2>/dev/null | grep -q "127.0.0.1:$PHONE_PORT"; then
+    host="$(funnel_host)"
+    code="$(curl -s -m 10 -o /dev/null -w '%{http_code}' "https://$host/" 2>/dev/null || true)"
+    if [[ "$code" == 404 ]]; then
+      printf '%-14s ok    https://%s\n' "funnel" "$host"
+    else
+      printf '%-14s NOT ANSWERING https://%s (http %s)\n' "funnel" "$host" "${code:-none}"
+      ok=1
+    fi
+  else
+    printf '%-14s off\n' "funnel"
   fi
   return "$ok"
 }
