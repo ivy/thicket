@@ -134,6 +134,9 @@ importers:
       '@thicket/roster':
         specifier: workspace:*
         version: link:../../packages/roster
+      ws:
+        specifier: ^8.21.3
+        version: 8.21.3
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -141,6 +144,9 @@ importers:
       '@types/node':
         specifier: ^22.17.0
         version: 22.20.1
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3

@@ -19,6 +19,7 @@ export const EXECUTABLES = [
   { name: "thicket", entry: "apps/cli/src/bin.ts" },
   { name: "thicket-agentd", entry: "apps/agentd/src/bin.ts" },
   { name: "thicket-bridge", entry: "apps/bridge/src/bin.ts" },
+  { name: "thicket-phone", entry: "apps/phone/src/bin.ts" },
 ] as const;
 
 export function chosenPlatforms(argv: string[]): Platform[] {

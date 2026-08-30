@@ -26,7 +26,7 @@ export interface RelayPort {
 export type PhoneAlert =
   | { kind: "caller_rejected"; callSid: string; from: string }
   | { kind: "auth_failed"; callSid: string; from: string; attempt: number; final: boolean }
-  | { kind: "session_started"; callSid: string; agent: string; resumed: boolean }
+  | { kind: "session_started"; callSid: string; agent: string; contextId: string; resumed: boolean }
   | { kind: "session_ended"; callSid: string; agent: string; durationMs: number };
 
 export interface AlertPort {
@@ -365,7 +365,13 @@ export class CallEngine {
       lastActiveAt: now,
     });
     this.state = "connected";
-    await this.alert({ kind: "session_started", callSid: call.callSid, agent: agent.name, resumed: previous !== undefined });
+    await this.alert({
+      kind: "session_started",
+      callSid: call.callSid,
+      agent: agent.name,
+      contextId,
+      resumed: previous !== undefined,
+    });
     await this.speak(previous === undefined ? `Connected to ${agent.spokenName}.` : `Resuming with ${agent.spokenName}.`);
   }
 

@@ -26,3 +26,7 @@ export {
   type Scheduler,
 } from "./engine.js";
 export { MemoryPhoneState, type PhoneSession, type PhoneStatePort } from "./state.js";
+export { CallRegistry, type CallRecord } from "./registry.js";
+export { buildPhoneServer, RELAY_ATTRIBUTES, type PhoneServer, type PhoneServerOptions } from "./server.js";
+export { signatureValid, twilioSignature } from "./signature.js";
+export { maskNumber, pinVerifier, run } from "./main.js";
