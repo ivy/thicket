@@ -122,6 +122,15 @@ importers:
 
   apps/phone:
     dependencies:
+      '@a2a-js/sdk':
+        specifier: ^1.1.0
+        version: 1.1.0(express@5.2.1)
+      '@thicket/a2a-client':
+        specifier: workspace:*
+        version: link:../../packages/a2a-client
+      '@thicket/executor':
+        specifier: workspace:*
+        version: link:../../packages/executor
       '@thicket/roster':
         specifier: workspace:*
         version: link:../../packages/roster
