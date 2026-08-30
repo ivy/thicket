@@ -20,6 +20,18 @@ export interface DoctorProbes {
    * the operator has a twilio.json here (undefined: no phone to check).
    */
   phoneNumber(): Promise<{ number: string; drift: string[] } | undefined>;
+  /** The phone bridge's config on this host: loadable, 0600, PIN and allow-list present (undefined: none here). */
+  phoneConfig(): Promise<{ ok: true } | { ok: false; error: string } | undefined>;
+  /** The public hostname answering, as Twilio would see it (undefined: no twilio.json to name it). */
+  phonePublic(): Promise<{ url: string; status: number } | undefined>;
+  /** The phone bridge's heartbeat file, if a phone bridge runs on this host. */
+  phoneHealth(): Promise<PhoneHealth | undefined>;
+}
+
+/** Shape of the heartbeat file the phone bridge rewrites every few seconds. */
+export interface PhoneHealth {
+  ts: string;
+  openCalls: number;
 }
 
 /** Shape of the health file the bridge rewrites every few seconds. */
@@ -199,6 +211,52 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
     );
   } else {
     push("phone", true, "the number's voice URL and status callback point at the bridge");
+  }
+
+  // The phone path, link by link: the config, the public hostname, the
+  // number, the heartbeat. Each says which link is broken and what to do.
+  const phoneConfigProbe = await attempt(() => probes.phoneConfig());
+  if (!phoneConfigProbe.ok) {
+    push("phone", false, phoneConfigProbe.error);
+  } else if (phoneConfigProbe.value === undefined) {
+    push("phone", true, "no phone.json on this host — the phone bridge does not run here");
+  } else if (!phoneConfigProbe.value.ok) {
+    push("phone", false, `phone.json will not load: ${phoneConfigProbe.value.error}`);
+  } else {
+    push("phone", true, "phone.json loads: PIN, allow-list, and the Twilio auth token are present");
+  }
+
+  const publicProbe = await attempt(() => probes.phonePublic());
+  if (!publicProbe.ok) {
+    push("phone", false, `public hostname not answering: ${publicProbe.error} — is the phone account's netd up, and is Funnel permitted for its tag?`);
+  } else if (publicProbe.value !== undefined) {
+    if (publicProbe.value.status === 404) {
+      push("phone", true, `public hostname answers from the bridge (${publicProbe.value.url})`);
+    } else {
+      push(
+        "phone",
+        false,
+        `public hostname ${publicProbe.value.url} answered HTTP ${publicProbe.value.status}, not the bridge's 404 — ${publicProbe.value.status === 502 ? "netd is up but nothing is listening behind it: the phone bridge is down" : "something else is in front, or netd's prefix is wrong"}`,
+      );
+    }
+  }
+
+  const healthProbe2 = await attempt(() => probes.phoneHealth());
+  if (!healthProbe2.ok) {
+    push("phone", false, healthProbe2.error);
+  } else if (healthProbe2.value === undefined) {
+    push("phone", true, "no phone heartbeat on this host — run doctor where the phone bridge runs to check it is serving");
+  } else {
+    const ageMs = Date.now() - Date.parse(healthProbe2.value.ts);
+    if (!Number.isFinite(ageMs) || ageMs > BRIDGE_HEALTH_STALE_MS) {
+      push(
+        "phone",
+        false,
+        `phone heartbeat is stale (last ${Number.isFinite(ageMs) ? `${Math.round(ageMs / 1000)}s ago` : "unreadable"}) — the phone bridge is down or wedged; see the runbook before restarting, a restart drops live calls`,
+      );
+    } else {
+      push("phone", true, `phone bridge heartbeat fresh, ${healthProbe2.value.openCalls} call${healthProbe2.value.openCalls === 1 ? "" : "s"} open`);
+    }
   }
 
   const usageProbe = await attempt(() => probes.workspaceAppUsage());

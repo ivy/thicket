@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { RemoteAgentClient, type AgentClient } from "@thicket/a2a-client";
@@ -28,6 +28,14 @@ export function pinVerifier(pin: string): (digits: string) => boolean {
     const given = Buffer.from(digits);
     return given.length === expected.length && timingSafeEqual(given, expected);
   };
+}
+
+const HEALTH_INTERVAL_MS = 15_000;
+
+/** Shape of the heartbeat file the phone bridge rewrites every few seconds. */
+export interface PhoneHealth {
+  ts: string;
+  openCalls: number;
 }
 
 export async function run(
@@ -138,8 +146,27 @@ export async function run(
     logger.info("phone bridge up", { socket: path, agents: agents.map((a) => a.name) });
   }
 
+  // A heartbeat file `thicket doctor` can read: fresh means the bridge is
+  // up and serving; the open-call count says whether a restart would drop
+  // someone. Written atomically so a torn read never looks like a wedge.
+  const healthPath = join(stateDir(), "phone", "health.json");
+  mkdirSync(dirname(healthPath), { recursive: true });
+  const writeHealth = () => {
+    try {
+      const doc = { ts: new Date().toISOString(), openCalls: registry.openCalls().length };
+      writeFileSync(healthPath + ".tmp", JSON.stringify(doc) + "\n");
+      renameSync(healthPath + ".tmp", healthPath);
+    } catch (err) {
+      logger.warn("health file write failed", { path: healthPath, err: String(err) });
+    }
+  };
+  writeHealth();
+  const healthTimer = setInterval(writeHealth, HEALTH_INTERVAL_MS);
+  healthTimer.unref();
+
   const stop = () => {
-    logger.info("phone bridge stopping", {});
+    logger.info("phone bridge stopping", { openCalls: registry.openCalls().length });
+    clearInterval(healthTimer);
     void phone.close().then(() => {
       registry.close();
       process.exit(0);

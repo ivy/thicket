@@ -3,10 +3,10 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { agentUrl, parseRoster, stateDir } from "@thicket/roster";
+import { agentUrl, configDir, parseRoster, stateDir } from "@thicket/roster";
 import type { AgentEntry } from "@thicket/roster";
 
-import type { BridgeHealth, DoctorProbes } from "./doctor.js";
+import type { BridgeHealth, DoctorProbes, PhoneHealth } from "./doctor.js";
 import {
   desiredNumberSettings,
   HttpTwilioNumberApi,
@@ -115,6 +115,42 @@ export function realProbes(options: {
         throw new Error("the Twilio account does not own the number in twilio.json");
       }
       return { number: creds.number, drift: settingsDrift(live.settings, desiredNumberSettings(creds.public_base_url)) };
+    },
+
+    async phoneConfig() {
+      const path = join(configDir(), "phone.json");
+      try {
+        await readFile(path);
+      } catch {
+        return undefined;
+      }
+      // The bridge's own loader, so doctor and the bridge disagree about nothing.
+      const { loadPhoneConfig } = await import("@thicket/phone");
+      try {
+        loadPhoneConfig(path);
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    },
+
+    async phonePublic() {
+      const creds = options.store === undefined ? undefined : readTwilioProvisioning(options.store);
+      if (creds === undefined) {
+        return undefined;
+      }
+      const url = `${creds.public_base_url.replace(/\/$/, "")}/`;
+      const response = await fetchImpl(url, { signal: AbortSignal.timeout(10_000) });
+      return { url, status: response.status };
+    },
+
+    async phoneHealth() {
+      try {
+        const raw = await readFile(join(stateDir(), "phone", "health.json"), "utf8");
+        return JSON.parse(raw) as PhoneHealth;
+      } catch {
+        return undefined;
+      }
     },
 
     async lingeringEnabled(_agent, user) {

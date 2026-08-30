@@ -258,6 +258,76 @@ which fields would change and touches nothing. `doctor` compares the live
 settings to the rendered ones and fails with the drift when someone has
 pointed the number elsewhere.
 
+## 6b. The phone bridge's account
+
+The phone bridge is deployed exactly like the Slack bridge: its own unix
+account on the always-on host, its own netd — this one with the Funnel
+listener — the same units, and secrets as 0600 files the operator writes.
+Steps 1–3 above apply verbatim with `thicket-phone` as the account and
+`tag:thicket-phone` as the tag on its auth key. Then, as that account:
+
+```sh
+# binaries: netd and the phone bridge
+install -m 0755 thicket-netd thicket-phone ~/.local/bin/
+
+# the roster-derived half, rendered by `provision` on the operator's machine
+cp rendered/phone/agents.yaml rendered/phone/netd.json ~/.config/thicket/
+install -m 0600 /dev/stdin ~/.config/thicket/tailnet-auth-key <<<'tskey-...'
+
+# the secrets half: the operator writes it, provision never renders it
+install -m 0600 /dev/stdin ~/.config/thicket/phone.json <<'EOF'
+{
+  "public_base_url": "https://thicket-phone.tailXXXX.ts.net",
+  "twilio": { "account_sid": "AC...", "auth_token": "...", "api_key_sid": "SK...", "api_key_secret": "...", "number": "+1..." },
+  "operator_numbers": ["+1..."],
+  "pin": "12345678",
+  "alerts": { "channel": "C...", "bot_token": "xoxb-..." }
+}
+EOF
+
+cp deploy/systemd/thicket-netd.service deploy/systemd/thicket-phone.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now thicket-netd.service thicket-phone.service
+```
+
+`phone.json` refuses to load unless it is mode 0600 and names a PIN and an
+allow-list; `twilio.auth_token` must be the account's **primary** auth
+token, the only credential that validates Twilio's signature. The bridge
+binds `$XDG_RUNTIME_DIR/thicket/phone.sock` and nothing else; netd's
+Funnel listener is the only way in.
+
+### The ACL edge, drawn deliberately
+
+Two lines in the tailnet policy say who may reach whom, and both are
+deliberate:
+
+- **The phone bridge's tag may call every phone-enabled agent — privileged
+  ones included.** `tag:thicket-phone` appears in the `dst` rule for an
+  agent's node, and in that agent's `allowed_peer_tags`, exactly when the
+  roster entry says `phone.enabled: true`; `provision` renders the second
+  from the first. The caller behind that tag is the operator, authenticated
+  by PIN, which is why root-holding agents may be on the list: the roster
+  line is where they get there, reviewed like any other.
+- **Nothing may call the bridge but Twilio, through Funnel.** No rule names
+  `tag:thicket-phone` as a `dst`. The tailnet side of its port 443 is
+  netd's ordinary inbound proxy pointed at a socket that does not exist in
+  this account, so a tailnet peer that tries gets a 502 and nothing more;
+  the internet side reaches the bridge, which authenticates every request
+  by Twilio's signature and every caller by PIN.
+
+```json
+"acls": [
+  {"action": "accept", "src": ["tag:thicket-bridge", "tag:thicket-phone"], "dst": ["tag:thicket-hearth:443"]},
+  {"action": "accept", "src": ["tag:thicket-hearth"], "dst": ["tag:thicket-bridge:443"]}
+],
+"nodeAttrs": [
+  {"target": ["tag:thicket-phone"], "attr": ["funnel"]}
+]
+```
+
+Adding an agent to the phone means adding its tag to the first rule's
+`dst` and flipping `phone.enabled` in the roster; nothing else.
+
 ## 7. Verify
 
 ```sh
@@ -266,7 +336,10 @@ thicket doctor                                        # as the operator
 ```
 
 `doctor` checks the roster, each card, tailnet tags, Slack app state, the
-workspace app cap, and lingering — and exits non-zero on any failure.
+workspace app cap, lingering, and — where there is a phone — every link of
+the phone path: `phone.json` loads, the public hostname answers from the
+bridge, the number points at it, the bridge's heartbeat is fresh. It exits
+non-zero on any failure.
 
 Useful spot checks:
 

@@ -20,6 +20,7 @@
     "@a2a-js/sdk": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@thicket/agentd": "workspace:*",
+    "@thicket/phone": "workspace:*",
     "@thicket/roster": "workspace:*",
     "@thicket/slack-manifest": "workspace:*",
     "yaml": "^2.9.0",

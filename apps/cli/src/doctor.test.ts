@@ -32,6 +32,9 @@ function healthyProbes(): DoctorProbes {
     workspaceAppUsage: async () => ({ installed: 4, cap: 10 }),
     lingeringEnabled: async () => true,
     phoneNumber: async () => ({ number: "+15550100002", drift: [] }),
+    phoneConfig: async () => ({ ok: true }),
+    phonePublic: async () => ({ url: "https://thicket-phone.tail0000.ts.net/", status: 404 }),
+    phoneHealth: async () => ({ ts: new Date().toISOString(), openCalls: 0 }),
     bridgeHealth: async () => ({
       ts: new Date().toISOString(),
       agents: [
@@ -225,4 +228,31 @@ test("a number pointed elsewhere by hand is reported as drift; no twilio.json is
   const none = await runDoctor(ROSTER, { ...healthyProbes(), phoneNumber: async () => undefined });
   assert.equal(none.find((r) => r.check === "phone")?.ok, true);
   assert.equal(doctorExitCode(none), 0);
+});
+
+test("every link of the phone path is reported, and one broken link exits non-zero", async () => {
+  const healthy = await runDoctor(ROSTER, healthyProbes());
+  const phone = healthy.filter((r) => r.check === "phone");
+  assert.equal(phone.length, 4, "config, public hostname, number, heartbeat");
+  assert.ok(phone.every((r) => r.ok));
+  assert.equal(doctorExitCode(healthy), 0);
+
+  const cases: Array<[Partial<DoctorProbes>, RegExp]> = [
+    [{ phoneConfig: async () => ({ ok: false, error: "phone config /x/phone.json is invalid:\n  pin: the PIN is exactly eight digits" }) }, /phone\.json will not load: [\s\S]*pin: the PIN is exactly eight digits/],
+    [{ phonePublic: async () => { throw new Error("fetch failed"); } }, /public hostname not answering: .*fetch failed — is the phone account's netd up/],
+    [{ phonePublic: async () => ({ url: "https://x/", status: 502 }) }, /answered HTTP 502, not the bridge's 404 — netd is up but nothing is listening behind it: the phone bridge is down/],
+    [{ phonePublic: async () => ({ url: "https://x/", status: 200 }) }, /answered HTTP 200, not the bridge's 404 — something else is in front/],
+    [{ phoneHealth: async () => ({ ts: new Date(Date.now() - 120_000).toISOString(), openCalls: 1 }) }, /phone heartbeat is stale \(last 120s ago\).*a restart drops live calls/],
+  ];
+  for (const [broken, expected] of cases) {
+    const results = await runDoctor(ROSTER, { ...healthyProbes(), ...broken });
+    const failed = results.filter((r) => r.check === "phone" && !r.ok);
+    assert.equal(failed.length, 1, expected.source);
+    assert.match(failed[0]!.message, expected);
+    assert.equal(doctorExitCode(results), 1);
+  }
+
+  // A host without the phone bridge: nothing to check is not a failure.
+  const elsewhere = await runDoctor(ROSTER, { ...healthyProbes(), phoneConfig: async () => undefined, phonePublic: async () => undefined, phoneHealth: async () => undefined, phoneNumber: async () => undefined });
+  assert.ok(elsewhere.filter((r) => r.check === "phone").every((r) => r.ok));
 });

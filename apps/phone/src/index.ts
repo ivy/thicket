@@ -32,5 +32,5 @@ export { MemoryPhoneState, type PhoneSession, type PhoneStatePort } from "./stat
 export { CallRegistry, type CallRecord, type LockoutPolicy } from "./registry.js";
 export { buildPhoneServer, RELAY_ATTRIBUTES, type PhoneServer, type PhoneServerOptions } from "./server.js";
 export { signatureValid, twilioSignature } from "./signature.js";
-export { pinVerifier, run } from "./main.js";
+export { pinVerifier, run, type PhoneHealth } from "./main.js";
 export { maskNumber, renderAlert, SlackAlertPoster, type SlackAlertOptions } from "./alerts.js";

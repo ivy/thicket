@@ -9,6 +9,9 @@
   ],
   "references": [
     {
+      "path": "../phone"
+    },
+    {
       "path": "../../packages/roster"
     },
     {

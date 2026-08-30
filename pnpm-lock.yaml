@@ -100,6 +100,9 @@ importers:
       '@thicket/agentd':
         specifier: workspace:*
         version: link:../agentd
+      '@thicket/phone':
+        specifier: workspace:*
+        version: link:../phone
       '@thicket/roster':
         specifier: workspace:*
         version: link:../../packages/roster

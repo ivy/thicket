@@ -120,6 +120,38 @@ every `submitted`/`working` task to `failed` with an explanatory message, so
 pollers terminate. If this recurs without crashes, capture the journal and the
 task id before restarting; that is a bug worth a task file.
 
+## Restarting the phone bridge drops live calls
+
+The phone bridge holds one WebSocket per live call, and Twilio never
+reconnects one: a restart ends every call in progress the way a dropped
+signal would — the caller hears silence, then the line goes, and Twilio's
+follow-up webhook records `failed:64105`. The session survives (the next
+call is offered it back), a task that was running keeps running in agentd,
+but the operator is cut off mid-sentence. So:
+
+1. **Look before you restart.** `thicket doctor` on the phone host reports
+   the heartbeat with the open-call count (`phone bridge heartbeat fresh,
+   1 call open`); or read it directly:
+
+   ```sh
+   cat ~/.local/state/thicket/phone/health.json
+   sqlite3 ~/.local/state/thicket/phone/phone.db 'select call_sid, agent, started_ms from calls where ended_ms is null'
+   ```
+
+2. **Wait for zero, or say so.** With a call open, wait for it to end, or
+   warn the operator in #security-alerts first — they are the only caller.
+
+3. **Restart netd only when you must.** The bridge restarts under its own
+   unit without touching netd (`systemctl --user restart
+   thicket-phone.service`); the node's tailnet identity, its certificate,
+   and the Funnel listener stay up. Restarting netd drops the calls *and*
+   makes the public hostname unreachable until the node rejoins, and the
+   first ConversationRelay connect afterwards has been seen to fail with
+   `64102` once before the next succeeds.
+
+4. **Afterwards:** `thicket doctor` again — heartbeat fresh, public
+   hostname answering, the number still pointed at the bridge.
+
 ## Live checks worth memorizing
 
 ```sh

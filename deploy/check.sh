@@ -44,7 +44,17 @@ if grep -nE '^(Requires|BindsTo|PartOf)=.*thicket-netd' "$dir/systemd/thicket-ag
   err "agentd.service must not hard-depend on netd.service"
 fi
 
-for unit in thicket-netd.service thicket-agentd.service thicket-bridge.service; do
+# The phone bridge and its netd restart independently too: netd's Funnel
+# listener dials the bridge's socket per connection, and a bridge restart
+# must not take the node's tailnet identity down with it.
+if grep -nE '^(Requires|BindsTo|PartOf)=.*thicket-(netd|phone)' "$dir/systemd/thicket-phone.service" "$dir/systemd/thicket-netd.service"; then
+  err "phone.service and netd.service must not hard-depend on each other"
+fi
+if grep -nE 'ListenStream|listen=|:[0-9]{4}' "$dir/systemd/thicket-phone.service"; then
+  err "phone.service must not bind a port; netd's Funnel listener is the only way in"
+fi
+
+for unit in thicket-netd.service thicket-agentd.service thicket-bridge.service thicket-phone.service; do
   grep -q 'NoNewPrivileges=yes' "$dir/systemd/$unit" || err "$unit: NoNewPrivileges missing"
   grep -q 'ProtectSystem=strict' "$dir/systemd/$unit" || err "$unit: ProtectSystem missing"
   grep -q 'Restart=on-failure' "$dir/systemd/$unit" || err "$unit: Restart missing"
