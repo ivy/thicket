@@ -41,6 +41,9 @@ const scenarios: Record<string, string | { twiml: string; sendDigits: string }> 
   "dial-string-pin": { twiml: pause(15) + "<Hangup/>", sendDigits: "ww47290138#" },
   // The same, keyed four seconds after connect.
   "dial-string-pin-late": { twiml: pause(15) + "<Hangup/>", sendDigits: "wwwwwwww47290138#" },
+  // A whole authenticated session held open for minutes: the PIN from the dial string,
+  // an agent named, then silence — for watching a socket stay up across a long call.
+  "long-session": { twiml: pause(8) + say("Hearth") + pause(200) + "<Hangup/>", sendDigits: "ww47290138#" },
   // An 8-digit test PIN (not the real one) spoken as digits, then a spoken sentence.
   pin: pause(5) + say("four seven two nine zero one three eight") + pause(8) + say("the quick brown fox") + pause(8) + "<Hangup/>",
   // A keypress while the greeting is still playing, then one after it.
