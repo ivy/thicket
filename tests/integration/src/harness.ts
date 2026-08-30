@@ -43,6 +43,7 @@ export function agentEntry(name: string): AgentEntry {
     queueing: "harness",
     workspaces: {},
     channels: {},
+    phone: { enabled: false, aliases: [], resumeWindowSeconds: 86_400 },
   };
 }
 

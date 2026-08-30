@@ -6,6 +6,7 @@ export {
   RosterValidationError,
   type AgentEntry,
   type AgentHarness,
+  type AgentPhone,
   type AgentSkillEntry,
   type Roster,
 } from "./schema.js";
@@ -19,3 +20,4 @@ export {
   type CardOptions,
 } from "./card.js";
 export { cacheDir, configDir, stateDir, runtimeDir, socketPath } from "./paths.js";
+export { phoneEnabledAgents, type PhoneAgent } from "./phone.js";

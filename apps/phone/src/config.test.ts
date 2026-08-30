@@ -1,0 +1,109 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { parseRoster, phoneEnabledAgents } from "@thicket/roster";
+
+import { loadPhoneConfig, parsePhoneConfig, PhoneConfigError } from "./config.js";
+
+const complete = {
+  public_base_url: "https://phone.example.net",
+  twilio: {
+    account_sid: "AC" + "0".repeat(32),
+    auth_token: "token",
+    number: "+15550100002",
+  },
+  operator_numbers: ["+15550100001"],
+  pin: "47290138",
+  alerts: { channel: "C0BT7AFCMTR", bot_token: "xoxb-test" },
+};
+
+function refuses(document: unknown, pattern: RegExp): void {
+  assert.throws(
+    () => parsePhoneConfig(document, "phone.json"),
+    (err: unknown) => {
+      assert.ok(err instanceof PhoneConfigError);
+      assert.match(err.message, pattern);
+      return true;
+    },
+  );
+}
+
+test("a complete config parses, and the roster beside it names no number", () => {
+  const config = parsePhoneConfig(complete, "phone.json");
+  assert.equal(config.pin, "47290138");
+  assert.deepEqual(config.operator_numbers, ["+15550100001"]);
+  assert.equal(config.alerts?.channel, "C0BT7AFCMTR");
+
+  // Every number the bridge knows comes from its own file: the roster's
+  // phone section carries capability and spoken names only.
+  const roster = parseRoster(
+    JSON.stringify({
+      agents: {
+        hearth: {
+          host: "home",
+          user: "hearth",
+          description: "An agent.",
+          tag: "tag:thicket-hearth",
+          harness: { type: "claude-agent-sdk", cwd: "/home/hearth", model: "claude-opus-5" },
+          phone: { enabled: true, spokenName: "Hearth" },
+        },
+      },
+    }),
+  );
+  assert.doesNotMatch(JSON.stringify(roster), /\+\d{7,}/);
+  assert.deepEqual(
+    phoneEnabledAgents(roster).map((a) => a.name),
+    ["hearth"],
+  );
+});
+
+function without(key: keyof typeof complete): Record<string, unknown> {
+  const copy: Record<string, unknown> = { ...complete };
+  delete copy[key];
+  return copy;
+}
+
+test("refuses to start without a PIN or without an allow-list", () => {
+  refuses(without("pin"), /pin: /);
+  refuses({ ...complete, pin: "1234" }, /pin: the PIN is exactly eight digits/);
+  refuses(without("operator_numbers"), /operator_numbers: /);
+  refuses({ ...complete, operator_numbers: [] }, /operator_numbers: at least one operator number is required/);
+  refuses({ ...complete, operator_numbers: ["555-0100"] }, /operator_numbers\[0\]: must be an E\.164 number/);
+});
+
+test("a stray key is refused rather than silently ignored", () => {
+  refuses({ ...complete, operator_number: "+15550100001" }, /operator_number/);
+});
+
+test("the file must be 0600, and is read from disk as JSON", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "phone-config-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "phone.json");
+  writeFileSync(path, JSON.stringify(complete));
+
+  chmodSync(path, 0o644);
+  assert.throws(
+    () => loadPhoneConfig(path),
+    (err: unknown) => {
+      assert.ok(err instanceof PhoneConfigError);
+      assert.match(err.message, /is mode 0644; it holds the PIN and tokens and must be 0600/);
+      return true;
+    },
+  );
+
+  chmodSync(path, 0o600);
+  assert.equal(loadPhoneConfig(path).twilio.number, "+15550100002");
+
+  assert.throws(
+    () => loadPhoneConfig(join(dir, "missing.json")),
+    (err: unknown) => err instanceof PhoneConfigError && /cannot be read/.test(err.message),
+  );
+  writeFileSync(path, "{not json", { mode: 0o600 });
+  assert.throws(
+    () => loadPhoneConfig(path),
+    (err: unknown) => err instanceof PhoneConfigError && /is not JSON/.test(err.message),
+  );
+});

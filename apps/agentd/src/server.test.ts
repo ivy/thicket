@@ -42,6 +42,7 @@ const entry: AgentEntry = {
   queueing: "harness",
   workspaces: {},
   channels: {},
+  phone: { enabled: false, aliases: [], resumeWindowSeconds: 86_400 },
 };
 
 function quietLogger(): Logger {

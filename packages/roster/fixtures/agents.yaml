@@ -22,6 +22,11 @@ agents:
       sessionTtlSeconds: 300
     context: native
     queueing: harness
+    phone:
+      enabled: true
+      spokenName: Hearth
+      aliases: [home, the house]
+      resumeWindowSeconds: 3600
 
   forge:
     host: workshop
@@ -42,6 +47,9 @@ agents:
       model: claude-sonnet-5
     context: replay
     queueing: bridge
+    # Named but not enabled: the word is reserved, the phone does not reach it.
+    phone:
+      spokenName: Forge
 
   scribe:
     host: home

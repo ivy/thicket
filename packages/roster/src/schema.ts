@@ -35,6 +35,29 @@ const workspaceNameSchema = z.string().regex(WORKSPACE_NAME, {
 /** A binding key the operator writes: a readable `#name`, or an id that never drifts. */
 const CHANNEL_KEY = /^(#[a-z0-9][a-z0-9._-]*|[CG][A-Z0-9]{8,})$/;
 
+/**
+ * Whether the phone reaches this agent, and what it is called out loud.
+ * Capability only: numbers, PINs, and tokens live in the phone bridge's
+ * own 0600 config, never here — the roster is in git. Strict, so a
+ * number that wanders in is refused rather than silently kept.
+ */
+const phoneSchema = z
+  .object({
+    /** Off unless the operator says so: putting an agent on the phone is a deliberate line. */
+    enabled: z.boolean().default(false),
+    /** How Aiva says the agent's name; required once enabled. */
+    spokenName: z.string().trim().min(1).optional(),
+    /** Other things the operator might call it; unique across the roster. */
+    aliases: z.array(z.string().trim().min(1)).default([]),
+    /** How long after a call ends its session is still offered for resumption. */
+    resumeWindowSeconds: z
+      .number()
+      .int()
+      .positive()
+      .default(24 * 60 * 60),
+  })
+  .strict();
+
 const agentEntrySchema = z.object({
   host: z.string().min(1),
   user: z.string().min(1),
@@ -70,6 +93,7 @@ const agentEntrySchema = z.object({
    * what a key should look like.
    */
   channels: z.record(z.string(), workspaceNameSchema).default({}),
+  phone: phoneSchema.default({ enabled: false, aliases: [], resumeWindowSeconds: 24 * 60 * 60 }),
 });
 
 const agentNameSchema = z
@@ -85,7 +109,36 @@ const rosterSchema = z
   .superRefine((roster, ctx) => {
     const byTag = new Map<string, string>();
     const byHostUser = new Map<string, string>();
+    const bySpokenHandle = new Map<string, string>();
     for (const [name, entry] of Object.entries(roster.agents)) {
+      if (entry.phone.enabled && entry.phone.spokenName === undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["agents", name, "phone", "spokenName"],
+          message: "a phone-enabled agent needs a spokenName",
+        });
+      }
+      // Spoken names and aliases share one namespace: the operator says a
+      // word and exactly one agent may answer to it.
+      const handles: Array<[string, PropertyKey[]]> = [];
+      if (entry.phone.spokenName !== undefined) {
+        handles.push([entry.phone.spokenName, ["agents", name, "phone", "spokenName"]]);
+      }
+      entry.phone.aliases.forEach((alias, i) => handles.push([alias, ["agents", name, "phone", "aliases", i]]));
+      for (const [handle, path] of handles) {
+        const key = handle.toLowerCase();
+        const owner = bySpokenHandle.get(key);
+        if (owner !== undefined && owner !== name) {
+          ctx.addIssue({
+            code: "custom",
+            path,
+            message: `duplicate spoken name "${handle}" (also used by agents.${owner})`,
+          });
+        } else {
+          bySpokenHandle.set(key, name);
+        }
+      }
+
       const tagOwner = byTag.get(entry.tag);
       if (tagOwner !== undefined) {
         ctx.addIssue({
@@ -138,6 +191,7 @@ const rosterSchema = z
     }
   });
 
+export type AgentPhone = z.infer<typeof phoneSchema>;
 export type AgentSkillEntry = z.infer<typeof skillSchema>;
 export type AgentHarness = z.infer<typeof harnessSchema>;
 export type AgentEntry = z.infer<typeof agentEntrySchema>;

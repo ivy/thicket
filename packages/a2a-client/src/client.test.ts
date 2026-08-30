@@ -108,6 +108,7 @@ const entry: AgentEntry = {
   queueing: "harness",
   workspaces: {},
   channels: {},
+  phone: { enabled: false, aliases: [], resumeWindowSeconds: 86_400 },
 };
 
 async function startAgent(): Promise<{ url: string; executor: ScriptedExecutor; server: Server }> {
