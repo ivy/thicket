@@ -3,10 +3,10 @@ import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 
 import { WebClient } from "@slack/web-api";
+import { RemoteAgentClient } from "@thicket/a2a-client";
 import { agentUrl, configDir, parseRoster, socketPath, stateDir } from "@thicket/roster";
 
 import { BridgeEngine, type EngineLogger } from "./engine.js";
-import { RemoteAgentClient } from "./a2a-client.js";
 import { buildFileServer } from "./http.js";
 import { WebSlackApi } from "./slack-api.js";
 import { SlackSocketConnection } from "./socket.js";

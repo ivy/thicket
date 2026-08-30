@@ -66,6 +66,9 @@ importers:
       '@slack/web-api':
         specifier: ^7.19.0
         version: 7.19.0
+      '@thicket/a2a-client':
+        specifier: workspace:*
+        version: link:../../packages/a2a-client
       '@thicket/executor':
         specifier: workspace:*
         version: link:../../packages/executor
@@ -113,6 +116,31 @@ importers:
       '@types/node':
         specifier: ^22.17.0
         version: 22.20.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  packages/a2a-client:
+    dependencies:
+      '@a2a-js/sdk':
+        specifier: ^1.1.0
+        version: 1.1.0(express@5.2.1)
+      '@thicket/executor':
+        specifier: workspace:*
+        version: link:../executor
+    devDependencies:
+      '@thicket/roster':
+        specifier: workspace:*
+        version: link:../roster
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
+      '@types/node':
+        specifier: ^22.17.0
+        version: 22.20.1
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -173,6 +201,9 @@ importers:
       '@a2a-js/sdk':
         specifier: ^1.1.0
         version: 1.1.0(express@5.2.1)
+      '@thicket/a2a-client':
+        specifier: workspace:*
+        version: link:../../packages/a2a-client
       '@thicket/agentd':
         specifier: workspace:*
         version: link:../../apps/agentd

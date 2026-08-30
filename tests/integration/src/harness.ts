@@ -11,10 +11,10 @@ import type {
 } from "@anthropic-ai/claude-agent-sdk";
 import { DefaultRequestHandler } from "@a2a-js/sdk/server";
 import { buildServer, SqliteTaskStore, type Logger } from "@thicket/agentd";
+import { RemoteAgentClient } from "@thicket/a2a-client";
 import {
   BridgeEngine,
   BridgeState,
-  RemoteAgentClient,
   type AgentActivity,
   type SlackApi,
   type SlackSessionStatus,

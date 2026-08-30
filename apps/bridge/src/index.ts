@@ -10,7 +10,6 @@ export {
   renderAnsweredBlocks,
   renderQuestionBlocks,
 } from "./questions.js";
-export { RemoteAgentClient, toA2AEvent } from "./a2a-client.js";
 export { WebSlackApi } from "./slack-api.js";
 export { SlackSocketConnection } from "./socket.js";
 export {

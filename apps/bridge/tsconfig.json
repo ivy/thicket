@@ -13,6 +13,9 @@
     },
     {
       "path": "../../packages/executor"
+    },
+    {
+      "path": "../../packages/a2a-client"
     }
   ]
 }

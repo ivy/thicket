@@ -16,7 +16,7 @@ function artifactText(parts: { content?: { $case: string; value: unknown } }[]):
     .join("");
 }
 
-/** Maps SDK stream responses onto the bridge's transport-free event type. */
+/** Maps SDK stream responses onto the transport-free event type. */
 export function toA2AEvent(response: StreamResponse): A2AEvent | undefined {
   const payload = response.payload;
   if (payload === undefined) {
