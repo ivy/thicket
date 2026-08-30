@@ -43,3 +43,26 @@ test("sessions round-trip through the state port, and the file is owner-only", (
   assert.equal(again.sessionFor("hearth")?.openTaskId, "t9");
   again.close();
 });
+
+test("failed calls within the window lock the number for the cooldown, then it clears", () => {
+  const registry = new CallRegistry(":memory:");
+  const policy = { failedCalls: 3, windowSeconds: 3600, cooldownSeconds: 1800 };
+  const t0 = Date.parse("2026-08-30T10:00:00Z");
+  const number = "+15550100001";
+  assert.equal(registry.lockedUntil(number, t0), undefined);
+  assert.equal(registry.recordFailedCall(number, t0, policy), undefined);
+  assert.equal(registry.recordFailedCall(number, t0 + 60_000, policy), undefined);
+  assert.equal(registry.lockedUntil(number, t0 + 60_000), undefined, "two failures are not a lockout");
+  const until = registry.recordFailedCall(number, t0 + 120_000, policy);
+  assert.equal(until, t0 + 120_000 + 1_800_000, "the third locks for the cooldown");
+  assert.equal(registry.lockedUntil(number, t0 + 120_000), until);
+  assert.equal(registry.lockedUntil(number, until! + 1), undefined, "and it clears when the cooldown ends");
+  assert.equal(registry.lockedUntil("+15550100009", t0 + 120_000), undefined, "other numbers are untouched");
+
+  // Failures older than the window do not count.
+  const later = until! + 10_000;
+  assert.equal(registry.recordFailedCall(number, later, policy), undefined);
+  assert.equal(registry.recordFailedCall(number, later + 3_700_000, policy), undefined, "the first has aged out");
+  assert.equal(registry.recordFailedCall(number, later + 3_710_000, policy), undefined);
+  assert.notEqual(registry.recordFailedCall(number, later + 3_720_000, policy), undefined, "three within an hour lock again");
+});

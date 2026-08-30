@@ -36,6 +36,8 @@ test("a complete config parses, and the roster beside it names no number", () =>
   assert.equal(config.pin, "47290138");
   assert.deepEqual(config.operator_numbers, ["+15550100001"]);
   assert.equal(config.alerts?.channel, "C0BT7AFCMTR");
+  assert.deepEqual(config.lockout, { failed_calls: 5, window_seconds: 3600, cooldown_seconds: 3600 }, "the lockout defaults");
+  assert.equal(parsePhoneConfig({ ...complete, lockout: { failed_calls: 2 } }, "phone.json").lockout.cooldown_seconds, 3600);
 
   // Every number the bridge knows comes from its own file: the roster's
   // phone section carries capability and spoken names only.

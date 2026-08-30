@@ -43,6 +43,18 @@ const phoneConfigSchema = z
     operator_numbers: z.array(e164).min(1, { message: "at least one operator number is required" }),
     /** Eight digits, compared in constant time by the bridge, never logged. */
     pin: z.string().regex(/^\d{8}$/, { message: "the PIN is exactly eight digits" }),
+    /**
+     * A number that fails the PIN on this many calls within the window is
+     * refused for the cooldown, before the PIN is even offered.
+     */
+    lockout: z
+      .object({
+        failed_calls: z.number().int().min(1).default(5),
+        window_seconds: z.number().int().positive().default(3600),
+        cooldown_seconds: z.number().int().positive().default(3600),
+      })
+      .strict()
+      .default({ failed_calls: 5, window_seconds: 3600, cooldown_seconds: 3600 }),
     /** The security-alerts channel and a bot token that may post there. */
     alerts: z
       .object({

@@ -24,8 +24,9 @@ export interface RelayPort {
 
 /** The oversight surface. Best-effort: a failed post never affects the call. */
 export type PhoneAlert =
-  | { kind: "caller_rejected"; callSid: string; from: string }
+  | { kind: "caller_rejected"; callSid: string; from: string; reason: "unlisted" | "locked"; untilMs?: number }
   | { kind: "auth_failed"; callSid: string; from: string; attempt: number; final: boolean }
+  | { kind: "locked_out"; callSid: string; from: string; untilMs: number }
   | { kind: "session_started"; callSid: string; agent: string; contextId: string; resumed: boolean }
   | { kind: "session_ended"; callSid: string; agent: string; durationMs: number };
 
@@ -35,6 +36,14 @@ export interface AlertPort {
 
 export interface Clock {
   now(): number;
+}
+
+/** Failed calls per number, remembered across calls and restarts by the registry. */
+export interface LockoutPort {
+  /** When the number's lockout ends, if it is under one. */
+  lockedUntil(from: string): number | undefined;
+  /** A call ran out of attempts; returns when the lockout ends if this one locked the number. */
+  failedCall(from: string): number | undefined;
 }
 
 /** Deferred work, injectable so tests can fire it by hand. Returns a cancel. */
@@ -58,6 +67,7 @@ export interface CallEngineOptions {
   verifyPin(digits: string): boolean;
   /** The allow-list pre-filter. Never authority: the PIN is. */
   callerAllowed(from: string): boolean;
+  lockout?: LockoutPort;
   maxPinAttempts?: number;
   /** How long after the last key a batch of digits is sent as one message. */
   dtmfBatchMs?: number;
@@ -151,6 +161,7 @@ export class CallEngine {
   private readonly alerts: AlertPort;
   private readonly verifyPin: (digits: string) => boolean;
   private readonly callerAllowed: (from: string) => boolean;
+  private readonly lockout: LockoutPort | undefined;
   private readonly maxPinAttempts: number;
   private readonly dtmfBatchMs: number;
   private readonly clock: Clock;
@@ -165,6 +176,7 @@ export class CallEngine {
     this.alerts = options.alerts;
     this.verifyPin = options.verifyPin;
     this.callerAllowed = options.callerAllowed;
+    this.lockout = options.lockout;
     this.maxPinAttempts = options.maxPinAttempts ?? 3;
     this.dtmfBatchMs = options.dtmfBatchMs ?? 1500;
     this.clock = options.clock ?? { now: () => Date.now() };
@@ -252,9 +264,17 @@ export class CallEngine {
     };
     if (!this.callerAllowed(event.from)) {
       // Not a word: an unknown caller learns nothing about what answered.
-      await this.alert({ kind: "caller_rejected", callSid: event.callSid, from: event.from });
+      await this.alert({ kind: "caller_rejected", callSid: event.callSid, from: event.from, reason: "unlisted" });
       this.state = "ending";
       await this.relay.send(endSession("rejected"));
+      return;
+    }
+    const untilMs = this.lockout?.lockedUntil(event.from);
+    if (untilMs !== undefined) {
+      // A listed number that keeps failing is treated like a stranger until the cooldown ends.
+      await this.alert({ kind: "caller_rejected", callSid: event.callSid, from: event.from, reason: "locked", untilMs });
+      this.state = "ending";
+      await this.relay.send(endSession("locked-out"));
       return;
     }
     this.state = "authenticating";
@@ -285,6 +305,10 @@ export class CallEngine {
     await this.alert({ kind: "auth_failed", callSid: call.callSid, from: call.from, attempt: this.pinAttempts, final });
     if (final) {
       this.state = "ending";
+      const lockedUntil = this.lockout?.failedCall(call.from);
+      if (lockedUntil !== undefined) {
+        await this.alert({ kind: "locked_out", callSid: call.callSid, from: call.from, untilMs: lockedUntil });
+      }
       await this.speak("That's not it. Goodbye.");
       await this.relay.send(endSession("auth-failed"));
       return;

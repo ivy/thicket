@@ -98,6 +98,15 @@ export async function run(
         alerts: engineAlerts,
         verifyPin: pinVerifier(config.pin),
         callerAllowed: (from) => allowed.has(from),
+        lockout: {
+          lockedUntil: (from) => registry.lockedUntil(from, Date.now()),
+          failedCall: (from) =>
+            registry.recordFailedCall(from, Date.now(), {
+              failedCalls: config.lockout.failed_calls,
+              windowSeconds: config.lockout.window_seconds,
+              cooldownSeconds: config.lockout.cooldown_seconds,
+            }),
+        },
         logger,
       }),
   });

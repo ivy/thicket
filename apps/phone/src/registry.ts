@@ -4,6 +4,12 @@ import { dirname } from "node:path";
 
 import type { PhoneSession, PhoneStatePort } from "./state.js";
 
+export interface LockoutPolicy {
+  failedCalls: number;
+  windowSeconds: number;
+  cooldownSeconds: number;
+}
+
 /** One call as the bridge remembers it: enough to route a wrap-up after a restart. */
 export interface CallRecord {
   callSid: string;
@@ -46,6 +52,15 @@ export class CallRegistry implements PhoneStatePort {
         context_id  TEXT,
         ended_ms    INTEGER,
         end_reason  TEXT
+      );
+      CREATE TABLE IF NOT EXISTS auth_failures (
+        number TEXT NOT NULL,
+        at_ms  INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_auth_failures ON auth_failures (number, at_ms);
+      CREATE TABLE IF NOT EXISTS lockouts (
+        number   TEXT PRIMARY KEY,
+        until_ms INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS sessions (
         agent          TEXT PRIMARY KEY,
@@ -94,6 +109,34 @@ export class CallRegistry implements PhoneStatePort {
       unknown
     >[];
     return rows.map(toRecord);
+  }
+
+  /** When a number's lockout ends, if it is under one now. */
+  lockedUntil(number: string, nowMs: number): number | undefined {
+    const row = this.db.prepare("SELECT until_ms FROM lockouts WHERE number = ? AND until_ms > ?").get(number, nowMs) as
+      | { until_ms: number }
+      | undefined;
+    return row?.until_ms;
+  }
+
+  /**
+   * A call from this number ran out of PIN attempts. Counted against the
+   * window; at the limit the number is locked for the cooldown and the
+   * moment that ends is returned. Old failures are pruned as they age out.
+   */
+  recordFailedCall(number: string, nowMs: number, policy: LockoutPolicy): number | undefined {
+    this.db.prepare("DELETE FROM auth_failures WHERE at_ms < ?").run(nowMs - policy.windowSeconds * 1000);
+    this.db.prepare("INSERT INTO auth_failures (number, at_ms) VALUES (?, ?)").run(number, nowMs);
+    const { n } = this.db.prepare("SELECT COUNT(*) AS n FROM auth_failures WHERE number = ?").get(number) as { n: number };
+    if (n < policy.failedCalls) {
+      return undefined;
+    }
+    const until = nowMs + policy.cooldownSeconds * 1000;
+    this.db
+      .prepare("INSERT INTO lockouts (number, until_ms) VALUES (?, ?) ON CONFLICT(number) DO UPDATE SET until_ms = excluded.until_ms")
+      .run(number, until);
+    this.db.prepare("DELETE FROM auth_failures WHERE number = ?").run(number);
+    return until;
   }
 
   sessionFor(agent: string): PhoneSession | undefined {

@@ -113,7 +113,27 @@ class ManualScheduler implements Scheduler {
   }
 }
 
-function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttempts?: number } = {}) {
+/** A lockout port with the registry's arithmetic in miniature: N final failures lock for an hour. */
+class FakeLockout {
+  failures = new Map<string, number>();
+  locked = new Map<string, number>();
+  constructor(private readonly limit: number, private readonly clock: () => number) {}
+  lockedUntil(from: string): number | undefined {
+    const until = this.locked.get(from);
+    return until !== undefined && until > this.clock() ? until : undefined;
+  }
+  failedCall(from: string): number | undefined {
+    const n = (this.failures.get(from) ?? 0) + 1;
+    this.failures.set(from, n);
+    if (n < this.limit) return undefined;
+    const until = this.clock() + 3_600_000;
+    this.locked.set(from, until);
+    this.failures.delete(from);
+    return until;
+  }
+}
+
+function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttempts?: number; lockout?: FakeLockout } = {}) {
   const client = new ScriptedClient();
   const commands: RelayCommand[] = [];
   const alerts: PhoneAlert[] = [];
@@ -128,6 +148,7 @@ function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttemp
     alerts: { post: (a) => void alerts.push(a) },
     verifyPin: (digits) => digits === PIN,
     callerAllowed: (from) => from === "+15550100001",
+    lockout: options.lockout,
     maxPinAttempts: options.maxPinAttempts,
     clock: { now: () => now },
     scheduler,
@@ -221,12 +242,65 @@ test("nothing reaches the agent before connected: a wrong PIN ends the call, spe
   assert.equal(h.client.cancels.length, 0);
 });
 
+test("a number that keeps failing is locked out: refused before the PIN, with the alert saying so", async () => {
+  const now = Date.parse("2026-08-30T10:00:00Z");
+  const lockout = new FakeLockout(2, () => now);
+  const wrong = "11111111".split("").map((digit): CallEvent => ({ kind: "key", digit }));
+
+  // Two calls that each burn their three attempts.
+  for (const round of [1, 2]) {
+    const h = harness({ lockout, now });
+    await h.engine.handle(DIAL_IN[0]!);
+    await h.feed(wrong);
+    await h.feed(wrong);
+    await h.feed(wrong);
+    assert.equal(h.engine.state, "ending");
+    const kinds = h.alerts.map((a) => a.kind);
+    if (round === 1) {
+      assert.deepEqual(kinds, ["auth_failed", "auth_failed", "auth_failed"]);
+    } else {
+      assert.deepEqual(kinds, ["auth_failed", "auth_failed", "auth_failed", "locked_out"]);
+      const locked = h.alerts.at(-1);
+      assert.ok(locked?.kind === "locked_out" && locked.untilMs === now + 3_600_000);
+    }
+  }
+
+  // The third call is refused before a digit is read, and says why.
+  const third = harness({ lockout, now: now + 60_000 });
+  await third.engine.handle(DIAL_IN[0]!);
+  assert.equal(third.engine.state, "ending");
+  assert.deepEqual(third.commands, [{ type: "end", handoffData: "locked-out" }]);
+  const rejected = third.alerts[0];
+  assert.ok(rejected?.kind === "caller_rejected" && rejected.reason === "locked" && rejected.untilMs === now + 3_600_000);
+  await third.feed(DIAL_IN.slice(1));
+  assert.equal(third.texts().length, 0, "keys after the refusal do nothing");
+
+  // After the cooldown, the number is a listed caller again.
+  const afterCooldown = new FakeLockout(2, () => now + 3_600_001);
+  afterCooldown.locked = new Map(lockout.locked);
+  const later = harness({ lockout: afterCooldown, now: now + 3_600_001 });
+  await later.feed(DIAL_IN);
+  assert.equal(later.engine.state, "choosing");
+});
+
+test("the PIN is in no alert, command, or agent message — only the digits' count ever leaves the engine", async () => {
+  const h = harness();
+  await connectedTo(h);
+  const ctx = phoneSessionId("hearth", CALL_SID);
+  h.client.script([task("t1", ctx), chunk("t1", "Sure."), done("t1", ctx)]);
+  await h.engine.handle(h.speech("what did I just key in"));
+  await h.engine.idle();
+  const everything = JSON.stringify({ alerts: h.alerts, commands: h.commands, messages: h.client.streamed, warnings: h.warnings });
+  assert.doesNotMatch(everything, new RegExp(PIN));
+  assert.doesNotMatch(everything, /4 ?7 ?2 ?9 ?0 ?1 ?3 ?8/);
+});
+
 test("an unlisted caller is dropped without a word", async () => {
   const h = harness();
   await h.engine.handle({ ...(DIAL_IN[0] as Extract<CallEvent, { kind: "setup" }>), from: "+15550100009" });
   assert.equal(h.engine.state, "ending");
   assert.deepEqual(h.commands, [{ type: "end", handoffData: "rejected" }]);
-  assert.equal(h.alerts[0]?.kind, "caller_rejected");
+  assert.ok(h.alerts[0]?.kind === "caller_rejected" && h.alerts[0].reason === "unlisted");
 });
 
 test("an interrupt mid-turn cancels the task, forwards nothing more, and the next prompt is a new task in the same context", async () => {

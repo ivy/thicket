@@ -57,8 +57,10 @@ A deterministic state machine runs before any agent hears a word:
    alert is posted. The PIN arrives as DTMF — normally the post-dial digits of the
    operator's saved contact (`<number>,<pin>#`), so the phone keys it in the moment the
    call connects; the keypad works the same way by hand. Three attempts, then the call
-   ends; repeated failures from one number lock it out for a while. The digits are never
-   logged, journaled, or forwarded, and speech before authentication is discarded.
+   ends; a number that runs out of attempts on five calls within an hour is refused for
+   an hour before the PIN is even offered (the bridge's config sets all three numbers).
+   The digits are never logged, journaled, or forwarded, and speech before
+   authentication is discarded.
 2. **greeting** — Aiva says hello, briefly; the operator already knows who they called.
 3. **choosing** — Aiva names the phone-enabled agents; the operator names one; if a
    recent session with it exists, resume or start fresh. On resume, what the agent did
