@@ -131,7 +131,13 @@ socket).
 **Placing a call.** Save the number in your phone as `<number>,<pin>` and
 dial it: the comma is a two-second pause, the digits are the PIN as DTMF,
 and the call opens in silence until they are accepted — then Aiva says
-hello and names the agents. (A trailing `#` is redundant — the PIN is
+hello and names the agents. In the order a real transcript has it (#53):
+a few seconds of silence while the digits go in; "Hi, it's Aiva. Shall I
+connect you to Hearth?"; name the agent — a near-miss gets "Did you say
+Hearth?", a recent session gets "You were talking to Hearth N minutes
+ago. Resume or start fresh?"; then "Connected to Hearth.", and the line
+is the agent's — answers begin ~1.5 s after you stop talking on a warm
+session. "Goodbye" is answered in kind and the call ends. (A trailing `#` is redundant — the PIN is
 exactly eight digits — and harmless: the ninth keypress purges the hello
 at Twilio, and the engine re-asks, #54.) The bridge log shows the whole
 thing, shape only:
