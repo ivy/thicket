@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { RemoteAgentClient, type AgentClient } from "@thicket/a2a-client";
 import { agentUrl, configDir, parseRoster, phoneEnabledAgents, socketPath, stateDir } from "@thicket/roster";
 
+import { maskNumber, SlackAlertPoster } from "./alerts.js";
 import { loadPhoneConfig } from "./config.js";
 import { CallEngine, type AlertPort, type EngineLogger } from "./engine.js";
 import { CallRegistry } from "./registry.js";
@@ -18,11 +19,6 @@ function jsonLogger(): EngineLogger {
     info: (msg, fields) => write("info", msg, fields),
     warn: (msg, fields) => write("warn", msg, fields),
   };
-}
-
-/** A number as it may appear in a log or an alert: country code and the last two digits. */
-export function maskNumber(number: string): string {
-  return number.length < 6 ? "…" : `${number.slice(0, 2)}…${number.slice(-2)}`;
 }
 
 /** Constant-time PIN compare; the entered digits are never kept or logged. */
@@ -67,13 +63,31 @@ export async function run(
     );
   }
 
-  // Until the Slack poster exists (the alerts issue), every alert is a log line.
-  const alerts: AlertPort = {
+  // Every alert is a log line (numbers masked); with a channel configured it is a Slack message too.
+  const logAlert: AlertPort = {
     post: (alert) =>
       logger.info("alert", {
         ...alert,
         ...("from" in alert ? { from: maskNumber(alert.from) } : {}),
       }),
+  };
+  const poster =
+    config.alerts === undefined
+      ? undefined
+      : new SlackAlertPoster({
+          channel: config.alerts.channel,
+          botToken: config.alerts.bot_token,
+          showNumbers: config.alerts.show_numbers,
+          logger,
+        });
+  if (poster === undefined) {
+    logger.warn("alerts: no channel configured; alerts are log lines only");
+  }
+  const alerts: AlertPort = {
+    post: async (alert) => {
+      await logAlert.post(alert);
+      await poster?.post(alert);
+    },
   };
 
   const allowed = new Set(config.operator_numbers);

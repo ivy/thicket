@@ -60,6 +60,8 @@ const phoneConfigSchema = z
       .object({
         channel: z.string().regex(/^[CG][A-Z0-9]{8,}$/, { message: "must be a channel id (C…/G…)" }),
         bot_token: z.string().min(1),
+        /** Caller numbers in full instead of masked to the last four digits. */
+        show_numbers: z.boolean().default(false),
       })
       .strict()
       .optional(),

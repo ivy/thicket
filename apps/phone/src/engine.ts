@@ -28,7 +28,10 @@ export type PhoneAlert =
   | { kind: "auth_failed"; callSid: string; from: string; attempt: number; final: boolean }
   | { kind: "locked_out"; callSid: string; from: string; untilMs: number }
   | { kind: "session_started"; callSid: string; agent: string; contextId: string; resumed: boolean }
-  | { kind: "session_ended"; callSid: string; agent: string; durationMs: number };
+  | { kind: "session_ended"; callSid: string; agent: string; durationMs: number; reason: SessionEnd };
+
+/** How a session came to an end. */
+export type SessionEnd = "goodbye" | "switched" | "dropped";
 
 export interface AlertPort {
   post(alert: PhoneAlert): void | Promise<void>;
@@ -220,8 +223,8 @@ export class CallEngine {
     }
   }
 
-  /** The caller hung up, or the socket went away: close the books, keep the session. */
-  async hangup(): Promise<void> {
+  /** The call is over — by goodbye, by switching agent, or because the socket went away: close the books, keep the session. */
+  async hangup(reason: SessionEnd = "dropped"): Promise<void> {
     if (this.state === "ending") {
       return;
     }
@@ -247,6 +250,7 @@ export class CallEngine {
         callSid: call.callSid,
         agent: connected.agent.name,
         durationMs: now - connected.startedAt,
+        reason,
       });
     }
     this.connected = undefined;
@@ -428,11 +432,11 @@ export class CallEngine {
     if (/^(goodbye|bye|hang up|that s all|that is all)$/.test(said)) {
       await this.speak("Goodbye.");
       await this.relay.send(endSession("goodbye"));
-      await this.hangup();
+      await this.hangup("goodbye");
       return;
     }
     if (/^(switch|change) agents?$/.test(said)) {
-      await this.hangup();
+      await this.hangup("switched");
       this.state = "choosing";
       await this.speak(this.offer());
       return;
