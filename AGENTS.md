@@ -96,6 +96,8 @@ Two traps worth knowing:
   label means the operator must act before that one can move.
 - [docs/reference.md](docs/reference.md) — runtime topology, conventions, and hard-won
   external facts (Slack API quirks, A2A semantics).
+- [docs/phone-bridge.md](docs/phone-bridge.md) — the phone bridge design the `M0`–`M3`
+  milestones assume: the operator console, its PIN gate, identity, the call, and the vendor facts.
 - [docs/live-testing.md](docs/live-testing.md) — the local rig, the two Slack MCP
   servers, and what still needs a human. **Read before any live check.**
 - [docs/runbook.md](docs/runbook.md) — what to do when an agent stops responding, a

@@ -10,8 +10,17 @@ every time — never from memory.** They are the state; your recollection is not
 
 ## 1. Orient
 
-- `gh issue list --state open --json number,title,labels,assignees`
+- The board is the queue: https://github.com/users/ivy/projects/42 — only its **Ready** column.
+
+  ```sh
+  gh project item-list 42 --owner ivy --format json --jq '.items[] | select(.status == "Ready 🤖" or .status == "In Progress 🚧") | "\(.status)\t#\(.content.number)\t\(.milestone.title // "-")\t\(.assignees | join(","))\t\(.title)"'
+  ```
+
+  Milestones are arcs in order (`M0`, `M1`, …); the operator moves issues into Ready, never
+  the loop. An issue that is open but not in Ready is not yours, however tempting.
 - Read `docs/reference.md` — runtime topology, conventions, and verified external facts.
+- If the issue sits in a phone milestone (`M0`–`M5`), read `docs/phone-bridge.md` — the
+  design every phone issue assumes, and the vendor facts M0 is meant to verify.
 - `git log --oneline -15`
 - `git status`
 
@@ -21,9 +30,9 @@ In this order:
 
 1. If any open issue is **assigned to you**, that is your issue — resume it. Do not
    start another.
-2. Otherwise take the lowest-numbered open issue that is **not** labelled `blocked` and
-   whose every `Depends on #N` is closed.
-3. If neither exists, go to **§8 Completion**.
+2. Otherwise take the **Ready** item that is not labelled `blocked` and whose every
+   `Depends on #N` is closed — lowest milestone first, then lowest issue number.
+3. If Ready holds nothing you can take, go to **§8 Completion**.
 
 Never work two issues in one iteration.
 
@@ -31,6 +40,9 @@ Never work two issues in one iteration.
 
 ```sh
 gh issue edit NNN --add-assignee @me
+item=$(gh project item-list 42 --owner ivy --format json --jq '.items[] | select(.content.number == NNN) | .id')
+gh project item-edit --project-id PVT_kwHOADgWUM4Bh47V --id "$item" \
+  --field-id PVTSSF_lAHOADgWUM4Bh47Vzhgy8nY --single-select-option-id dacd8d8c   # In Progress 🚧
 ```
 
 The assignment is the claim, and it is durable — if the iteration dies, the next one
@@ -51,6 +63,9 @@ been sitting a while.
   gh issue edit NNN --body-file /tmp/body.md
   ```
 
+- Some boxes can only be observed by a person — placing a call, tapping a button,
+  listening to what was said. Do everything else first, commit it, then treat that box
+  as §6: say precisely what the operator should do and what they should see.
 - Only check a box when you have actually observed the behaviour. A passing test you
   ran, output you read. Not "this should work." Say in the box what you observed, the
   way the existing criteria do.
@@ -76,7 +91,9 @@ Closes #8.
 ```
 
 `Closes #N` on a commit that reaches `main` closes the issue for you. If the work landed
-without that trailer, close it by hand with a comment saying what shipped.
+without that trailer, close it by hand with a comment saying what shipped. A closed issue
+moves itself to **Done ✅** on the board; if it has not within a minute, set it:
+`--single-select-option-id 8ee47ba7`.
 
 - Commit locally as you go. **Pushing `main` to `origin` is allowed when an acceptance
   criterion needs it** — CI observed on GitHub — and only then; push what is landed,
@@ -94,7 +111,8 @@ Only for a genuine external blocker — a missing credential, an upstream API th
 differently than the issue assumes, a decision only the operator can make. **Difficulty
 is not a blocker.** Try properly first.
 
-- `gh issue edit NNN --add-label blocked`
+- `gh issue edit NNN --add-label blocked`, and move the board item back to **Planning 🧠**
+  (`--single-select-option-id 6d145703`) so Ready stays an honest queue
 - Append a `## Blocked` section to the issue body stating precisely what is needed to
   unblock it, what you already tried, and which criteria you finished anyway.
 - Unassign yourself so the next iteration does not resume it.
@@ -128,7 +146,8 @@ selection rule in §2.
 
 ## 8. Completion
 
-When every open issue is either labelled `blocked` or waiting on an open dependency:
+When the Ready column is empty, or everything in it is labelled `blocked` or waiting on an
+open dependency:
 
 - Summarize what closed this run and what is blocked, with the reason for each blocker.
 - Then output exactly:
@@ -151,7 +170,7 @@ end on its own terms.
 - Never remove the `blocked` label — only the operator clears a blocker.
 - Push only `main` to `origin`, only when a criterion needs it. Never force-push, never
   open a PR, never modify git remotes.
-- Never commit `.claude/ralph-loop.local.md`.
+- Never commit `.claude/ralph-loop.local.md`, `.env`, or any credential file.
 - Never edit `PROMPT.md`.
 - If an issue's specification turns out to be **wrong** — an API does not work as it
   claims, an acceptance criterion is impossible — edit the issue body, explain the change
