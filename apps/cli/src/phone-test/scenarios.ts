@@ -285,7 +285,9 @@ export const SCENARIOS: Scenario[] = [
       for (let i = 0; i < 20; i++) {
         const a = 2 + (i % 5);
         const b = 3 + ((i * 2) % 7);
-        await context.leg.say(`What is ${NUMBER_WORDS[a]} plus ${NUMBER_WORDS[b]}? Just the number.`);
+        // One sentence, one breath: a second sentence can finalize as its
+        // own utterance and barge in on the answer to the first (#50).
+        await context.leg.say(`What is ${NUMBER_WORDS[a]} plus ${NUMBER_WORDS[b]}?`);
         const answer = await context.leg.awaitReply({ timeoutMs: 60_000 });
         expectAnyWords(answer.text, [[NUMBER_WORDS[a + b] ?? String(a + b)], [String(a + b)]]);
         if (answer.sinceSaidMs !== undefined) {

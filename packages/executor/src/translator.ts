@@ -632,10 +632,23 @@ export class TurnTranslator {
     if (userMessageUuid !== undefined) {
       send = this.pending.find((candidate) => candidate.uuid === userMessageUuid);
       if (send === undefined) {
+        // A turn for a message this translator never registered. That is
+        // not hypothetical: a context-only send (the warm-up) writes a
+        // real user message with no registered send, the CLI can run a
+        // turn for it, and it can fold a registered send's message into
+        // that turn. Refusing to bind left the waiting send a dead line —
+        // every frame ignored, the phone gone silent mid-drive (#56). The
+        // oldest waiting send owns the turn instead: its message is in
+        // there, folded or queued, and a slightly mis-attributed answer
+        // beats a task that never resolves. With nothing waiting there is
+        // nothing to translate, and nothing that can hang.
+        send = this.pending[0];
+        if (send === undefined) {
+          return;
+        }
         this.onWarning(
-          `turn bound to unknown user_message_uuid ${userMessageUuid}; ignoring frames until a known turn starts`,
+          `turn bound to unknown user_message_uuid ${userMessageUuid}; attributed to the oldest waiting send ${send.messageId}`,
         );
-        return;
       }
     } else {
       // Older producers omit the stamp entirely; fall back to FIFO order.

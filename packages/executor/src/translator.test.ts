@@ -394,6 +394,51 @@ test("a send racing the queue census is not mis-folded; its turn still answers",
   assert.deepEqual(h.warnings, [], "no dropped frames");
 });
 
+test("a turn stamped with a uuid nobody registered still answers the oldest waiting send (#56)", () => {
+  // Live-observed on the phone's twenty-turn scenario: the warm-up writes a
+  // real user message with no registered send, the CLI runs a turn for it
+  // and folds the next real message into that turn — whose frames the
+  // translator then refused to bind, leaving the real send a dead line.
+  const h = harness();
+  h.translator.registerSend(send("send-q", 1));
+
+  const frames = loadFixture("plain-turn").map((frame) =>
+    "user_message_uuid" in frame && frame.user_message_uuid !== undefined
+      ? { ...frame, user_message_uuid: "minted-by-the-sdk" }
+      : frame,
+  ) as SDKMessage[];
+  run(h, frames);
+
+  const tasks = h.events.filter((e) => e.kind === "task" && e.data.id === "task-1");
+  assert.equal(tasks.length, 1, "the waiting send's task was announced");
+  const terminals = h.events.filter(
+    (e) =>
+      e.kind === "statusUpdate" &&
+      e.data.taskId === "task-1" &&
+      e.data.status?.state === TaskState.TASK_STATE_COMPLETED,
+  );
+  assert.equal(terminals.length, 1, "the waiting send reached terminal instead of hanging");
+  assert.ok(
+    h.warnings.some((w) => /attributed to the oldest waiting send a2a-msg-1/.test(w)),
+    `the anomaly is still recorded: ${JSON.stringify(h.warnings)}`,
+  );
+  assert.ok(
+    !h.warnings.some((w) => /ignoring frames/.test(w)),
+    "no frames were ignored",
+  );
+});
+
+test("an unknown-uuid turn with nothing waiting is ignored without a crash", () => {
+  const h = harness();
+  const frames = loadFixture("plain-turn").map((frame) =>
+    "user_message_uuid" in frame && frame.user_message_uuid !== undefined
+      ? { ...frame, user_message_uuid: "minted-by-the-sdk" }
+      : frame,
+  ) as SDKMessage[];
+  run(h, frames);
+  assert.equal(h.events.filter((e) => e.kind === "task").length, 0, "nothing to translate, nothing published");
+});
+
 // -------------------------------------------------------------- accounting
 
 import type { TurnAccounting } from "./translator.js";
