@@ -14,18 +14,24 @@ import type { AgentExecutionEvent, ExecutionEventBus, RequestContext } from "@a2
 import { ServerCallContext } from "@a2a-js/sdk/server";
 
 import { AttachmentStore, META_FILE_SIZE } from "./attachments.js";
-import { ClaudeAgentExecutor, threadPreamble } from "./executor.js";
+import { ClaudeAgentExecutor, phonePreamble, threadPreamble } from "./executor.js";
 import { UnknownWorkspaceError } from "./session-manager.js";
 import {
   META_CANCELLED,
   META_CONTEXT_ONLY,
+  META_PHONE_CALL,
+  META_PHONE_DIRECTION,
+  META_PHONE_FROM,
+  META_PHONE_KIND,
+  META_PHONE_SESSION_STARTED,
+  META_PHONE_TO,
   META_PRIORITY,
   META_QUEUE_STATE,
   META_SHOULD_QUERY,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
-  META_WORKSPACE,
   META_STILL_QUEUED,
+  META_WORKSPACE,
   type SessionHandle,
 } from "./types.js";
 
@@ -423,6 +429,59 @@ test("a message from Slack tells the model where it is; one from anywhere else d
     "",
     "half a location is no location",
   );
+});
+
+test("a message from a phone call tells the model it is a voice session; one without the keys does not", async () => {
+  const session = fakeSession(undefined);
+  const executor = new ClaudeAgentExecutor({
+    sessions: { sessionFor: () => session },
+    uuid: () => "uuid-1",
+    now: () => "2026-08-30T10:12:00.000Z",
+  });
+  const events: AgentExecutionEvent[] = [];
+  const phone = {
+    [META_PHONE_CALL]: "CA0000000000000000000000000000000f",
+    [META_PHONE_FROM]: "+15550100001",
+    [META_PHONE_TO]: "+15550100002",
+    [META_PHONE_DIRECTION]: "inbound",
+    [META_PHONE_KIND]: "speech",
+    [META_PHONE_SESSION_STARTED]: "2026-08-30T10:00:00.000Z",
+  };
+  const ctx = requestContext("task-1", "ctx-1", "what is the disk situation on hearth", phone);
+  const running = executor.execute(ctx, stubBus(events));
+  await untilSent(session);
+  session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
+  await running;
+
+  const prompt = String(session.sent[0]?.message.content);
+  assert.match(prompt, /voice call with the operator, who authenticated with their PIN/);
+  assert.match(prompt, /has run 12 minutes/);
+  assert.match(prompt, /read aloud/);
+  assert.ok(
+    prompt.indexOf("voice call") < prompt.indexOf("disk situation"),
+    "the call is context; the operator's words stay the instruction",
+  );
+  // Never the identifier, never a number: the bridge holds those, not the model.
+  assert.doesNotMatch(prompt, /CA0000/);
+  assert.doesNotMatch(prompt, /\+1555/);
+
+  // No call, no line — and a call is named by its identifier, nothing less.
+  assert.equal(phonePreamble(requestContext("t", "c", "hi").userMessage), "");
+  assert.equal(
+    phonePreamble(requestContext("t", "c", "hi", { [META_PHONE_FROM]: "+15550100001" }).userMessage),
+    "",
+  );
+  // Digits, events and interruptions say what they are; speech says nothing extra.
+  const kind = (k: string) =>
+    phonePreamble(
+      requestContext("t", "c", "1234", { ...phone, [META_PHONE_KIND]: k }).userMessage,
+      () => "2026-08-30T10:00:30.000Z",
+    );
+  assert.match(kind("dtmf"), /digits the operator keyed/);
+  assert.match(kind("event"), /event from the call/);
+  assert.match(kind("interrupted"), /spoke over your previous reply/);
+  assert.doesNotMatch(kind("speech"), /keyed|event from|spoke over/);
+  assert.match(kind("speech"), /began under a minute ago/);
 });
 
 test("an attached file is fetched and its path leads the prompt", async (t) => {

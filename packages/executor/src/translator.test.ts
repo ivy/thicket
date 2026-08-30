@@ -397,7 +397,7 @@ test("a send racing the queue census is not mis-folded; its turn still answers",
 // -------------------------------------------------------------- accounting
 
 import type { TurnAccounting } from "./translator.js";
-import { META_TRIGGER } from "./types.js";
+import { META_TRIGGER, TRIGGER_PHONE } from "./types.js";
 
 function accountingHarness(): Harness & { records: TurnAccounting[] } {
   const records: TurnAccounting[] = [];
@@ -515,6 +515,29 @@ test("denials and errors are recorded; the trigger comes from message metadata",
   assert.equal(record.trigger, "routine");
   assert.deepEqual(record.permissionDenials, ["Bash"]);
   assert.equal(record.error, "budget exceeded");
+});
+
+test("a phone turn's accounting carries the phone trigger, so the journal can tell it apart", () => {
+  const h = accountingHarness();
+  h.translator.registerSend({
+    uuid: "u1",
+    messageId: "m1",
+    taskId: "task-1",
+    contextId: "ctx-1",
+    message: {
+      messageId: "m1",
+      contextId: "ctx-1",
+      taskId: "",
+      role: 1,
+      parts: [],
+      metadata: { [META_TRIGGER]: TRIGGER_PHONE },
+      extensions: [],
+      referenceTaskIds: [],
+    },
+  });
+  h.translator.handleFrame(resultFrame("u1", { cost: 0.01, input: 5, output: 5 }));
+  assert.equal(h.records[0]?.trigger, "phone");
+  assert.equal(h.records[0]?.state, "completed");
 });
 
 test("a turn that never sees a result still leaves a failed record", () => {

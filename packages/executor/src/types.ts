@@ -79,6 +79,31 @@ export const META_CONTEXT_ONLY = "thicket.contextOnly";
 export const META_SLACK_CHANNEL = "thicket.slackChannel";
 export const META_SLACK_THREAD = "thicket.slackThread";
 /**
+ * Where the message came from, when it came from a phone call: the
+ * call's identifier (an opaque string the bridge minted or was given),
+ * the two numbers, the direction, and what kind of message this is. Ids
+ * and numbers only, never transcript content, never the PIN. The turn's
+ * preamble says it is a voice session and never repeats these values —
+ * the model is not trusted with a call identifier; the bridge is.
+ */
+export const META_PHONE_CALL = "thicket.phoneCall";
+export const META_PHONE_FROM = "thicket.phoneFrom";
+export const META_PHONE_TO = "thicket.phoneTo";
+/** "inbound" | "outbound", from the operator's side of the bridge. */
+export const META_PHONE_DIRECTION = "thicket.phoneDirection";
+/** One of {@link PHONE_MESSAGE_KINDS}. */
+export const META_PHONE_KIND = "thicket.phoneKind";
+/** ISO timestamp of when the phone session began, so the preamble can say how long it has run. */
+export const META_PHONE_SESSION_STARTED = "thicket.phoneSessionStarted";
+/**
+ * What a phone message is: the operator's speech, the digits they keyed,
+ * an event from the call itself, or speech that cut off the previous reply.
+ */
+export const PHONE_MESSAGE_KINDS = ["speech", "dtmf", "event", "interrupted"] as const;
+export type PhoneMessageKind = (typeof PHONE_MESSAGE_KINDS)[number];
+/** {@link META_TRIGGER} value for a turn a phone call caused. */
+export const TRIGGER_PHONE = "phone";
+/**
  * The workspace name a bound channel maps to. The bridge knows the name;
  * only the agent's own config knows the path.
  */

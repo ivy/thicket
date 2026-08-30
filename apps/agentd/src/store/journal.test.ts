@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { TRIGGER_PHONE } from "@thicket/executor";
+
 import { JournalStore, type JournalEntry } from "./journal.js";
 
 function entry(overrides: Partial<JournalEntry> = {}): JournalEntry {
@@ -37,6 +39,19 @@ test("a recorded turn round-trips, including tools and denials", () => {
   assert.equal(row.error, "denied");
   assert.equal(row.costUsd, 0.05);
   store.close();
+});
+
+test("a phone turn's row records the phone trigger and can be picked out by it", () => {
+  const store = new JournalStore(":memory:");
+  store.record(entry({ taskId: "slack-run" }));
+  store.record(entry({ taskId: "phone-run", trigger: TRIGGER_PHONE }));
+
+  assert.equal(store.recent({ trigger: "phone" })[0]?.taskId, "phone-run");
+  assert.equal(store.recent({ trigger: "phone" })[0]?.trigger, "phone");
+  assert.deepEqual(
+    store.recent({ trigger: "human" }).map((row) => row.taskId),
+    ["slack-run"],
+  );
 });
 
 test("filters: failures only, by trigger, and by window", () => {

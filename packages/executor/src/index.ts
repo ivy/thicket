@@ -9,6 +9,8 @@ export {
 export {
   ClaudeAgentExecutor,
   messageText,
+  phonePreamble,
+  threadPreamble,
   type ClaudeAgentExecutorOptions,
 } from "./executor.js";
 export {
@@ -57,6 +59,12 @@ export {
   META_CONTEXT_ONLY,
   META_FOLDED_INTO,
   META_FOLDED_MESSAGE_IDS,
+  META_PHONE_CALL,
+  META_PHONE_DIRECTION,
+  META_PHONE_FROM,
+  META_PHONE_KIND,
+  META_PHONE_SESSION_STARTED,
+  META_PHONE_TO,
   META_PRIORITY,
   META_QUEUED_TURN_COUNT,
   META_QUEUE_STATE,
@@ -66,7 +74,10 @@ export {
   META_STILL_QUEUED,
   META_TRIGGER,
   META_WORKSPACE,
+  PHONE_MESSAGE_KINDS,
+  TRIGGER_PHONE,
   type PendingSend,
+  type PhoneMessageKind,
   type SessionHandle,
   type SessionProvider,
 } from "./types.js";

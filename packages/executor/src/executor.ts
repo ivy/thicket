@@ -25,6 +25,9 @@ import {
   META_PRIORITY,
   META_QUEUE_STATE,
   META_SHOULD_QUERY,
+  META_PHONE_CALL,
+  META_PHONE_KIND,
+  META_PHONE_SESSION_STARTED,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
   META_STILL_QUEUED,
@@ -78,6 +81,44 @@ export function threadPreamble(inbound: Message): string {
     `You are in Slack channel ${channel}, thread ${thread}. For your thicket ` +
     `tools, "this thread" is channel=${channel} with thread_ts=${thread} ` +
     `(read_thread takes it as ts).\n\n`
+  );
+}
+
+/**
+ * The line that tells the model it is on a voice call. Only the fact of the
+ * call, who is on it, how long, and that the reply will be spoken: the
+ * call identifier and the numbers stay in metadata for the bridge, never
+ * in the prompt, so no tool can be talked into a call the model names.
+ * Digits, events, and interruptions get a sentence saying what the message
+ * is, since none of them read like speech.
+ */
+export function phonePreamble(inbound: Message, now: () => string = () => new Date().toISOString()): string {
+  const call = inbound.metadata?.[META_PHONE_CALL];
+  if (typeof call !== "string" || call === "") {
+    return "";
+  }
+  const started = inbound.metadata?.[META_PHONE_SESSION_STARTED];
+  const startedMs = typeof started === "string" ? Date.parse(started) : Number.NaN;
+  const elapsed = Number.isNaN(startedMs) ? undefined : Math.max(0, Date.parse(now()) - startedMs);
+  const running =
+    elapsed === undefined
+      ? ""
+      : elapsed < 60_000
+        ? " The session began under a minute ago."
+        : ` The session has run ${Math.round(elapsed / 60_000)} minutes.`;
+  const kind = inbound.metadata?.[META_PHONE_KIND];
+  const what =
+    kind === "dtmf"
+      ? " This message is digits the operator keyed, not speech."
+      : kind === "event"
+        ? " This message is an event from the call, not the operator's words."
+        : kind === "interrupted"
+          ? " The operator spoke over your previous reply; this message is what they said."
+          : "";
+  return (
+    `You are on a voice call with the operator, who authenticated with their PIN.${running} ` +
+    `Your reply will be read aloud by text-to-speech: keep it short and speakable — ` +
+    `no markdown, code, tables, or lists — and spell out anything that must be exact.${what}\n\n`
   );
 }
 
@@ -192,7 +233,11 @@ export class ClaudeAgentExecutor implements AgentExecutor {
    * question in the message is usually still answerable.
    */
   private async preamble(contextId: string, inbound: Message): Promise<string> {
-    return threadPreamble(inbound) + (await this.attachmentsPreamble(contextId, inbound));
+    return (
+      threadPreamble(inbound) +
+      phonePreamble(inbound, this.now) +
+      (await this.attachmentsPreamble(contextId, inbound))
+    );
   }
 
   private async attachmentsPreamble(contextId: string, inbound: Message): Promise<string> {
