@@ -247,12 +247,18 @@ importers:
       '@thicket/executor':
         specifier: workspace:*
         version: link:../../packages/executor
+      '@thicket/phone':
+        specifier: workspace:*
+        version: link:../../apps/phone
       '@thicket/roster':
         specifier: workspace:*
         version: link:../../packages/roster
       '@thicket/slack-manifest':
         specifier: workspace:*
         version: link:../../packages/slack-manifest
+      ws:
+        specifier: ^8.21.3
+        version: 8.21.3
     devDependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.247
@@ -260,6 +266,9 @@ importers:
       '@types/node':
         specifier: ^22.17.0
         version: 22.20.1
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3

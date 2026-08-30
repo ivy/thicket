@@ -24,6 +24,9 @@
       "path": "../../apps/bridge"
     },
     {
+      "path": "../../apps/phone"
+    },
+    {
       "path": "../../apps/cli"
     },
     {
