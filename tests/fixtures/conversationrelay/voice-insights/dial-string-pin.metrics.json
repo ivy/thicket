@@ -1,0 +1,215 @@
+{
+ "source": "GET https://insights.twilio.com/v1/Voice/{CallSid}/Metrics?PageSize=200, same call",
+ "metrics": [
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "codec": 0,
+    "codec_name": "pcmu",
+    "cumulative": {
+     "jitter": {
+      "avg": 0.00967953,
+      "max": 0.015479
+     },
+     "packets_lost": 0,
+     "packets_received": 293
+    },
+    "interval": {
+     "jitter": {
+      "avg": 0.00967953,
+      "max": 0.015479
+     },
+     "packets_loss_percentage": 0.0,
+     "packets_lost": 0,
+     "packets_received": 293
+    },
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "direction": "inbound",
+   "edge": "carrier_edge",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.915Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "codec": 0,
+    "codec_name": "pcmu",
+    "cumulative": {
+     "jitter": {
+      "avg": 0.00765595,
+      "max": 0.0274057
+     },
+     "packets_lost": 0,
+     "packets_sent": 475
+    },
+    "interval": {
+     "jitter": {
+      "avg": 0.00765595,
+      "max": 0.0274057
+     },
+     "packets_loss_percentage": 0.0,
+     "packets_lost": 0,
+     "packets_sent": 475
+    },
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "direction": "outbound",
+   "edge": "carrier_edge",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:36.002Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "codec": 0,
+    "codec_name": "pcmu",
+    "cumulative": {
+     "jitter": {
+      "avg": 0.0269119,
+      "max": 0.0918707
+     },
+     "packets_lost": 0,
+     "packets_received": 451
+    },
+    "interval": {
+     "jitter": {
+      "avg": 0.0269119,
+      "max": 0.0918707
+     },
+     "packets_loss_percentage": 0.0,
+     "packets_lost": 0,
+     "packets_received": 451
+    },
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "direction": "inbound",
+   "edge": "carrier_edge",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:41.008Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "codec": 0,
+    "codec_name": "pcmu",
+    "cumulative": {
+     "jitter": {
+      "avg": 0.00795983,
+      "max": 0.0274057
+     },
+     "packets_lost": 0,
+     "packets_sent": 975
+    },
+    "interval": {
+     "jitter": {
+      "avg": 0.00824852,
+      "max": 0.0143186
+     },
+     "packets_loss_percentage": 0.0,
+     "packets_lost": 0,
+     "packets_sent": 500
+    },
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "direction": "outbound",
+   "edge": "carrier_edge",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:46.002Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "codec": 0,
+    "codec_name": "pcmu",
+    "cumulative": {
+     "jitter": {
+      "avg": 0.0266772,
+      "max": 0.0918707
+     },
+     "packets_lost": 0,
+     "packets_received": 748
+    },
+    "interval": {
+     "jitter": {
+      "avg": 0.0263209,
+      "max": 0.050784
+     },
+     "packets_loss_percentage": 0.0,
+     "packets_lost": 0,
+     "packets_received": 297
+    },
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "direction": "inbound",
+   "edge": "carrier_edge",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:46.948Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "codec": 0,
+    "codec_name": "pcmu",
+    "cumulative": {
+     "jitter": {
+      "avg": 0.00808435,
+      "max": 0.0274057
+     },
+     "packets_lost": 0,
+     "packets_sent": 1023
+    },
+    "interval": {
+     "jitter": {
+      "avg": 0.0106136,
+      "max": 0.0125516
+     },
+     "packets_loss_percentage": 0.0,
+     "packets_lost": 0,
+     "packets_sent": 48
+    },
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "direction": "outbound",
+   "edge": "carrier_edge",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:46.962Z"
+  }
+ ]
+}

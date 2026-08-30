@@ -45,3 +45,8 @@ fields are blank. Nothing else was altered.
 | `malformed-frames.jsonl` | ten non-JSON frames |
 | `rest-update-completed.jsonl` | the call ended from the REST side (`Status=completed`) |
 | `long-silence.jsonl` | 88 s of nothing from either side, then speech |
+
+`voice-insights/` holds what Twilio's Voice Insights recorded for the `dial-string-pin`
+call after the fact — `GET /v1/Voice/{CallSid}/Events` and `/Metrics`, redacted the same
+way — so the relay's own `tokensPlayed`/`agentSpeaking` frames can be checked against
+Twilio's `tts_latency`, `first_token_received` and `interrupt` events.

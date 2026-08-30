@@ -1,0 +1,504 @@
+{
+ "source": "GET https://insights.twilio.com/v1/Voice/{CallSid}/Events?PageSize=200, fetched 2026-08-30T09:20Z for the dial-string-pin call (Voice Insights Advanced Features on)",
+ "events": [
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "conversation_relay_data": null,
+   "edge": "carrier_edge",
+   "group": "connection",
+   "level": "INFO",
+   "name": "initiated",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:25.783Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "conversation_relay_data": null,
+   "edge": "carrier_edge",
+   "group": "connection",
+   "level": "INFO",
+   "name": "ringing",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:25.807Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "configurations": {
+     "configurations": {
+      "debug": "[]",
+      "dtmfDetection": "true",
+      "echoPromptFiltering": "false",
+      "events": "[speaker-events, tokens-played]",
+      "interruptOptions": "InterruptOptions{interruptConfidenceThreshold=0.7, ignoreBackchannelForInterrupt=false, interruptCheckThresholdType=by-chars, interruptInputLengthThreshold=3}",
+      "interruptible": "ANY",
+      "partialPromptOnHangup": "false",
+      "partialPrompts": "true",
+      "preemptible": "FALSE",
+      "reportInputDuringAgentSpeech": "ANY",
+      "speechProvider": "flux-general-en",
+      "speechTimeout": "0",
+      "transcriptionLanguage": "en-US",
+      "transcriptionProvider": "dgflux",
+      "ttsLanguage": "en-US",
+      "ttsProvider": "block_elevenlabs",
+      "turnDetection": "OFF",
+      "voice": "UgBBYS2sOqTuMpoF3BR0",
+      "welcomeGreetingInterruptible": "TRUE"
+     },
+     "languages": {
+      "en-US": {
+       "speech_model": "flux-general-en",
+       "transcription_provider": "dgflux",
+       "tts_provider": "block_elevenlabs",
+       "voice": "UgBBYS2sOqTuMpoF3BR0"
+      }
+     }
+    },
+    "sequence_number": 1,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "configurations",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:26.157Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "conversation_relay_data": null,
+   "edge": "carrier_edge",
+   "group": "connection",
+   "level": "INFO",
+   "name": "answered",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:26.473Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 4,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:28.637Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 5,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:29.017Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 6,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:29.397Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 7,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:29.777Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 8,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:30.157Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 9,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:30.537Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 10,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:30.917Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 11,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.297Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "last_token_received": {
+     "total_tokens": 3,
+     "total_words": 3
+    },
+    "sequence_number": 13,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "final_token_received",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.388Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 12,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "first_token_received",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.388Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 14,
+    "session_id": "VX00000000000000000000000000000001",
+    "tts_latency": {
+     "latency_ms": 161
+    }
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "tts_latency",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.549Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 15,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "start_of_agent_speech",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.549Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 16,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "dtmf",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.677Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 17,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "interrupt",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.677Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 18,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "end_of_agent_speech",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.679Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "last_token_received": {
+     "total_tokens": 3,
+     "total_words": 3
+    },
+    "sequence_number": 20,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "final_token_received",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.766Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 19,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "first_token_received",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.766Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 22,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "start_of_agent_speech",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.968Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 21,
+    "session_id": "VX00000000000000000000000000000001",
+    "tts_latency": {
+     "latency_ms": 201
+    }
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "tts_latency",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:31.968Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "sequence_number": 23,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "end_of_agent_speech",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:33.065Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": {
+    "metadata": {
+     "edge_location": "ashburn",
+     "region": "us1"
+    }
+   },
+   "client_edge": null,
+   "conversation_relay_data": null,
+   "edge": "carrier_edge",
+   "group": "connection",
+   "level": "INFO",
+   "name": "completed",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:46.958Z"
+  },
+  {
+   "account_sid": "AC00000000000000000000000000000000",
+   "call_sid": "CA00000000000000000000000000000001",
+   "carrier_edge": null,
+   "client_edge": null,
+   "conversation_relay_data": {
+    "call_wrap_up": {
+     "duration_in_seconds": 20,
+     "end_status": "hung_up"
+    },
+    "sequence_number": 26,
+    "session_id": "VX00000000000000000000000000000001"
+   },
+   "edge": null,
+   "group": "conversation_relay",
+   "level": null,
+   "name": "call_wrap_up",
+   "sdk_edge": null,
+   "sip_edge": null,
+   "timestamp": "2026-08-30T09:03:46.962Z"
+  }
+ ]
+}
