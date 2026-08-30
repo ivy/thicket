@@ -95,7 +95,33 @@ class ScriptedClient implements AgentClient {
     if (this.cancelError) throw this.cancelError;
   }
 
-  async *resubscribe(): AsyncIterable<A2AEvent> {}
+  /** What getTask answers, by task id. */
+  tasks = new Map<string, Task>();
+  lookups: string[] = [];
+  async getTask(taskId: string): Promise<Task> {
+    this.lookups.push(taskId);
+    const t = this.tasks.get(taskId);
+    if (t === undefined) throw new Error(`no task ${taskId}`);
+    return t;
+  }
+
+  resubscribes: string[] = [];
+  resubscribeEvents: A2AEvent[] = [];
+  async *resubscribe(taskId: string): AsyncIterable<A2AEvent> {
+    this.resubscribes.push(taskId);
+    for (const e of this.resubscribeEvents) yield e;
+  }
+}
+
+function taskIn(id: string, contextId: string, state: TaskState, text = ""): Task {
+  return {
+    id,
+    contextId,
+    status: { state, message: undefined, timestamp: "t" },
+    artifacts: text === "" ? [] : [{ artifactId: "reply", name: "", description: "", parts: [{ content: { $case: "text", value: text }, mediaType: "text/plain", filename: "", metadata: {} }], metadata: {}, extensions: [] }],
+    history: [],
+    metadata: {},
+  };
 }
 
 class ManualScheduler implements Scheduler {
@@ -445,3 +471,125 @@ async function settle(cond: () => boolean): Promise<void> {
   }
   throw new Error("condition never held");
 }
+
+test("a name is routed when said, asked about when nearly said, and asked again when unknown", async () => {
+  const h = harness();
+  await h.feed(DIAL_IN);
+  await h.engine.handle(h.speech("Could you get me the workshop one?"));
+  assert.equal(h.engine.state, "choosing");
+  assert.deepEqual(h.texts().at(-1), ["I didn't catch that. Who would you like? Hearth, or Forge.", true]);
+
+  await h.engine.handle(h.speech("Hurth"));
+  assert.equal(h.engine.state, "choosing", "a near miss is never routed");
+  assert.deepEqual(h.texts().at(-1), ["Did you say Hearth?", true]);
+  await h.engine.handle(h.speech("no"));
+  assert.equal(h.engine.state, "choosing");
+  assert.deepEqual(h.texts().at(-1), ["Who would you like? Hearth, or Forge.", true]);
+
+  await h.engine.handle(h.speech("Forj"));
+  assert.deepEqual(h.texts().at(-1), ["Did you say Forge?", true]);
+  await h.engine.handle(h.speech("yes"));
+  assert.equal(h.engine.state, "connected");
+  assert.deepEqual(h.texts().at(-1), ["Connected to Forge.", true]);
+  assert.equal(h.client.streamed.length, 0, "nothing reached an agent during the exchange");
+});
+
+test("hanging up mid-task and calling back offers the session; resuming re-attaches and speaks the rest", async () => {
+  const state = new MemoryPhoneState();
+  const first = harness({ state });
+  await connectedTo(first);
+  const ctx = phoneSessionId("hearth", CALL_SID);
+  const stream = first.client.open();
+  await first.engine.handle(first.speech("check the disks"));
+  stream.push(task("t1", ctx));
+  stream.push(chunk("t1", "Checking "));
+  stream.push(chunk("t1", "the disks. "));
+  await settle(() => first.texts().some(([token]) => token === "Checking "));
+  first.tick(30_000);
+  await first.engine.hangup(); // the call drops with t1 still running
+  stream.close();
+  assert.equal(state.sessionFor("hearth")?.runningTaskId, "t1");
+
+  const second = harness({ state, now: Date.parse("2026-08-30T10:03:00Z") });
+  second.client.tasks.set("t1", taskIn("t1", ctx, TaskState.TASK_STATE_WORKING));
+  await second.feed(DIAL_IN);
+  await second.engine.handle(second.speech("hearth"));
+  assert.deepEqual(second.texts().at(-1), [
+    "You were talking to Hearth 3 minutes ago. It's still working on what you asked. Resume, or start fresh?",
+    true,
+  ]);
+  second.client.resubscribeEvents = [chunk("t1", "Disks are "), chunk("t1", "fine."), done("t1", ctx)];
+  await second.engine.handle(second.speech("resume"));
+  await second.engine.idle();
+  assert.equal(second.engine.state, "connected");
+  assert.deepEqual(second.client.resubscribes, ["t1"]);
+  assert.deepEqual(second.texts().slice(-3), [
+    ["It's still working. Here's the rest as it comes.", true],
+    ["Disks are ", false],
+    ["fine.", true],
+  ]);
+  // The conversation continues on the same context, on the new call's message ids.
+  second.client.script([task("t2", ctx), chunk("t2", "Anything else?"), done("t2", ctx)]);
+  await second.engine.handle(second.speech("thanks"));
+  await second.engine.idle();
+  assert.equal(second.client.streamed[0]?.contextId, ctx);
+  assert.equal(second.client.streamed[0]?.messageId, phoneMessageId(CALL_SID, 2));
+});
+
+test("a task that finished while the operator was away is spoken on resume, and again on request", async () => {
+  const state = new MemoryPhoneState();
+  state.saveSession({ agent: "hearth", contextId: "ctx-old", openedByCall: "CA-old", lastActiveAt: Date.parse("2026-08-30T09:50:00Z"), runningTaskId: "t1" });
+  const h = harness({ state });
+  h.client.tasks.set("t1", taskIn("t1", "ctx-old", TaskState.TASK_STATE_COMPLETED, "The backup finished and took four minutes."));
+  await h.feed(DIAL_IN);
+  await h.engine.handle(h.speech("home"));
+  assert.match(h.texts().at(-1)![0] as string, /It finished what you asked while you were away\. Resume, or start fresh\?$/);
+  await h.engine.handle(h.speech("carry on"));
+  assert.deepEqual(h.texts().slice(-2), [
+    ["Resuming with Hearth.", true],
+    ["While you were away, it finished: The backup finished and took four minutes.", true],
+  ]);
+  assert.deepEqual(h.client.resubscribes, [], "a finished task is read, not re-attached");
+  await h.engine.handle(h.speech("what did I miss"));
+  assert.deepEqual(h.texts().at(-1), ["While you were away, it finished: The backup finished and took four minutes.", true]);
+  assert.equal(h.client.streamed.length, 0, "answered by the bridge, not a turn");
+});
+
+test("declining the resume starts a fresh session with the same agent", async () => {
+  const state = new MemoryPhoneState();
+  state.saveSession({ agent: "hearth", contextId: "ctx-old", openedByCall: "CA-old", lastActiveAt: Date.parse("2026-08-30T09:59:00Z") });
+  const h = harness({ state });
+  await h.feed(DIAL_IN);
+  await h.engine.handle(h.speech("hearth"));
+  assert.match(h.texts().at(-1)![0] as string, /Resume, or start fresh\?$/);
+  await h.engine.handle(h.speech("start fresh"));
+  assert.equal(h.engine.state, "connected");
+  assert.deepEqual(h.texts().at(-1), ["Connected to Hearth.", true]);
+  const started = h.alerts.find((a) => a.kind === "session_started");
+  assert.ok(started?.kind === "session_started" && !started.resumed && started.contextId === phoneSessionId("hearth", CALL_SID));
+  assert.equal(state.sessionFor("hearth")?.contextId, phoneSessionId("hearth", CALL_SID), "the old session is superseded");
+  assert.notEqual(state.sessionFor("hearth")?.contextId, "ctx-old");
+});
+
+test("switching agents by name mid-call ends one session and starts the other; both are in the alerts", async () => {
+  const h = harness();
+  await connectedTo(h);
+  h.tick(45_000);
+  await h.engine.handle(h.speech("put me through to Forge"));
+  assert.equal(h.engine.state, "connected");
+  assert.deepEqual(h.texts().at(-1), ["Connected to Forge.", true]);
+  assert.deepEqual(
+    h.alerts.map((a) => (a.kind === "session_started" ? `start:${a.agent}` : a.kind === "session_ended" ? `end:${a.agent}:${a.reason}:${a.durationMs}` : a.kind)),
+    ["start:hearth", "end:hearth:switched:45000", "start:forge"],
+  );
+  const ctxForge = phoneSessionId("forge", CALL_SID);
+  h.client.script([task("t1", ctxForge), chunk("t1", "Forge here."), done("t1", ctxForge)]);
+  await h.engine.handle(h.speech("hello"));
+  await h.engine.idle();
+  assert.equal(h.client.streamed[0]?.contextId, ctxForge);
+
+  // A bare "switch agent" asks; a near miss is confirmed, as in the picker.
+  await h.engine.handle(h.speech("switch agent"));
+  assert.equal(h.engine.state, "choosing");
+  assert.deepEqual(h.texts().at(-1), ["Who would you like? Hearth, or Forge.", true]);
+});

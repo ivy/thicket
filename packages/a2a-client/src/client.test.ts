@@ -155,6 +155,10 @@ test("a consumer streams a message and cancels a task with only this package", a
     );
     assert.equal(events[1]!.kind === "artifact" && events[1]!.text, "hello");
     assert.equal(events[2]!.kind === "status" && events[2]!.state, TaskState.TASK_STATE_COMPLETED);
+    const first = events[0]!.kind === "task" ? events[0]!.task.id : "";
+    const fetched = await client.getTask(first);
+    assert.equal(fetched.id, first);
+    assert.equal(fetched.status?.state, TaskState.TASK_STATE_COMPLETED);
 
     // A hanging task: cancel once its first artifact arrives; the stream
     // must end on the canceled status the executor publishes.

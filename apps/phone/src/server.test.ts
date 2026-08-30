@@ -186,6 +186,18 @@ test("goodbye ends the relay session, and the signed follow-up webhook records w
   ws!.send(JSON.stringify({ type: "prompt", voicePrompt: "Note that the car needs oil.", lang: "en", last: true }));
   await until(() => received(ws!).some((c) => c.type === "text" && c.token === "Noted."), "the agent's reply");
 
+  // A switch mid-call: the call log keeps both sessions.
+  ws!.send(JSON.stringify({ type: "prompt", voicePrompt: "Switch to Hearth.", lang: "en", last: true }));
+  await until(() => received(ws!).some((c) => c.type === "text" && /Resume, or start fresh\?/.test(c.token)), "the resume offer");
+  ws!.send(JSON.stringify({ type: "prompt", voicePrompt: "Resume.", lang: "en", last: true }));
+  await until(() => registry.callSessions(CALL.callSid).length === 2, "the second session on record");
+  const sessions = registry.callSessions(CALL.callSid);
+  assert.equal(sessions[0]?.agent, "hearth");
+  assert.ok(sessions[0]?.endedMs !== undefined, "the first session is closed");
+  assert.equal(sessions[1]?.agent, "hearth");
+  assert.equal(sessions[1]?.endedMs, undefined);
+  await until(() => received(ws!).some((c) => c.type === "text" && /Resuming with Hearth/.test(c.token)), "reconnected");
+
   ws!.send(JSON.stringify({ type: "prompt", voicePrompt: "Goodbye.", lang: "en", last: true }));
   await until(() => received(ws!).some((c) => c.type === "end"), "the end command");
   assert.deepEqual(received(ws!).at(-1), { type: "end", handoffData: "goodbye" });

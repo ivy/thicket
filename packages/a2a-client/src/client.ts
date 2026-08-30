@@ -141,6 +141,12 @@ export class RemoteAgentClient implements AgentClient {
     await client.cancelTask({ tenant: "", id: taskId, metadata: undefined });
   }
 
+  async getTask(taskId: string): Promise<Task> {
+    const client = await this.connected();
+    // No history: the bridge wants the state and the artifacts, not the transcript.
+    return client.getTask({ tenant: "", id: taskId, historyLength: 0 });
+  }
+
   async *resubscribe(taskId: string): AsyncIterable<A2AEvent> {
     const client = await this.connected();
     for await (const response of client.resubscribeTask({ tenant: "", id: taskId })) {

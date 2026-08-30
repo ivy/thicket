@@ -239,7 +239,9 @@ export function buildPhoneServer(options: PhoneServerOptions): PhoneServer {
     const alerts: AlertPort = {
       post: async (alert: PhoneAlert) => {
         if (alert.kind === "session_started") {
-          registry.attachSession(alert.callSid, alert.agent, alert.contextId);
+          registry.attachSession(alert.callSid, alert.agent, alert.contextId, now());
+        } else if (alert.kind === "session_ended") {
+          registry.detachSession(alert.callSid, alert.agent, now());
         }
         await options.alerts.post(alert);
       },

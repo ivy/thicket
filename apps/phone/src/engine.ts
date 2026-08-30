@@ -1,4 +1,4 @@
-import { TaskState, type Message } from "@a2a-js/sdk";
+import { TaskState, type Message, type Task } from "@a2a-js/sdk";
 import type { A2AEvent, AgentClient } from "@thicket/a2a-client";
 import {
   META_PHONE_CALL,
@@ -133,6 +133,32 @@ function normalize(text: string): string {
     .trim();
 }
 
+/** Levenshtein distance, for names heard a letter or two off. */
+function editDistance(a: string, b: string): number {
+  const row: number[] = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    let previous = row[0]!;
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const current = row[j]!;
+      row[j] = Math.min(row[j]! + 1, row[j - 1]! + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = current;
+    }
+  }
+  return row[b.length]!;
+}
+
+/** The text a task produced: its status message, else its text artifacts. */
+function taskText(task: Task): string {
+  const text = (parts: { content?: { $case: string; value: unknown } }[] | undefined) =>
+    (parts ?? []).map((part) => (part.content?.$case === "text" ? String(part.content.value) : "")).join("");
+  const fromStatus = text(task.status?.message?.parts);
+  if (fromStatus !== "") {
+    return fromStatus;
+  }
+  return task.artifacts.map((artifact) => text(artifact.parts)).join("");
+}
+
 function textPart(text: string) {
   return { content: { $case: "text" as const, value: text }, mediaType: "text/plain", filename: "", metadata: {} };
 }
@@ -150,6 +176,10 @@ export class CallEngine {
   private pinAttempts = 0;
   /** In `choosing`: an agent named whose earlier session is on offer. */
   private resumeOffer?: { agent: PhoneAgent; session: PhoneSession };
+  /** In `choosing`: a name that was close to an agent's but not it — asked, never assumed. */
+  private confirmOffer?: PhoneAgent;
+  /** What a task finished while the operator was away, for "what did I miss". */
+  private awaySummary?: string;
   private seq = 0;
   private turn?: Turn;
   private lastReply = "";
@@ -230,20 +260,18 @@ export class CallEngine {
     }
     this.state = "ending";
     this.cancelKeyFlush?.();
-    if (this.turn !== undefined) {
-      // The task keeps running in agentd; only the forwarding stops.
-      this.turn.dropped = true;
-    }
     const connected = this.connected;
     const call = this.call;
     if (connected !== undefined && call !== undefined) {
       const now = this.clock.now();
+      const running = this.turn !== undefined && !this.turn.dropped ? this.turn.taskId : undefined;
       this.store.saveSession({
         agent: connected.agent.name,
         contextId: connected.contextId,
         openedByCall: this.store.sessionFor(connected.agent.name)?.openedByCall ?? call.callSid,
         lastActiveAt: now,
         ...(connected.awaitingInputTaskId === undefined ? {} : { openTaskId: connected.awaitingInputTaskId }),
+        ...(running === undefined ? {} : { runningTaskId: running }),
       });
       await this.alert({
         kind: "session_ended",
@@ -252,6 +280,10 @@ export class CallEngine {
         durationMs: now - connected.startedAt,
         reason,
       });
+    }
+    if (this.turn !== undefined) {
+      // The task keeps running in agentd; only the forwarding stops.
+      this.turn.dropped = true;
     }
     this.connected = undefined;
   }
@@ -333,17 +365,62 @@ export class CallEngine {
     return `Who would you like? ${names.slice(0, -1).join(", ")}, or ${names[names.length - 1]}.`;
   }
 
+  private handles(agent: PhoneAgent): string[] {
+    return [agent.spokenName, agent.name, ...agent.aliases].map(normalize);
+  }
+
   private agentNamed(text: string): PhoneAgent | undefined {
     const words = ` ${normalize(text)} `;
-    return this.agents.find((agent) =>
-      [agent.spokenName, agent.name, ...agent.aliases].some((handle) => words.includes(` ${normalize(handle)} `)),
-    );
+    return this.agents.find((agent) => this.handles(agent).some((handle) => words.includes(` ${handle} `)));
+  }
+
+  /**
+   * The nearest agent to what was heard, when no handle matched outright:
+   * a word within a couple of edits of a spoken name. Offered for
+   * confirmation, never connected on its own — a misheard name routed to
+   * the wrong agent is the one mistake the picker must not make.
+   */
+  private agentNearlyNamed(text: string): PhoneAgent | undefined {
+    const words = normalize(text)
+      .split(" ")
+      .filter((word) => word.length >= 3);
+    let best: { agent: PhoneAgent; distance: number } | undefined;
+    for (const agent of this.agents) {
+      for (const handle of this.handles(agent)) {
+        for (const word of words) {
+          if (Math.abs(word.length - handle.length) > 2) {
+            continue;
+          }
+          const distance = editDistance(word, handle);
+          // One edit for a short name, two for a longer one: "hurth" is
+          // Hearth, "forj" is Forge, and "one" is not "home".
+          const allowed = Math.max(1, Math.floor(handle.length / 2.5));
+          if (distance <= allowed && (best === undefined || distance < best.distance)) {
+            best = { agent, distance };
+          }
+        }
+      }
+    }
+    return best?.agent;
   }
 
   private async onChoice(text: string): Promise<void> {
+    const said = normalize(text);
+    const confirm = this.confirmOffer;
+    if (confirm !== undefined) {
+      this.confirmOffer = undefined;
+      if (/\b(yes|yeah|yep|correct|right|that s it)\b/.test(said)) {
+        await this.choose(confirm);
+        return;
+      }
+      if (/\b(no|nope|wrong)\b/.test(said)) {
+        await this.speak(this.offer());
+        return;
+      }
+      // Anything else is a fresh attempt at the name.
+    }
     const offer = this.resumeOffer;
     if (offer !== undefined) {
-      const said = normalize(text);
       if (/\b(resume|continue|pick up|carry on|yes)\b/.test(said)) {
         this.resumeOffer = undefined;
         await this.connect(offer.agent, offer.session);
@@ -358,22 +435,70 @@ export class CallEngine {
       return;
     }
     const agent = this.agentNamed(text);
-    if (agent === undefined) {
-      await this.speak(`I didn't catch that. ${this.offer()}`);
+    if (agent !== undefined) {
+      await this.choose(agent);
       return;
     }
+    const nearly = this.agentNearlyNamed(text);
+    if (nearly !== undefined) {
+      this.confirmOffer = nearly;
+      await this.speak(`Did you say ${nearly.spokenName}?`);
+      return;
+    }
+    await this.speak(`I didn't catch that. ${this.offer()}`);
+  }
+
+  /** An agent was named for certain: offer the recent session, or connect. */
+  private async choose(agent: PhoneAgent): Promise<void> {
     const previous = this.store.sessionFor(agent.name);
     const withinWindow =
       previous !== undefined && this.clock.now() - previous.lastActiveAt <= agent.resumeWindowSeconds * 1000;
-    if (previous !== undefined && withinWindow) {
-      this.resumeOffer = { agent, session: previous };
-      const minutes = Math.max(1, Math.round((this.clock.now() - previous.lastActiveAt) / 60_000));
-      await this.speak(
-        `You were talking to ${agent.spokenName} ${minutes === 1 ? "a minute" : `${minutes} minutes`} ago. Resume, or start fresh?`,
-      );
+    if (previous === undefined || !withinWindow) {
+      await this.connect(agent, undefined);
       return;
     }
-    await this.connect(agent, undefined);
+    this.resumeOffer = { agent, session: previous };
+    const minutes = Math.max(1, Math.round((this.clock.now() - previous.lastActiveAt) / 60_000));
+    const when = minutes === 1 ? "a minute" : `${minutes} minutes`;
+    await this.speak(`You were talking to ${agent.spokenName} ${when} ago.${await this.taskSince(agent, previous)} Resume, or start fresh?`);
+  }
+
+  /** What the agent's task did since the call ended, from the task store: a clause for the offer, or nothing. */
+  private async taskSince(agent: PhoneAgent, previous: PhoneSession): Promise<string> {
+    const taskId = previous.runningTaskId ?? previous.openTaskId;
+    if (taskId === undefined) {
+      return "";
+    }
+    const task = await this.fetchTask(agent, taskId);
+    if (task === undefined) {
+      return "";
+    }
+    switch (task.status?.state) {
+      case TaskState.TASK_STATE_WORKING:
+      case TaskState.TASK_STATE_SUBMITTED:
+        return " It's still working on what you asked.";
+      case TaskState.TASK_STATE_INPUT_REQUIRED:
+        return " It's waiting on an answer from you.";
+      case TaskState.TASK_STATE_COMPLETED:
+        return " It finished what you asked while you were away.";
+      case TaskState.TASK_STATE_FAILED:
+        return " What you asked failed while you were away.";
+      default:
+        return "";
+    }
+  }
+
+  private async fetchTask(agent: PhoneAgent, taskId: string): Promise<Task | undefined> {
+    const client = this.clientFor(agent.name);
+    if (client.getTask === undefined) {
+      return undefined;
+    }
+    try {
+      return await client.getTask(taskId);
+    } catch (err) {
+      this.logger.warn("task lookup failed", { taskId, err: String(err) });
+      return undefined;
+    }
   }
 
   private async connect(agent: PhoneAgent, previous: PhoneSession | undefined): Promise<void> {
@@ -401,6 +526,44 @@ export class CallEngine {
       resumed: previous !== undefined,
     });
     await this.speak(previous === undefined ? `Connected to ${agent.spokenName}.` : `Resuming with ${agent.spokenName}.`);
+    if (previous?.runningTaskId !== undefined) {
+      await this.pickUp(agent, previous.runningTaskId);
+    }
+  }
+
+  /**
+   * Back on a session whose task was still running when the call ended:
+   * if it still is, re-attach and speak the rest of its output; if it
+   * finished meanwhile, speak what it produced. From the task store, so
+   * nothing depends on this process having been the one that started it.
+   */
+  private async pickUp(agent: PhoneAgent, taskId: string): Promise<void> {
+    const task = await this.fetchTask(agent, taskId);
+    if (task === undefined) {
+      return;
+    }
+    const state = task.status?.state;
+    if (state === TaskState.TASK_STATE_WORKING || state === TaskState.TASK_STATE_SUBMITTED) {
+      await this.speak("It's still working. Here's the rest as it comes.");
+      this.seq += 1;
+      const turn: Turn = { seq: this.seq, taskId, spoken: "", dropped: false, done: Promise.resolve() };
+      turn.done = this.forward(turn, this.clientFor(agent.name).resubscribe(taskId), agent);
+      this.turn = turn;
+      return;
+    }
+    if (state === TaskState.TASK_STATE_INPUT_REQUIRED) {
+      this.connected!.awaitingInputTaskId = taskId;
+      const question = taskText(task);
+      await this.speak(question === "" ? "It's waiting on an answer from you." : `It asked: ${question}`);
+      return;
+    }
+    const produced = taskText(task);
+    if (state === TaskState.TASK_STATE_COMPLETED && produced !== "") {
+      this.awaySummary = produced;
+      await this.speak(`While you were away, it finished: ${produced}`);
+    } else if (state === TaskState.TASK_STATE_FAILED) {
+      await this.speak("What you asked failed while you were away.");
+    }
   }
 
   // ---------------------------------------------------------------- connected
@@ -435,10 +598,19 @@ export class CallEngine {
       await this.hangup("goodbye");
       return;
     }
-    if (/^(switch|change) agents?$/.test(said)) {
+    const switching = /^(?:(?:switch|change)(?: agents?)?(?: to)?|put me through to|connect me to|transfer me to)(?: (.+))?$/.exec(said);
+    if (switching !== null) {
       await this.hangup("switched");
       this.state = "choosing";
-      await this.speak(this.offer());
+      if (switching[1] === undefined) {
+        await this.speak(this.offer());
+      } else {
+        await this.onChoice(switching[1]);
+      }
+      return;
+    }
+    if (/^(what did i miss|what happened|what did it do)$/.test(said)) {
+      await this.speak(this.awaySummary === undefined ? "Nothing since you left." : `While you were away, it finished: ${this.awaySummary}`);
       return;
     }
     if (/^(repeat that|say that again|again)$/.test(said)) {
@@ -537,8 +709,13 @@ export class CallEngine {
   private async runTurn(turn: Turn, message: Message): Promise<void> {
     const connected = this.connected!;
     const client = this.clientFor(connected.agent.name);
+    await this.forward(turn, client.stream(message), connected.agent);
+  }
+
+  /** Speak a stream of task events until it ends, or until the turn is dropped. */
+  private async forward(turn: Turn, events: AsyncIterable<A2AEvent>, agent: PhoneAgent): Promise<void> {
     try {
-      for await (const event of client.stream(message)) {
+      for await (const event of events) {
         if (turn.dropped) {
           continue; // drain, forward nothing
         }
@@ -547,7 +724,7 @@ export class CallEngine {
     } catch (err) {
       this.logger.warn("turn failed", { seq: turn.seq, err: String(err) });
       if (!turn.dropped) {
-        await this.speak(`Something went wrong talking to ${connected.agent.spokenName}.`);
+        await this.speak(`Something went wrong talking to ${agent.spokenName}.`);
       }
     } finally {
       if (this.turn === turn) {

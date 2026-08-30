@@ -12,6 +12,8 @@ export interface PhoneSession {
   lastActiveAt: number;
   /** A task still waiting on the operator's answer when the call ended. */
   openTaskId?: string;
+  /** A task still running when the call ended; resuming re-attaches to it. */
+  runningTaskId?: string;
 }
 
 export interface PhoneStatePort {

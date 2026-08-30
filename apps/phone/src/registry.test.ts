@@ -14,13 +14,21 @@ test("a call is recorded once, attached to its session, and ended with the first
   assert.equal(registry.call("CA1")?.startedMs, 1000, "the voice webhook and setup both record; the first wins");
   assert.deepEqual(registry.openCalls().map((c) => c.callSid), ["CA1"]);
 
-  registry.attachSession("CA1", "hearth", "ctx-1");
+  registry.attachSession("CA1", "hearth", "ctx-1", 1500);
   assert.equal(registry.call("CA1")?.agent, "hearth");
   assert.equal(registry.call("CA1")?.contextId, "ctx-1");
+  // A switch mid-call is a second session on the same call; both stay on record.
+  registry.detachSession("CA1", "hearth", 3000);
+  registry.attachSession("CA1", "forge", "ctx-2", 3000);
+  assert.deepEqual(registry.callSessions("CA1"), [
+    { agent: "hearth", contextId: "ctx-1", startedMs: 1500, endedMs: 3000 },
+    { agent: "forge", contextId: "ctx-2", startedMs: 3000 },
+  ]);
+  assert.equal(registry.call("CA1")?.agent, "forge", "the call row names the latest");
 
   assert.ok(registry.endCall("CA1", 5000, "goodbye"));
   assert.ok(!registry.endCall("CA1", 6000, "call:completed"), "a later status callback does not overwrite");
-  assert.deepEqual(registry.call("CA1"), { ...call, agent: "hearth", contextId: "ctx-1", endedMs: 5000, endReason: "goodbye" });
+  assert.deepEqual(registry.call("CA1"), { ...call, agent: "forge", contextId: "ctx-2", endedMs: 5000, endReason: "goodbye" });
   assert.deepEqual(registry.openCalls(), []);
   assert.equal(registry.call("CA-none"), undefined);
 });
@@ -34,8 +42,8 @@ test("sessions round-trip through the state port, and the file is owner-only", (
 
   assert.equal(registry.sessionFor("hearth"), undefined);
   registry.saveSession({ agent: "hearth", contextId: "ctx-1", openedByCall: "CA1", lastActiveAt: 1000 });
-  registry.saveSession({ agent: "hearth", contextId: "ctx-1", openedByCall: "CA1", lastActiveAt: 2000, openTaskId: "t9" });
-  assert.deepEqual(registry.sessionFor("hearth"), { agent: "hearth", contextId: "ctx-1", openedByCall: "CA1", lastActiveAt: 2000, openTaskId: "t9" });
+  registry.saveSession({ agent: "hearth", contextId: "ctx-1", openedByCall: "CA1", lastActiveAt: 2000, openTaskId: "t9", runningTaskId: "t8" });
+  assert.deepEqual(registry.sessionFor("hearth"), { agent: "hearth", contextId: "ctx-1", openedByCall: "CA1", lastActiveAt: 2000, openTaskId: "t9", runningTaskId: "t8" });
   registry.close();
 
   // A second process on the same file sees the same rows.

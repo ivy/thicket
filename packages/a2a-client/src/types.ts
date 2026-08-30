@@ -36,4 +36,6 @@ export interface AgentClient {
   cancel(taskId: string): Promise<void>;
   /** Reattach to a task from a previous bridge process. */
   resubscribe(taskId: string): AsyncIterable<A2AEvent>;
+  /** The task as the agent holds it now — its state and what it produced. */
+  getTask?(taskId: string): Promise<Task>;
 }

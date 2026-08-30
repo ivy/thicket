@@ -69,7 +69,24 @@ export class CallRegistry implements PhoneStatePort {
         last_active_ms INTEGER NOT NULL,
         open_task_id   TEXT
       );
+      CREATE TABLE IF NOT EXISTS call_sessions (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        call_sid   TEXT NOT NULL,
+        agent      TEXT NOT NULL,
+        context_id TEXT NOT NULL,
+        started_ms INTEGER NOT NULL,
+        ended_ms   INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_call_sessions ON call_sessions (call_sid, started_ms);
     `);
+    this.addColumn("sessions", "running_task_id", "TEXT");
+  }
+
+  private addColumn(table: string, column: string, definition: string): void {
+    const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (!columns.some((c) => c.name === column)) {
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
   }
 
   recordCall(call: { callSid: string; from: string; to: string; direction: string; startedMs: number }): void {
@@ -82,9 +99,36 @@ export class CallRegistry implements PhoneStatePort {
       .run(call.callSid, call.from, call.to, call.direction, call.startedMs);
   }
 
-  /** The call reached an agent: which one, on which session. */
-  attachSession(callSid: string, agent: string, contextId: string): void {
+  /** The call reached an agent: which one, on which session. One row per session, so a switch shows both. */
+  attachSession(callSid: string, agent: string, contextId: string, startedMs: number): void {
     this.db.prepare("UPDATE calls SET agent = ?, context_id = ? WHERE call_sid = ?").run(agent, contextId, callSid);
+    this.db
+      .prepare("INSERT INTO call_sessions (call_sid, agent, context_id, started_ms) VALUES (?, ?, ?, ?)")
+      .run(callSid, agent, contextId, startedMs);
+  }
+
+  /** The session on this call with this agent ended. */
+  detachSession(callSid: string, agent: string, endedMs: number): void {
+    this.db
+      .prepare(
+        `UPDATE call_sessions SET ended_ms = ? WHERE id = (
+           SELECT id FROM call_sessions WHERE call_sid = ? AND agent = ? AND ended_ms IS NULL ORDER BY started_ms DESC LIMIT 1
+         )`,
+      )
+      .run(endedMs, callSid, agent);
+  }
+
+  /** Every session a call had, in order. */
+  callSessions(callSid: string): Array<{ agent: string; contextId: string; startedMs: number; endedMs?: number }> {
+    const rows = this.db
+      .prepare("SELECT agent, context_id, started_ms, ended_ms FROM call_sessions WHERE call_sid = ? ORDER BY started_ms, id")
+      .all(callSid) as Record<string, unknown>[];
+    return rows.map((row) => ({
+      agent: String(row.agent),
+      contextId: String(row.context_id),
+      startedMs: Number(row.started_ms),
+      ...(row.ended_ms === null ? {} : { endedMs: Number(row.ended_ms) }),
+    }));
   }
 
   /** Twilio told us the session is over; the first reason recorded wins. */
@@ -150,21 +194,30 @@ export class CallRegistry implements PhoneStatePort {
       openedByCall: String(row.opened_by_call),
       lastActiveAt: Number(row.last_active_ms),
       ...(row.open_task_id === null || row.open_task_id === undefined ? {} : { openTaskId: String(row.open_task_id) }),
+      ...(row.running_task_id === null || row.running_task_id === undefined ? {} : { runningTaskId: String(row.running_task_id) }),
     };
   }
 
   saveSession(session: PhoneSession): void {
     this.db
       .prepare(
-        `INSERT INTO sessions (agent, context_id, opened_by_call, last_active_ms, open_task_id)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO sessions (agent, context_id, opened_by_call, last_active_ms, open_task_id, running_task_id)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(agent) DO UPDATE SET
            context_id = excluded.context_id,
            opened_by_call = excluded.opened_by_call,
            last_active_ms = excluded.last_active_ms,
-           open_task_id = excluded.open_task_id`,
+           open_task_id = excluded.open_task_id,
+           running_task_id = excluded.running_task_id`,
       )
-      .run(session.agent, session.contextId, session.openedByCall, session.lastActiveAt, session.openTaskId ?? null);
+      .run(
+        session.agent,
+        session.contextId,
+        session.openedByCall,
+        session.lastActiveAt,
+        session.openTaskId ?? null,
+        session.runningTaskId ?? null,
+      );
   }
 
   close(): void {
