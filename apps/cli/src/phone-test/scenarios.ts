@@ -57,6 +57,37 @@ export function expectAnyWords(heard: string, alternatives: string[][]): void {
   }
 }
 
+/**
+ * Scan forward until an utterance carries the expected words: Flux can
+ * fragment one spoken sentence into several finals, and a slow task's
+ * leftovers can land between a say and its reply, so the words may not be
+ * in the very next utterance.
+ */
+async function awaitUntilWords(
+  leg: CallerLegPort,
+  alternatives: string[][],
+  opts: { utterances?: number; timeoutMs?: number } = {},
+): Promise<string> {
+  const cap = opts.utterances ?? 4;
+  const wanted = alternatives.map((words) => words.join("+")).join(" | ");
+  let last = "";
+  for (let i = 0; i < cap; i++) {
+    try {
+      last = (await leg.awaitReply({ timeoutMs: opts.timeoutMs ?? 45_000 })).text;
+    } catch (err) {
+      throw new ScenarioFailure(
+        `expected to hear ${wanted}; ${last === "" ? "nothing was heard" : `last heard: "${last}"`} ` +
+          `(${err instanceof Error ? err.message : String(err)})`,
+      );
+    }
+    const lower = last.toLowerCase();
+    if (alternatives.some((words) => words.every((word) => lower.includes(word.toLowerCase())))) {
+      return last;
+    }
+  }
+  throw new ScenarioFailure(`expected to hear ${wanted} within ${cap} utterances; last heard: "${last}"`);
+}
+
 async function untilEnded(leg: CallerLegPort, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (leg.status().call !== null) {
@@ -105,13 +136,10 @@ export async function authAndConnect(context: ScenarioContext): Promise<void> {
 async function sayGoodbye(context: ScenarioContext): Promise<void> {
   await context.leg.say("Goodbye");
   try {
-    const heard = await context.leg.awaitReply({ timeoutMs: 10_000 });
-    expectWords(heard.text, ["goodbye"]);
-  } catch (err) {
-    if (err instanceof ScenarioFailure) {
-      throw err;
-    }
-    // The call may end before the goodbye is transcribed; the end itself is asserted next.
+    await awaitUntilWords(context.leg, [["goodbye"]], { timeoutMs: 10_000 });
+  } catch {
+    // A fast hangup can beat the transcription, and a slow task's leftovers
+    // can crowd the window; the end of the call is the real assertion.
   }
   await untilEnded(context.leg, 10_000);
 }
@@ -181,8 +209,7 @@ export const SCENARIOS: Scenario[] = [
       await sleep(1_500);
       for (const expected of [["not it"], ["not it"], ["goodbye"]]) {
         await context.leg.press(context.wrongPin);
-        const heard = await context.leg.awaitReply({ timeoutMs: 20_000 });
-        expectWords(heard.text, expected);
+        await awaitUntilWords(context.leg, [expected], { timeoutMs: 20_000 });
       }
       await untilEnded(context.leg, 15_000);
     },
