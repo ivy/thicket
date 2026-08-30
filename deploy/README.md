@@ -226,6 +226,38 @@ number's voice URL points at. Scanners find it within seconds of it
 appearing; the bridge answers them with 404 and never reads a body it did
 not sign for.
 
+`provision` renders this account once any agent has `phone.enabled`:
+`rendered/phone/agents.yaml` and the `netd.json` above (the Funnel upstream
+defaults to the bridge's socket), and `tag:thicket-phone` joins
+`allowed_peer_tags` in the `agentd.json` of every agent that opted in — and
+no other. The secrets half, `phone.json`, is the operator's and is never
+rendered.
+
+### The number is pointed at the bridge by `provision`, not by hand
+
+A voice URL set in the Twilio Console is a generator bug: nobody remembers
+it after a redeploy. Give `provision` the operator's Twilio file instead,
+`~/.config/thicket/twilio.json`, mode 0600, beside the Slack configuration
+token:
+
+```json
+{
+  "account_sid": "AC...",
+  "api_key_sid": "SK...",
+  "api_key_secret": "...",
+  "number": "+1...",
+  "public_base_url": "https://thicket-phone.tailXXXX.ts.net"
+}
+```
+
+A restricted API key needs `active-numbers` read and update; the account's
+auth token works instead of the pair. With the file present, `provision`
+sets the number's voice URL to `<public_base_url>/voice` (POST) and its
+status callback to `/status`, idempotently — `--dry-run` prints exactly
+which fields would change and touches nothing. `doctor` compares the live
+settings to the rendered ones and fails with the drift when someone has
+pointed the number elsewhere.
+
 ## 7. Verify
 
 ```sh

@@ -15,6 +15,11 @@ export interface DoctorProbes {
   lingeringEnabled(agent: string, user: string): Promise<boolean>;
   /** The bridge's heartbeat file, if a bridge runs on this host. */
   bridgeHealth(): Promise<BridgeHealth | undefined>;
+  /**
+   * The phone number's live voice settings against the rendered ones, when
+   * the operator has a twilio.json here (undefined: no phone to check).
+   */
+  phoneNumber(): Promise<{ number: string; drift: string[] } | undefined>;
 }
 
 /** Shape of the health file the bridge rewrites every few seconds. */
@@ -179,6 +184,21 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
         }
       }
     }
+  }
+
+  const phoneProbe = await attempt(() => probes.phoneNumber());
+  if (!phoneProbe.ok) {
+    push("phone", false, phoneProbe.error);
+  } else if (phoneProbe.value === undefined) {
+    push("phone", true, "no twilio.json on this host — the phone number is not checked here");
+  } else if (phoneProbe.value.drift.length > 0) {
+    push(
+      "phone",
+      false,
+      `the number is not pointed at the bridge (${phoneProbe.value.drift.join("; ")}) — run thicket provision`,
+    );
+  } else {
+    push("phone", true, "the number's voice URL and status callback point at the bridge");
   }
 
   const usageProbe = await attempt(() => probes.workspaceAppUsage());

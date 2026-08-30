@@ -7,6 +7,13 @@ import { agentUrl, parseRoster, stateDir } from "@thicket/roster";
 import type { AgentEntry } from "@thicket/roster";
 
 import type { BridgeHealth, DoctorProbes } from "./doctor.js";
+import {
+  desiredNumberSettings,
+  HttpTwilioNumberApi,
+  readTwilioProvisioning,
+  settingsDrift,
+} from "./phone-provision.js";
+import type { FileStore } from "./store.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -20,6 +27,8 @@ export function realProbes(options: {
   /** Dev-rig stand-in for the tailnet: agent name -> local base URL. */
   endpointOverrides?: Record<string, string>;
   fetchImpl?: typeof fetch;
+  /** The operator's config dir, where twilio.json lives when there is a phone. */
+  store?: FileStore;
 } = {}): DoctorProbes {
   const fetchImpl = options.fetchImpl ?? fetch;
   const entryFor = (agent: string): AgentEntry | undefined => options.roster?.agents[agent];
@@ -94,6 +103,18 @@ export function realProbes(options: {
       } catch {
         return undefined;
       }
+    },
+
+    async phoneNumber() {
+      const creds = options.store === undefined ? undefined : readTwilioProvisioning(options.store);
+      if (creds === undefined) {
+        return undefined;
+      }
+      const live = await new HttpTwilioNumberApi(creds, fetchImpl).lookup(creds.number);
+      if (live === undefined) {
+        throw new Error("the Twilio account does not own the number in twilio.json");
+      }
+      return { number: creds.number, drift: settingsDrift(live.settings, desiredNumberSettings(creds.public_base_url)) };
     },
 
     async lingeringEnabled(_agent, user) {

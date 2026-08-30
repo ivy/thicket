@@ -6,6 +6,7 @@ import { configDir, parseRoster, toAgentCard } from "@thicket/roster";
 import { toSlackManifest, type SlackManifest } from "@thicket/slack-manifest";
 
 import { doctorExitCode, formatResults, runDoctor } from "./doctor.js";
+import { HttpTwilioNumberApi, provisionNumber, readTwilioProvisioning } from "./phone-provision.js";
 import { Provisioner } from "./provision.js";
 import { renderAccountConfigs } from "./render-config.js";
 import { HttpSlackAdminApi } from "./slack-admin.js";
@@ -57,12 +58,26 @@ async function main(): Promise<void> {
       warnings.push(...rendered.warnings);
     }
 
+    const store = new FileStore(configDir());
+    const report = (line: string) => process.stdout.write(line + "\n");
     const provisioner = new Provisioner({
       api: new HttpSlackAdminApi(),
-      store: new FileStore(configDir()),
-      report: (line) => process.stdout.write(line + "\n"),
+      store,
+      report,
     });
     await provisioner.run({ manifests, warnings, dryRun, only });
+
+    // The number, when the operator has given us one: pointed at the bridge
+    // the same way, after saying what would change.
+    const twilio = readTwilioProvisioning(store);
+    if (twilio === undefined) {
+      report(`phone number: no ${store.path("twilio.json")} — nothing to point at a bridge`);
+    } else if (only === undefined) {
+      await provisionNumber(
+        { number: twilio.number, publicBaseUrl: twilio.public_base_url, dryRun },
+        { api: new HttpTwilioNumberApi(twilio), report },
+      );
+    }
 
     if (!dryRun) {
       const written = renderAccountConfigs(roster, loadYaml(), {
@@ -160,6 +175,7 @@ async function main(): Promise<void> {
       roster,
       realProbes({
         roster,
+        store: new FileStore(configDir()),
         tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
         // Same dev-rig override fleet and mcp honour: agents reachable on
         // local ports where there is no tailnet.

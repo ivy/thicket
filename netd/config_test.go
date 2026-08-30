@@ -93,7 +93,6 @@ func TestFunnelSectionIsValidated(t *testing.T) {
 
 	for body, want := range map[string]string{
 		`{` + base + `, "funnel": {"path_prefix": "voice", "upstream_socket": "/run/phone.sock"}}`:     `path_prefix must start with "/"`,
-		`{` + base + `, "funnel": {"path_prefix": "/"}}`:                                               "upstream_socket is required",
 		`{` + base + `, "funnel": {"path_prefix": "/", "upstream_socket": "/run/agentd.sock"}}`:        "must not be agentd's socket",
 		`{` + base + `, "funnel": {"path_prefix": "/", "upstream_socket": "/run/phone.sock", "x": 1}}`: "unknown field",
 	} {

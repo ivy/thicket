@@ -16,3 +16,14 @@ export {
   type ConfigTokenPair,
   type ProvisionState,
 } from "./store.js";
+export {
+  desiredNumberSettings,
+  HttpTwilioNumberApi,
+  provisionNumber,
+  readTwilioProvisioning,
+  settingsDrift,
+  TWILIO_FILE,
+  type NumberSettings,
+  type TwilioNumberApi,
+  type TwilioProvisioning,
+} from "./phone-provision.js";

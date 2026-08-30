@@ -41,8 +41,8 @@ type FunnelConfig struct {
 	// Anything else is refused before it is read.
 	PathPrefix string `json:"path_prefix"`
 	// UpstreamSocket is the unix socket the prefix is proxied to — the
-	// phone bridge's, never agentd's.
-	UpstreamSocket string `json:"upstream_socket"`
+	// phone bridge's, never agentd's. Default: socketPath("phone").
+	UpstreamSocket string `json:"upstream_socket,omitempty"`
 }
 
 func defaultConfigPath() string {
@@ -80,7 +80,7 @@ func loadConfig(path string) (*Config, error) {
 			return nil, fmt.Errorf("config %s: funnel.path_prefix must start with \"/\", got %q", path, cfg.Funnel.PathPrefix)
 		}
 		if cfg.Funnel.UpstreamSocket == "" {
-			return nil, fmt.Errorf("config %s: funnel.upstream_socket is required", path)
+			cfg.Funnel.UpstreamSocket = socketPath("phone")
 		}
 		if cfg.Funnel.UpstreamSocket == cfg.UpstreamSocket {
 			return nil, fmt.Errorf("config %s: funnel.upstream_socket must not be agentd's socket; the internet never reaches an agent", path)

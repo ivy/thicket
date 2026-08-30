@@ -31,6 +31,7 @@ function healthyProbes(): DoctorProbes {
     slackApp: async () => ({ installed: true, socketMode: true }),
     workspaceAppUsage: async () => ({ installed: 4, cap: 10 }),
     lingeringEnabled: async () => true,
+    phoneNumber: async () => ({ number: "+15550100002", drift: [] }),
     bridgeHealth: async () => ({
       ts: new Date().toISOString(),
       agents: [
@@ -209,4 +210,19 @@ test("a probe that throws something other than ENOENT reports the error itself",
   assert.equal(workspace.ok, false);
   assert.match(workspace.message, /cannot check: network is down/);
   assert.ok(results.some((r) => r.check === "bridge" && r.ok), "later checks unaffected");
+});
+
+test("a number pointed elsewhere by hand is reported as drift; no twilio.json is not a failure", async () => {
+  const drifted = await runDoctor(ROSTER, {
+    ...healthyProbes(),
+    phoneNumber: async () => ({ number: "+15550100002", drift: ["voiceUrl: https://old.example/twiml → https://thicket-phone.tail0000.ts.net/voice"] }),
+  });
+  const phone = drifted.find((r) => r.check === "phone");
+  assert.equal(phone?.ok, false);
+  assert.match(phone!.message, /not pointed at the bridge \(voiceUrl: https:\/\/old\.example\/twiml → .*\/voice\) — run thicket provision/);
+  assert.equal(doctorExitCode(drifted), 1);
+
+  const none = await runDoctor(ROSTER, { ...healthyProbes(), phoneNumber: async () => undefined });
+  assert.equal(none.find((r) => r.check === "phone")?.ok, true);
+  assert.equal(doctorExitCode(none), 0);
 });
