@@ -68,6 +68,43 @@ func newInboundProxy(upstreamSocket string, ident peerIdentifier, logf *log.Logg
 	})
 }
 
+// newPublicProxy fronts the Funnel listener: requests under pathPrefix are
+// proxied to the upstream socket with every X-Thicket-* header removed and
+// nothing stamped in their place — an internet caller has no tags, and a
+// bridge behind this handler authenticates its callers by other means.
+// Anything outside the prefix is refused without touching the upstream.
+// WebSocket upgrades ride through the reverse proxy unchanged.
+func newPublicProxy(upstreamSocket, pathPrefix string, logf *log.Logger) http.Handler {
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", upstreamSocket)
+		},
+	}
+	rp := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			u := *pr.In.URL
+			u.Scheme = "http"
+			u.Host = "phone"
+			pr.Out.URL = &u
+			pr.Out.Host = pr.In.Host
+		},
+		Transport:     transport,
+		ErrorLog:      logf,
+		FlushInterval: -1,
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, pathPrefix) {
+			logf.Printf("public: refused %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+			http.NotFound(w, r)
+			return
+		}
+		r2 := r.Clone(r.Context())
+		stripThicketHeaders(r2.Header)
+		rp.ServeHTTP(w, r2)
+	})
+}
+
 // newEgressProxy is an HTTP forward proxy (absolute-form requests and
 // CONNECT tunnels) whose upstream connections are made through dial —
 // in production, tsnet's Dial, so outbound traffic carries this node's

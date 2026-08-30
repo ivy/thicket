@@ -22,7 +22,9 @@ import (
 	"time"
 
 	"tailscale.com/client/local"
+	"tailscale.com/ipn"
 	"tailscale.com/ipn/ipnstate"
+	"tailscale.com/tailcfg"
 	"tailscale.com/tsnet"
 )
 
@@ -60,6 +62,25 @@ func verifyTag(status *ipnstate.Status, tag string) error {
 	}
 	if !slices.Contains(tags, tag) {
 		return fmt.Errorf("auth key does not own tag %s: node came up with tags %v; use a key whose tag owners include it", tag, tags)
+	}
+	return nil
+}
+
+// verifyFunnel confirms the node may host Funnel before anything is exposed,
+// naming the tailnet policy that grants it: a node that cannot Funnel would
+// otherwise fail at the first public connection, long after the operator
+// stopped watching.
+func verifyFunnel(status *ipnstate.Status, tag string) error {
+	if status.Self == nil {
+		return fmt.Errorf("funnel: node status has no self; cannot confirm Funnel permission")
+	}
+	if !status.Self.HasCap(tailcfg.NodeAttrFunnel) {
+		return fmt.Errorf("funnel: node lacks the %q node attribute: grant it in the tailnet policy with "+
+			`{"nodeAttrs": [{"target": ["%s"], "attr": ["funnel"]}]} (https://tailscale.com/kb/1223/funnel)`,
+			tailcfg.NodeAttrFunnel, tag)
+	}
+	if err := ipn.CheckFunnelAccess(443, status.Self); err != nil {
+		return fmt.Errorf("funnel: %w", err)
 	}
 	return nil
 }
@@ -122,11 +143,31 @@ func run(ctx context.Context, configPath string, logf *log.Logger) error {
 		Handler:  newEgressProxy(ts.Dial, logf),
 		ErrorLog: logf,
 	}
-
-	return serveUntilSignaled(ctx, logf, []serverListener{
+	servers := []serverListener{
 		{inbound, tlsLn, "inbound"},
 		{egress, egressLn, "egress"},
-	})
+	}
+
+	if cfg.Funnel != nil {
+		if err := verifyFunnel(status, cfg.Tag); err != nil {
+			return err
+		}
+		// FunnelOnly: the tailnet side of :443 stays the inbound proxy above,
+		// with its WhoIs; only connections Tailscale relays in from the
+		// internet reach the public handler.
+		funnelLn, err := ts.ListenFunnel("tcp", ":443", tsnet.FunnelOnly())
+		if err != nil {
+			return fmt.Errorf("funnel listener: %w", err)
+		}
+		public := &http.Server{
+			Handler:  newPublicProxy(cfg.Funnel.UpstreamSocket, cfg.Funnel.PathPrefix, logf),
+			ErrorLog: logf,
+		}
+		servers = append(servers, serverListener{public, funnelLn, "public"})
+		logf.Printf("funnel: serving %s to %s on the public internet", cfg.Funnel.PathPrefix, cfg.Funnel.UpstreamSocket)
+	}
+
+	return serveUntilSignaled(ctx, logf, servers)
 }
 
 // listenUnix listens on path, replacing a stale socket and restricting the

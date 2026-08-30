@@ -177,6 +177,55 @@ uploaded to its own threads, and no token is minted or distributed. The same
 but the network, so the absence of an agentd in this account is not a missing
 dependency.
 
+### The phone bridge's netd faces the internet
+
+The phone bridge is the one component the public internet reaches: Twilio
+dials its WebSocket. That edge is a mode of the same netd, not a new
+component — a Tailscale Funnel listener on port 443 in front of the
+bridge's socket — so the account keeps the shape of every other: one
+binary, one config, one auth key. In `~/.config/thicket/netd.json`:
+
+```json
+{
+  "hostname": "thicket-phone",
+  "tag": "tag:thicket-phone",
+  "upstream_socket": "/run/user/1002/thicket/agentd.sock",
+  "funnel": {
+    "path_prefix": "/",
+    "upstream_socket": "/run/user/1002/thicket/phone.sock"
+  }
+}
+```
+
+The public handler forwards only `path_prefix`, strips every `X-Thicket-*`
+header, and stamps **nothing** — an internet caller has no tags, and the
+bridge authenticates Twilio by its signature. The tailnet side of port 443
+is untouched: peers on the tailnet still reach the inbound proxy with their
+WhoIs-verified tags, and only connections Tailscale relays in from the
+internet reach the public handler (`FunnelOnly`). The upstream may not be
+agentd's socket; netd refuses that at start.
+
+Funnel is a tailnet permission, not a node setting. Two things must be
+true before netd will start with the section present, and it says which is
+missing:
+
+- **HTTPS certificates** are enabled for the tailnet (DNS → HTTPS
+  Certificates), so the node has a cert domain to serve on.
+- The phone tag carries the **`funnel` node attribute** in the tailnet
+  policy:
+
+  ```json
+  "nodeAttrs": [
+    { "target": ["tag:thicket-phone"], "attr": ["funnel"] }
+  ]
+  ```
+
+The public hostname is then `https://thicket-phone.<tailnet>.ts.net`; it is
+what the bridge's `phone.json` names as `public_base_url`, and what the
+number's voice URL points at. Scanners find it within seconds of it
+appearing; the bridge answers them with 404 and never reads a body it did
+not sign for.
+
 ## 7. Verify
 
 ```sh

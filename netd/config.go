@@ -28,6 +28,21 @@ type Config struct {
 	EgressSocket string `json:"egress_socket,omitempty"`
 	// StateDir holds tsnet state. Default: stateDir()/tsnet.
 	StateDir string `json:"state_dir,omitempty"`
+	// Funnel, when set, exposes one path prefix of one upstream to the
+	// public internet on port 443 through Tailscale Funnel. The public
+	// handler stamps no tags: an internet caller has none, and whatever
+	// stands behind it authenticates its callers itself.
+	Funnel *FunnelConfig `json:"funnel,omitempty"`
+}
+
+// FunnelConfig is the public edge: which paths, and which socket they reach.
+type FunnelConfig struct {
+	// PathPrefix is the only prefix the public listener forwards, e.g. "/".
+	// Anything else is refused before it is read.
+	PathPrefix string `json:"path_prefix"`
+	// UpstreamSocket is the unix socket the prefix is proxied to — the
+	// phone bridge's, never agentd's.
+	UpstreamSocket string `json:"upstream_socket"`
 }
 
 func defaultConfigPath() string {
@@ -59,6 +74,17 @@ func loadConfig(path string) (*Config, error) {
 	}
 	if cfg.StateDir == "" {
 		cfg.StateDir = filepath.Join(stateDir(), "tsnet")
+	}
+	if cfg.Funnel != nil {
+		if !strings.HasPrefix(cfg.Funnel.PathPrefix, "/") {
+			return nil, fmt.Errorf("config %s: funnel.path_prefix must start with \"/\", got %q", path, cfg.Funnel.PathPrefix)
+		}
+		if cfg.Funnel.UpstreamSocket == "" {
+			return nil, fmt.Errorf("config %s: funnel.upstream_socket is required", path)
+		}
+		if cfg.Funnel.UpstreamSocket == cfg.UpstreamSocket {
+			return nil, fmt.Errorf("config %s: funnel.upstream_socket must not be agentd's socket; the internet never reaches an agent", path)
+		}
 	}
 	return &cfg, nil
 }

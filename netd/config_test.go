@@ -67,3 +67,39 @@ func TestAuthKeyPrecedence(t *testing.T) {
 		t.Errorf("authKey with no source = %v; want error mentioning TS_AUTHKEY", err)
 	}
 }
+
+func TestFunnelSectionIsValidated(t *testing.T) {
+	write := func(body string) string {
+		path := filepath.Join(t.TempDir(), "netd.json")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	base := `"hostname": "thicket-phone", "tag": "tag:thicket-phone", "upstream_socket": "/run/agentd.sock"`
+
+	cfg, err := loadConfig(write(`{` + base + `, "funnel": {"path_prefix": "/", "upstream_socket": "/run/phone.sock"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Funnel == nil || cfg.Funnel.PathPrefix != "/" || cfg.Funnel.UpstreamSocket != "/run/phone.sock" {
+		t.Errorf("funnel section not loaded: %+v", cfg.Funnel)
+	}
+
+	cfg, err = loadConfig(write(`{` + base + `}`))
+	if err != nil || cfg.Funnel != nil {
+		t.Errorf("without a section Funnel must be nil: %+v, %v", cfg.Funnel, err)
+	}
+
+	for body, want := range map[string]string{
+		`{` + base + `, "funnel": {"path_prefix": "voice", "upstream_socket": "/run/phone.sock"}}`:     `path_prefix must start with "/"`,
+		`{` + base + `, "funnel": {"path_prefix": "/"}}`:                                               "upstream_socket is required",
+		`{` + base + `, "funnel": {"path_prefix": "/", "upstream_socket": "/run/agentd.sock"}}`:        "must not be agentd's socket",
+		`{` + base + `, "funnel": {"path_prefix": "/", "upstream_socket": "/run/phone.sock", "x": 1}}`: "unknown field",
+	} {
+		_, err := loadConfig(write(body))
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: err = %v, want %q", body, err, want)
+		}
+	}
+}
