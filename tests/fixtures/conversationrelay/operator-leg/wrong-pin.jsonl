@@ -1,0 +1,22 @@
+{"t":"2026-08-30T20:49:35.119Z","ms":31611,"dir":"rest","createCall":true,"pin":"none","digitCount":0,"sid":"CA00000000000000000000000000000001"}
+{"t":"2026-08-30T20:49:35.216Z","ms":31708,"dir":"http","path":"/action","sessionStatus":"ended"}
+{"t":"2026-08-30T20:49:35.385Z","ms":31877,"dir":"http","path":"/status","callStatus":"initiated"}
+{"t":"2026-08-30T20:49:35.556Z","ms":32048,"dir":"http","path":"/status","callStatus":"ringing"}
+{"t":"2026-08-30T20:49:35.908Z","ms":32400,"dir":"http","path":"/status","callStatus":"completed"}
+{"t":"2026-08-30T20:49:36.315Z","ms":32807,"dir":"in","event":{"kind":"setup","callSid":"CA00000000000000000000000000000001","direction":"outbound-api"}}
+{"t":"2026-08-30T20:49:37.818Z","ms":34310,"dir":"out","frame":{"type":"sendDigits","digitCount":8}}
+{"t":"2026-08-30T20:49:40.947Z","ms":37439,"dir":"in","event":{"kind":"played","chars":8}}
+{"t":"2026-08-30T20:49:41.579Z","ms":38071,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:49:43.174Z","ms":39666,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T20:49:43.175Z","ms":39667,"dir":"in","event":{"kind":"speech","final":true,"text":"That's not it. Try again."}}
+{"t":"2026-08-30T20:49:43.175Z","ms":39667,"dir":"out","frame":{"type":"sendDigits","digitCount":8}}
+{"t":"2026-08-30T20:49:46.306Z","ms":42798,"dir":"in","event":{"kind":"played","chars":8}}
+{"t":"2026-08-30T20:49:47.077Z","ms":43569,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:49:47.971Z","ms":44463,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T20:49:47.972Z","ms":44464,"dir":"in","event":{"kind":"speech","final":true,"text":"That's not it. Try again."}}
+{"t":"2026-08-30T20:49:47.972Z","ms":44464,"dir":"out","frame":{"type":"sendDigits","digitCount":8}}
+{"t":"2026-08-30T20:49:51.106Z","ms":47598,"dir":"in","event":{"kind":"played","chars":8}}
+{"t":"2026-08-30T20:49:51.821Z","ms":48313,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:49:52.689Z","ms":49181,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T20:49:52.689Z","ms":49181,"dir":"in","event":{"kind":"speech","final":true,"text":"That's not it. Goodbye."}}
+{"t":"2026-08-30T20:49:54.041Z","ms":50533,"dir":"ws","event":"close","code":1000}

@@ -63,3 +63,6 @@ not bridge-leg recordings — the codec test replays only the top-level files.
 | `dial-string-hash.jsonl` | the documented `ww<pin>#` — the `#` barges in on the hello (#54); picker, resume offer, an agent turn, a mid-speech interrupt, "goodbye" |
 | `keypad-pin.jsonl` | PIN keyed mid-session as a `sendDigits` frame; the full hello heard; one utterance finalizing as fragments, each barging the reply; `end` |
 | `busy.jsonl` | the Funnel edge refusing the call — status callbacks only, no frames at all |
+| `wrong-pin.jsonl` | three wrong PINs: "Try again" twice, "That's not it. Goodbye.", the call ends (#52's `wrong-pin`) |
+| `resume.jsonl` | the call after a mid-task drop: the offer, "Resume", "Resuming with hearth, it's still working…" (#52's `drop-and-resume`) |
+| `barge-in.jsonl` | three interrupted turns and an answered question after them (#52's `barge-in`) |

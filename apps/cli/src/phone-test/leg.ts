@@ -54,6 +54,23 @@ export interface PlaceOptions {
   pin?: "dial" | "none";
   /** Attempts before giving up: the Funnel edge refuses intermittently (11200/64102). */
   attempts?: number;
+  /** Caller-id override — a second identity for the unlisted-caller scenario. */
+  from?: string;
+}
+
+/**
+ * The verbs a driver of the leg uses — the MCP server's tools and the
+ * scenario runner's scripts are both written against this.
+ */
+export interface CallerLegPort {
+  place(options: PlaceOptions): Promise<PlaceResult>;
+  say(text: string, options?: { overSpeech?: boolean }): Promise<{ playbackObserved: boolean }>;
+  press(digits: string): Promise<void>;
+  enterPin(): Promise<void>;
+  awaitReply(options?: { timeoutMs?: number }): Promise<AwaitedUtterance>;
+  transcript(): TranscriptEntry[];
+  status(): LegStatus;
+  hangup(how?: "end" | "rest"): Promise<void>;
 }
 
 export interface PlaceResult {
@@ -80,7 +97,7 @@ export interface LegStatus {
 }
 
 const SETUP_TIMEOUT_MS = 40_000;
-const RETRY_PAUSE_MS = 3_000;
+const RETRY_PAUSE_MS = 8_000;
 const HANGUP_TIMEOUT_MS = 10_000;
 
 export class CallerLeg {
@@ -201,6 +218,7 @@ export class CallerLeg {
         // `ww` waits a second so the far end's relay is up; no trailing `#`,
         // which barges in on the hello it unlocked (#54).
         ...(pin === "dial" ? { sendDigits: `ww${this.options.pin}` } : {}),
+        ...(options.from === undefined ? {} : { from: options.from }),
       });
       this.record({ dir: "rest", createCall: true, pin, digitCount: pin === "dial" ? this.options.pin.length : 0, sid: this.restSid });
       if (pin === "dial") {
@@ -216,7 +234,8 @@ export class CallerLeg {
       await this.options.rest.completeCall(this.restSid).catch(() => undefined);
       this.restSid = undefined;
       if (attempt < attempts) {
-        await new Promise((resolve) => setTimeout(resolve, this.options.retryPauseMs ?? RETRY_PAUSE_MS));
+        // The edge's bad stretches last tens of seconds; growing pauses ride them out.
+        await new Promise((resolve) => setTimeout(resolve, (this.options.retryPauseMs ?? RETRY_PAUSE_MS) * attempt));
       }
     }
     throw new Error(

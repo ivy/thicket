@@ -10,6 +10,8 @@ export interface CreateCallOptions {
   /** Post-dial digits, what a saved contact's `,<pin>` does. Never logged by callers of this port. */
   sendDigits?: string;
   statusCallback: string;
+  /** Caller-id override for one call — the unlisted-caller scenario. */
+  from?: string;
 }
 
 export interface TwilioRestPort {
@@ -69,7 +71,7 @@ export class HttpTwilioRest implements TwilioRestPort {
   async createCall(options: CreateCallOptions): Promise<string> {
     const body = new URLSearchParams({
       To: this.options.to,
-      From: this.options.from ?? this.options.to,
+      From: options.from ?? this.options.from ?? this.options.to,
       Twiml: options.twiml,
       StatusCallback: options.statusCallback,
       StatusCallbackMethod: "POST",

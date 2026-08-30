@@ -20,7 +20,8 @@ function usage(): never {
       "       thicket journal [--cost] [--failures] [--trigger T] [--days N] [--limit N] [--db PATH]\n" +
       "       thicket mcp\n" +
       "       thicket slack-test-mcp   (development: drives Slack as you)\n" +
-      "       thicket phone-test-mcp   (development: drives the phone bridge as the operator)\n",
+      "       thicket phone-test-mcp   (development: drives the phone bridge as the operator)\n" +
+      "       thicket phone-test run <scenario|all> | list | redact <recording>…\n",
   );
   process.exit(2);
 }
@@ -203,6 +204,40 @@ async function main(): Promise<void> {
     const server = buildPhoneTestServer({ leg });
     await server.connect(new StdioServerTransport());
     return; // serves until stdio closes
+  }
+
+  if (command === "phone-test") {
+    if (rest[0] === "redact") {
+      if (rest.length < 2) {
+        usage();
+      }
+      const { redactFiles } = await import("./phone-test/redact.js");
+      process.stdout.write(redactFiles(rest.slice(1)).join("\n") + "\n");
+      return;
+    }
+    const { loadPhoneTestConfig, PhoneTestConfigError } = await import("./phone-test/config.js");
+    const { runPhoneTest } = await import("./phone-test/runner.js");
+    let config: import("./phone-test/config.js").PhoneTestConfig;
+    try {
+      config = loadPhoneTestConfig(
+        process.env.THICKET_PHONE_TEST_CONFIG ?? join(configDir(), "phone-test.json"),
+      );
+    } catch (err) {
+      process.stderr.write((err instanceof PhoneTestConfigError ? err.message : String(err)) + "\n");
+      process.exit(2);
+    }
+    const write = (level: string, msg: string, fields?: Record<string, unknown>) => {
+      process.stderr.write(JSON.stringify({ ts: new Date().toISOString(), level, msg, ...fields }) + "\n");
+    };
+    process.exit(
+      await runPhoneTest(rest, config, {
+        out: (line) => process.stdout.write(line + "\n"),
+        logger: {
+          info: (msg, fields) => write("info", msg, fields),
+          warn: (msg, fields) => write("warn", msg, fields),
+        },
+      }),
+    );
   }
 
   if (command === "journal") {

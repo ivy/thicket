@@ -1,0 +1,38 @@
+{"t":"2026-08-30T20:52:01.433Z","ms":177925,"dir":"rest","createCall":true,"pin":"dial","digitCount":8,"sid":"CA00000000000000000000000000000001"}
+{"t":"2026-08-30T20:52:02.555Z","ms":179047,"dir":"http","path":"/status","callStatus":"in-progress"}
+{"t":"2026-08-30T20:52:03.464Z","ms":179956,"dir":"http","path":"/status","callStatus":"initiated"}
+{"t":"2026-08-30T20:52:03.592Z","ms":180084,"dir":"http","path":"/status","callStatus":"ringing"}
+{"t":"2026-08-30T20:52:07.667Z","ms":184159,"dir":"in","event":{"kind":"setup","callSid":"CA00000000000000000000000000000001","direction":"outbound-api"}}
+{"t":"2026-08-30T20:52:08.601Z","ms":185093,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:52:09.742Z","ms":186234,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T20:52:09.743Z","ms":186235,"dir":"in","event":{"kind":"speech","final":true,"text":"Iva. Shall I connect you to hearth?"}}
+{"t":"2026-08-30T20:52:09.743Z","ms":186235,"dir":"note","said":"Hearth","overSpeech":false}
+{"t":"2026-08-30T20:52:09.976Z","ms":186468,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T20:52:10.611Z","ms":187103,"dir":"in","event":{"kind":"played","chars":6}}
+{"t":"2026-08-30T20:52:10.611Z","ms":187103,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T20:52:12.857Z","ms":189349,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:52:13.243Z","ms":189735,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T20:52:13.243Z","ms":189735,"dir":"in","event":{"kind":"speech","final":true,"text":"Did you say heart?"}}
+{"t":"2026-08-30T20:52:13.243Z","ms":189735,"dir":"note","said":"Yes","overSpeech":false}
+{"t":"2026-08-30T20:52:13.489Z","ms":189981,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T20:52:14.012Z","ms":190504,"dir":"in","event":{"kind":"played","chars":3}}
+{"t":"2026-08-30T20:52:14.012Z","ms":190505,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T20:52:15.649Z","ms":192141,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:52:21.506Z","ms":197998,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T20:52:21.506Z","ms":197998,"dir":"in","event":{"kind":"speech","final":true,"text":"You were talking to Harth a minute ago. It's still working on what you asked. Resume or start fresh."}}
+{"t":"2026-08-30T20:52:21.507Z","ms":197999,"dir":"note","said":"Resume","overSpeech":false}
+{"t":"2026-08-30T20:52:21.757Z","ms":198249,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T20:52:22.291Z","ms":198783,"dir":"in","event":{"kind":"played","chars":6}}
+{"t":"2026-08-30T20:52:22.292Z","ms":198784,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T20:52:23.911Z","ms":200403,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:52:27.044Z","ms":203536,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T20:52:27.045Z","ms":203537,"dir":"in","event":{"kind":"speech","final":true,"text":"Resuming with hearth, it's still working. Here's the rest as it comes."}}
+{"t":"2026-08-30T20:52:30.396Z","ms":206888,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:52:30.549Z","ms":207041,"dir":"note","said":"Goodbye","overSpeech":false}
+{"t":"2026-08-30T20:52:30.803Z","ms":207295,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T20:52:31.371Z","ms":207863,"dir":"in","event":{"kind":"played","chars":7}}
+{"t":"2026-08-30T20:52:31.372Z","ms":207864,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T20:52:32.457Z","ms":208949,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T20:52:32.457Z","ms":208949,"dir":"in","event":{"kind":"speech","final":true,"text":"Five. Goodbye."}}
+{"t":"2026-08-30T20:52:34.476Z","ms":210968,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T20:52:34.518Z","ms":211010,"dir":"ws","event":"close","code":1000}

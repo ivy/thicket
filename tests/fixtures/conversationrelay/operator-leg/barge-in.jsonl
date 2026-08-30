@@ -1,0 +1,85 @@
+{"t":"2026-08-30T21:12:41.505Z","ms":14339,"dir":"rest","createCall":true,"pin":"dial","digitCount":8,"sid":"CA00000000000000000000000000000001"}
+{"t":"2026-08-30T21:12:41.818Z","ms":14652,"dir":"http","path":"/status","callStatus":"initiated"}
+{"t":"2026-08-30T21:12:41.945Z","ms":14779,"dir":"http","path":"/status","callStatus":"ringing"}
+{"t":"2026-08-30T21:12:42.735Z","ms":15569,"dir":"http","path":"/status","callStatus":"in-progress"}
+{"t":"2026-08-30T21:12:47.837Z","ms":20671,"dir":"in","event":{"kind":"setup","callSid":"CA00000000000000000000000000000001","direction":"outbound-api"}}
+{"t":"2026-08-30T21:12:48.726Z","ms":21560,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:12:49.771Z","ms":22605,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:12:49.772Z","ms":22606,"dir":"in","event":{"kind":"speech","final":true,"text":"Iva. Shall I connect you to hearth?"}}
+{"t":"2026-08-30T21:12:49.773Z","ms":22607,"dir":"note","said":"Hearth","overSpeech":false}
+{"t":"2026-08-30T21:12:50.049Z","ms":22883,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:12:50.682Z","ms":23516,"dir":"in","event":{"kind":"played","chars":6}}
+{"t":"2026-08-30T21:12:50.682Z","ms":23516,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:12:52.664Z","ms":25498,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:12:53.212Z","ms":26046,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:12:53.213Z","ms":26047,"dir":"in","event":{"kind":"speech","final":true,"text":"Did you say heart?"}}
+{"t":"2026-08-30T21:12:53.213Z","ms":26047,"dir":"note","said":"Yes","overSpeech":false}
+{"t":"2026-08-30T21:12:53.466Z","ms":26300,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:12:54.001Z","ms":26835,"dir":"in","event":{"kind":"played","chars":3}}
+{"t":"2026-08-30T21:12:54.001Z","ms":26835,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:12:55.602Z","ms":28436,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:12:58.732Z","ms":31566,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:12:58.733Z","ms":31567,"dir":"in","event":{"kind":"speech","final":true,"text":"You were talking to Harth twelve minutes ago. Resume or start fresh."}}
+{"t":"2026-08-30T21:12:58.733Z","ms":31567,"dir":"note","said":"Start fresh","overSpeech":false}
+{"t":"2026-08-30T21:12:59.045Z","ms":31879,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:12:59.761Z","ms":32595,"dir":"in","event":{"kind":"played","chars":11}}
+{"t":"2026-08-30T21:12:59.761Z","ms":32595,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:13:01.143Z","ms":33977,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:13:02.191Z","ms":35025,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:13:02.192Z","ms":35026,"dir":"in","event":{"kind":"speech","final":true,"text":"Connected to Hearth."}}
+{"t":"2026-08-30T21:13:02.192Z","ms":35026,"dir":"note","said":"Count out loud from one to thirty, every single number.","overSpeech":false}
+{"t":"2026-08-30T21:13:02.538Z","ms":35372,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:13:05.163Z","ms":37997,"dir":"in","event":{"kind":"played","chars":55}}
+{"t":"2026-08-30T21:13:05.163Z","ms":37997,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:13:09.753Z","ms":42587,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:13:11.688Z","ms":44522,"dir":"note","said":"Stop stop stop, that is enough.","overSpeech":true}
+{"t":"2026-08-30T21:13:12.005Z","ms":44839,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:13:13.727Z","ms":46561,"dir":"in","event":{"kind":"played","chars":31}}
+{"t":"2026-08-30T21:13:13.728Z","ms":46562,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:13:15.193Z","ms":48027,"dir":"note","said":"Count out loud from one to thirty, every single number.","overSpeech":false}
+{"t":"2026-08-30T21:13:15.375Z","ms":48209,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:13:15.375Z","ms":48209,"dir":"in","event":{"kind":"speech","final":true,"text":"One, two, three, four, five, six, seven"}}
+{"t":"2026-08-30T21:13:15.570Z","ms":48404,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:13:16.099Z","ms":48933,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:13:16.877Z","ms":49711,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:13:16.878Z","ms":49712,"dir":"in","event":{"kind":"speech","final":true,"text":"Got it."}}
+{"t":"2026-08-30T21:13:18.322Z","ms":51156,"dir":"in","event":{"kind":"played","chars":55}}
+{"t":"2026-08-30T21:13:18.323Z","ms":51157,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:13:23.373Z","ms":56207,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:13:25.352Z","ms":58186,"dir":"note","said":"Stop stop stop, that is enough.","overSpeech":true}
+{"t":"2026-08-30T21:13:25.662Z","ms":58496,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:13:27.302Z","ms":60136,"dir":"in","event":{"kind":"played","chars":31}}
+{"t":"2026-08-30T21:13:27.302Z","ms":60136,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:13:28.855Z","ms":61689,"dir":"note","said":"Count out loud from one to thirty, every single number.","overSpeech":false}
+{"t":"2026-08-30T21:13:29.201Z","ms":62035,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:13:29.599Z","ms":62433,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:13:29.600Z","ms":62434,"dir":"in","event":{"kind":"speech","final":true,"text":"One two three four five six seven eight nine ten"}}
+{"t":"2026-08-30T21:13:31.946Z","ms":64780,"dir":"in","event":{"kind":"played","chars":55}}
+{"t":"2026-08-30T21:13:31.946Z","ms":64780,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:13:45.243Z","ms":78077,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:13:47.014Z","ms":79849,"dir":"note","said":"Stop stop stop, that is enough.","overSpeech":true}
+{"t":"2026-08-30T21:13:47.343Z","ms":80177,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:13:48.982Z","ms":81816,"dir":"in","event":{"kind":"played","chars":31}}
+{"t":"2026-08-30T21:13:48.983Z","ms":81817,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:13:49.546Z","ms":82380,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:13:49.546Z","ms":82380,"dir":"in","event":{"kind":"speech","final":true,"text":"One, two, three, four, five, six, seven,"}}
+{"t":"2026-08-30T21:13:53.048Z","ms":85882,"dir":"note","said":"What is two plus five? Answer with just the number.","overSpeech":false}
+{"t":"2026-08-30T21:13:53.440Z","ms":86274,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:13:53.965Z","ms":86799,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:13:54.312Z","ms":87146,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:13:54.313Z","ms":87147,"dir":"in","event":{"kind":"speech","final":true,"text":"Stop."}}
+{"t":"2026-08-30T21:13:54.642Z","ms":87476,"dir":"in","event":{"kind":"played","chars":22}}
+{"t":"2026-08-30T21:13:55.981Z","ms":88815,"dir":"in","event":{"kind":"played","chars":29}}
+{"t":"2026-08-30T21:13:55.981Z","ms":88815,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:13:59.118Z","ms":91952,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:14:00.678Z","ms":93512,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:14:00.678Z","ms":93512,"dir":"in","event":{"kind":"speech","final":true,"text":"Seven."}}
+{"t":"2026-08-30T21:14:00.679Z","ms":93513,"dir":"note","said":"Goodbye","overSpeech":false}
+{"t":"2026-08-30T21:14:01.213Z","ms":94047,"dir":"in","event":{"kind":"speaking","who":"agent","on":true}}
+{"t":"2026-08-30T21:14:01.841Z","ms":94675,"dir":"in","event":{"kind":"played","chars":7}}
+{"t":"2026-08-30T21:14:01.841Z","ms":94675,"dir":"in","event":{"kind":"speaking","who":"agent","on":false}}
+{"t":"2026-08-30T21:14:02.819Z","ms":95653,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:14:02.971Z","ms":95805,"dir":"in","event":{"kind":"speaking","who":"caller","on":false}}
+{"t":"2026-08-30T21:14:02.972Z","ms":95806,"dir":"in","event":{"kind":"speech","final":true,"text":"Goodbye."}}
+{"t":"2026-08-30T21:14:04.896Z","ms":97730,"dir":"in","event":{"kind":"speaking","who":"caller","on":true}}
+{"t":"2026-08-30T21:14:05.060Z","ms":97894,"dir":"ws","event":"close","code":1000}

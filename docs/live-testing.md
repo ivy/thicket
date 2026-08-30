@@ -173,8 +173,32 @@ It needs its own 0600 config, `~/.config/thicket/phone-test.json`
 start without it, naming the path) — the Twilio credentials, the number,
 the PIN, and the Funnel origin. Its recordings land in the real state dir
 (`~/.local/state/thicket/phone-test/recordings/`), spike-format, ready for
-`redact.ts`; the PIN appears in none of it. The `/operator` funnel path it
-answers on is opened by `rig.sh` and shown by `status` as `funnel-op`.
+`thicket phone-test redact`; the PIN appears in none of it. The
+`/operator` funnel path it answers on is opened by `rig.sh` and shown by
+`status` as `funnel-op`.
+
+**The scripted suite.** `thicket phone-test run all` (or one name from
+`thicket phone-test list`) drives the same leg through scripted scenarios
+with assertions on what was heard, and exits non-zero saying what was
+heard instead. This is the live check a phone change runs before landing:
+
+| scenario | proves |
+|---|---|
+| `dial-string-pin` | the saved contact's post-dial PIN opens the door |
+| `keypad-pin` | the PIN keyed by hand authenticates the same way |
+| `wrong-pin` | three wrong PINs are refused, the third ends the call |
+| `pick-and-ask` | an agent named by voice answers a real question |
+| `drop-and-resume` | a call dropped mid-task is offered back, task intact |
+| `barge-in` | interrupting three turns running leaves the session answering |
+| `goodbye` | the wrap-up: Aiva answers it and the bridge ends the call |
+| `turns-20` | a twenty-turn session holds; operator-side latency summarised |
+| `unlisted-caller` | the silent drop — skipped until a second caller identity exists |
+
+Assertions match distinctive words, never sentences (the transcript is
+Flux hearing a TTS voice), and the first utterance of a call may arrive
+clipped on this leg. Each call leaves one PIN-free recording;
+`thicket phone-test redact <recording>` turns one into a fixture for
+`tests/fixtures/conversationrelay/`.
 
 What the tool cannot check stays human: how it *sounds*. And what it
 cannot do is fail the caller gate — its calls authenticate — so the

@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import type { AwaitedUtterance, LegStatus, PlaceOptions, PlaceResult, TranscriptEntry } from "./leg.js";
+import type { CallerLegPort } from "./leg.js";
 
 /**
  * The synthetic operator (#51): the phone's `slack-test-mcp`. It places a
@@ -12,16 +12,7 @@ import type { AwaitedUtterance, LegStatus, PlaceOptions, PlaceResult, Transcript
  * duplicates them.
  */
 
-export interface PhoneTestLegPort {
-  place(options: PlaceOptions): Promise<PlaceResult>;
-  say(text: string, options?: { overSpeech?: boolean }): Promise<{ playbackObserved: boolean }>;
-  press(digits: string): Promise<void>;
-  enterPin(): Promise<void>;
-  awaitReply(options?: { timeoutMs?: number }): Promise<AwaitedUtterance>;
-  transcript(): TranscriptEntry[];
-  status(): LegStatus;
-  hangup(how?: "end" | "rest"): Promise<void>;
-}
+export type PhoneTestLegPort = CallerLegPort;
 
 function text(body: string) {
   return { content: [{ type: "text" as const, text: body }] };

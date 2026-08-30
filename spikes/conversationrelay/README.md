@@ -82,10 +82,10 @@ reconfig (11200/64102 while HTTP probes pass) — probe via public DNS with
 
 ## Fixtures
 
-`redact.ts` turns a recording into a fixture: SIDs, numbers, the account, and the
-public host are replaced with stable stand-ins, timestamps are kept.
+The redactor grew up and moved into the shipped tool (#52): SIDs, numbers, the
+account, and the public host are replaced with stable stand-ins, timestamps kept.
 
 ```sh
-mise exec -- bun spikes/conversationrelay/redact.ts ~/thicket-test/spike-cr/recordings/CA….jsonl \
+mise exec -- bun apps/cli/src/bin.ts phone-test redact ~/thicket-test/spike-cr/recordings/CA….jsonl \
   > tests/fixtures/conversationrelay/<name>.jsonl
 ```
