@@ -131,9 +131,10 @@ socket).
 **Placing a call.** Save the number in your phone as `<number>,<pin>` and
 dial it: the comma is a two-second pause, the digits are the PIN as DTMF,
 and the call opens in silence until they are accepted — then Aiva says
-hello and names the agents. (No trailing `#` — the PIN is exactly eight
-digits, and the ninth keypress barges in on the hello, #54.) The bridge
-log shows the whole thing, shape only:
+hello and names the agents. (A trailing `#` is redundant — the PIN is
+exactly eight digits — and harmless: the ninth keypress purges the hello
+at Twilio, and the engine re-asks, #54.) The bridge log shows the whole
+thing, shape only:
 
 ```
 webhook path=/voice          Twilio asked how to answer; relay TwiML, no greeting

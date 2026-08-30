@@ -94,6 +94,12 @@ export interface CallEngineOptions {
 export type CallState = "idle" | "authenticating" | "choosing" | "connected" | "ending";
 
 const PIN_LENGTH = 8;
+/**
+ * How long after a stray keypress at the picker before the cut-off question
+ * is re-asked: long enough for the dial string's trailing key to be the last
+ * one, short enough that the hello follows it in a breath (#54).
+ */
+const CHOOSING_REPLAY_MS = 700;
 
 /** A phone session's contextId: the agent and the call that opened it, nothing stored. */
 export function phoneSessionId(agent: string, openingCallSid: string): string {
@@ -213,6 +219,7 @@ export class CallEngine {
   private interruptedAt?: string;
   private keys = "";
   private cancelKeyFlush?: () => void;
+  private cancelChoosingReplay?: () => void;
 
   private readonly agents: PhoneAgent[];
   private readonly clientFor: (agent: string) => AgentClient;
@@ -274,6 +281,8 @@ export class CallEngine {
       case "choosing":
         if (event.kind === "speech" && event.final) {
           await this.onChoice(event.text);
+        } else if (event.kind === "key") {
+          this.onChoosingKey();
         }
         return;
       case "connected":
@@ -291,6 +300,7 @@ export class CallEngine {
     }
     this.state = "ending";
     this.cancelKeyFlush?.();
+    this.cancelChoosingReplay?.();
     const connected = this.connected;
     const call = this.call;
     if (connected !== undefined && call !== undefined) {
@@ -448,7 +458,38 @@ export class CallEngine {
     return best?.agent;
   }
 
+  /**
+   * A keypress at the picker means nothing to it — but Twilio has already
+   * purged whatever was playing, because under `interruptible="any"` a key
+   * is a barge-in. The saved contact's dial string used to end in `#`, so
+   * the ninth key cut off the very hello that authenticated it (#54): the
+   * question is re-asked once the keys stop, and the key goes nowhere.
+   */
+  private onChoosingKey(): void {
+    this.cancelChoosingReplay?.();
+    this.cancelChoosingReplay = this.scheduler.schedule(CHOOSING_REPLAY_MS, () => {
+      this.cancelChoosingReplay = undefined;
+      if (this.state !== "choosing") {
+        return;
+      }
+      void (async () => {
+        if (this.confirmOffer !== undefined) {
+          await this.speak(`Did you say ${this.confirmOffer.spokenName}?`);
+        } else if (this.resumeOffer !== undefined) {
+          await this.speak("Resume, or start fresh?");
+        } else {
+          await this.speak(`Hi, it's Aiva. ${this.offer()}`);
+        }
+      })().catch((err: unknown) => {
+        this.logger.warn("replaying the choosing prompt failed", { err: String(err) });
+      });
+    });
+  }
+
   private async onChoice(text: string): Promise<void> {
+    // The operator spoke: any pending re-ask is superseded.
+    this.cancelChoosingReplay?.();
+    this.cancelChoosingReplay = undefined;
     const said = normalize(text);
     const confirm = this.confirmOffer;
     if (confirm !== undefined) {

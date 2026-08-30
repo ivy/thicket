@@ -152,6 +152,28 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    name: "dial-string-pin-hash",
+    proves: "the contact string's old trailing # no longer silences the hello (#54)",
+    async run(context) {
+      await context.leg.place({ hash: true });
+      const hello = await context.leg.awaitReply({});
+      expectWords(hello.text, ["iva", "connect"]);
+      await context.leg.hangup("end");
+    },
+  },
+  {
+    name: "keypad-pin-hash",
+    proves: "a hand-keyed PIN ending in # hears the whole hello too (#54)",
+    async run(context) {
+      await context.leg.place({ pin: "none" });
+      await sleep(1_500);
+      await context.leg.enterPin({ hash: true });
+      const hello = await context.leg.awaitReply({});
+      expectWords(hello.text, ["iva", "connect"]);
+      await context.leg.hangup("end");
+    },
+  },
+  {
     name: "wrong-pin",
     proves: "three wrong PINs are refused one by one and the third ends the call",
     async run(context) {

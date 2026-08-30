@@ -50,8 +50,10 @@ export interface CallerLegOptions {
 }
 
 export interface PlaceOptions {
-  /** "dial" keys the PIN as post-dial digits (`ww<pin>`, no `#` — #54); "none" leaves the gate shut. */
+  /** "dial" keys the PIN as post-dial digits (`ww<pin>`); "none" leaves the gate shut. */
   pin?: "dial" | "none";
+  /** Append the redundant `#` terminator — the documented contact string's old shape (#54's regression check). */
+  hash?: boolean;
   /** Attempts before giving up: the Funnel edge refuses intermittently (11200/64102). */
   attempts?: number;
   /** Caller-id override — a second identity for the unlisted-caller scenario. */
@@ -66,7 +68,7 @@ export interface CallerLegPort {
   place(options: PlaceOptions): Promise<PlaceResult>;
   say(text: string, options?: { overSpeech?: boolean }): Promise<{ playbackObserved: boolean }>;
   press(digits: string): Promise<void>;
-  enterPin(): Promise<void>;
+  enterPin(options?: { hash?: boolean }): Promise<void>;
   awaitReply(options?: { timeoutMs?: number }): Promise<AwaitedUtterance>;
   transcript(): TranscriptEntry[];
   status(): LegStatus;
@@ -215,9 +217,10 @@ export class CallerLeg {
       this.restSid = await this.options.rest.createCall({
         twiml: this.twiml(),
         statusCallback: `${this.options.publicBaseUrl}${this.options.pathPrefix}/status`,
-        // `ww` waits a second so the far end's relay is up; no trailing `#`,
-        // which barges in on the hello it unlocked (#54).
-        ...(pin === "dial" ? { sendDigits: `ww${this.options.pin}` } : {}),
+        // `ww` waits a second so the far end's relay is up. The trailing `#`
+        // is the contact string's old shape — redundant, and what #54 keeps
+        // harmless — so it is opt-in for the regression check.
+        ...(pin === "dial" ? { sendDigits: `ww${this.options.pin}${options.hash === true ? "#" : ""}` } : {}),
         ...(options.from === undefined ? {} : { from: options.from }),
       });
       this.record({ dir: "rest", createCall: true, pin, digitCount: pin === "dial" ? this.options.pin.length : 0, sid: this.restSid });
@@ -273,8 +276,8 @@ export class CallerLeg {
     ws.send(encodeOutbound(playDigits(digits)));
   }
 
-  async enterPin(): Promise<void> {
-    await this.press(this.options.pin);
+  async enterPin(options: { hash?: boolean } = {}): Promise<void> {
+    await this.press(this.options.pin + (options.hash === true ? "#" : ""));
   }
 
   async awaitReply(options: { timeoutMs?: number } = {}): Promise<AwaitedUtterance> {

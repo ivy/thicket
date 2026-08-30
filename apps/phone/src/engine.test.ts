@@ -422,6 +422,32 @@ test("keypresses batch into one message; control phrases never start a turn", as
   assert.equal(h.alerts.at(-1)?.kind, "session_ended");
 });
 
+test("the dial string's trailing # cannot silence the hello: the question is re-asked (#54)", async () => {
+  const h = harness();
+  await h.engine.handle(DIAL_IN[0]!); // setup
+  for (const digit of [...PIN, "#"]) {
+    await h.engine.handle({ kind: "key", digit });
+  }
+  assert.equal(h.engine.state, "choosing");
+  const hellos = () => h.texts().filter(([token]) => String(token).includes("Aiva")).length;
+  const before = hellos();
+  // Twilio purged the first hello when the # barged in; once the keys stop,
+  // the engine asks again.
+  h.scheduler.fire();
+  await h.engine.idle();
+  assert.equal(hellos(), before + 1, "the greeting is re-spoken after the stray #");
+
+  // A key while a re-ask is pending reschedules rather than stacking...
+  await h.engine.handle({ kind: "key", digit: "#" });
+  await h.engine.handle({ kind: "key", digit: "*" });
+  // ...and a spoken choice supersedes it entirely.
+  await h.engine.handle(h.speech("hearth"));
+  assert.equal(h.engine.state, "connected");
+  const spoken = hellos();
+  h.scheduler.fire();
+  assert.equal(hellos(), spoken, "no replay once a choice was made");
+});
+
 test("a session outlives the call: the next call is offered it back, on the same contextId", async () => {
   const state = new MemoryPhoneState();
   const first = harness({ state });

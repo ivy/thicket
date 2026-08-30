@@ -55,12 +55,15 @@ A deterministic state machine runs before any agent hears a word:
 1. **authenticating** — the call opens with no greeting: nothing is spoken until the
    caller is authenticated. A caller not on the allow-list is dropped silently and an
    alert is posted. The PIN arrives as DTMF — normally the post-dial digits of the
-   operator's saved contact (`<number>,<pin>#`), so the phone keys it in the moment the
+   operator's saved contact (`<number>,<pin>`), so the phone keys it in the moment the
    call connects; the keypad works the same way by hand. Three attempts, then the call
    ends; a number that runs out of attempts on five calls within an hour is refused for
    an hour before the PIN is even offered (the bridge's config sets all three numbers).
    The digits are never logged, journaled, or forwarded, and speech before
-   authentication is discarded.
+   authentication is discarded. A trailing `#` is redundant — the PIN is exactly
+   eight digits — and harmless: a stray key at the picker purges whatever Twilio
+   was playing, so the engine re-asks once the keys stop rather than leave the
+   caller a silent line.
 2. **greeting** — Aiva says hello, briefly; the operator already knows who they called.
 3. **choosing** — Aiva names the phone-enabled agents; the operator names one; if a
    recent session with it exists, resume or start fresh. On resume, what the agent did
