@@ -95,6 +95,10 @@ let current: Call | undefined;
 let nextAction: "hangup" | "say-hangup" | "reconnect" | "dial" = "hangup";
 // Attribute overrides for <ConversationRelay>, set by control `twiml`.
 let attrOverrides: Record<string, string> = {};
+// Control `keys` turns keypress commands off: digits are then collected as a PIN
+// would be (up to eight, or `#`) and only their count is spoken back.
+let keyCommands = true;
+const pinDigits = new Map<string, string>();
 
 // ---------------------------------------------------------------- TwiML
 
@@ -115,7 +119,9 @@ function relayTwiml(): string {
     events: "speaker-events tokens-played",
     ...attrOverrides,
   };
+  // An override of "" drops the attribute: the way to have no welcomeGreeting.
   const rendered = Object.entries(attrs)
+    .filter(([, v]) => v !== "")
     .map(([k, v]) => `${k}="${escapeXml(v)}"`)
     .join(" ");
   return `<?xml version="1.0" encoding="UTF-8"?>\n<Response><Connect action="${BASE_URL}/action"><ConversationRelay ${rendered}/></Connect></Response>`;
@@ -276,6 +282,18 @@ function onFrame(ws: ServerWebSocket<Conn>, raw: string): void {
     }
     case "dtmf": {
       const digit = String(frame.digit);
+      if (!keyCommands) {
+        const so_far = pinDigits.get(call.callSid) ?? "";
+        if (digit === "#" || so_far.length + 1 >= 8) {
+          const entered = digit === "#" ? so_far : so_far + digit;
+          pinDigits.delete(call.callSid);
+          record(call.callSid, { dir: "note", pinDigits: entered.length, sinceSetupMs: Date.now() - call.setupAt });
+          speak(call, `Got ${entered.length} digits.`);
+        } else {
+          pinDigits.set(call.callSid, so_far + digit);
+        }
+        return;
+      }
       const command = KEY_COMMANDS[digit];
       if (command && dispatch(call, command, `dtmf:${digit}`)) return;
       speak(call, `Key ${digit === "#" ? "pound" : digit === "*" ? "star" : digit}.`);
@@ -402,6 +420,10 @@ async function handleControl(req: Request): Promise<Response> {
   if (cmd === "twiml") {
     attrOverrides = (body.attrs as Record<string, string>) ?? {};
     return Response.json({ attrOverrides, twiml: relayTwiml() });
+  }
+  if (cmd === "keys") {
+    keyCommands = body.enabled !== false;
+    return Response.json({ keyCommands });
   }
   if (!current) return Response.json({ error: "no current call" }, { status: 409 });
   switch (cmd) {

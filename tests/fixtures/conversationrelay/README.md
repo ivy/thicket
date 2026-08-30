@@ -4,7 +4,8 @@ Real calls, recorded on the wire by the M0 spike (`spikes/conversationrelay/`,
 [#19](https://github.com/ivy/thicket/issues/19)) on 2026-08-30 with
 `transcriptionProvider="Deepgram" speechModel="flux" partialPrompts="true"
 dtmfDetection="true" interruptible="any" reportInputDuringAgentSpeech="any"
-events="speaker-events tokens-played"` and a `welcomeGreeting`. The caller on every
+events="speaker-events tokens-played"` and a `welcomeGreeting` — except the two
+`dial-string-*` recordings, which have no greeting at all. The caller on every
 recording is Twilio itself — the number dialled from the same number, the caller leg
 running `<Say>`, `<Play digits>` and `<Pause>` — so the speech is a TTS voice on a
 clean line, not a person in a car.
@@ -27,6 +28,8 @@ fields are blank. Nothing else was altered.
 
 | File | The call |
 |---|---|
+| `dial-string-pin.jsonl` | no greeting; the caller leg's post-dial `SendDigits` keys an 8-digit test PIN and `#` one second after connect — what a saved contact does |
+| `dial-string-pin-late.jsonl` | the same, keyed four seconds after connect |
 | `pin-spoken.jsonl` | the greeting; an 8-digit test PIN spoken as words; a sentence; caller hangs up |
 | `greeting-dtmf.jsonl` | a keypress during the greeting and one after it |
 | `interrupt.jsonl` | a long streamed reply, the caller talking over it |

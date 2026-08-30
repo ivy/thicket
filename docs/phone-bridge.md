@@ -6,13 +6,14 @@ bridge is and where its edges are; the issues say what to build next.
 ## What it is
 
 A voice console to the fleet for the operator on the road. The operator dials one
-number; Aiva — the bridge's own voice — authenticates them with an 8-digit PIN, asks
-which agent they want and whether to resume a previous session, and from then on the
-call is a conversation with that agent: tasks given by voice, answers and progress
-spoken back, a dropped call resumable from the next one. Every session start and end,
-and every failed PIN, is posted to a security-alerts channel in Slack.
+contact whose dial string carries the 8-digit PIN as post-dial digits; the call opens
+in silence, the PIN arrives as DTMF, and only then does Aiva — the bridge's own voice —
+speak: which agent, and whether to resume a previous session. From then on the call is
+a conversation with that agent: tasks given by voice, answers and progress spoken back,
+a dropped call resumable from the next one. Every session start and end, and every
+failed PIN, is posted to a security-alerts channel in Slack.
 
-It is **not** a screener of strangers. Nobody but the operator gets past the greeting,
+It is **not** a screener of strangers. Nobody but the operator gets past the PIN,
 and the agents reachable from it can be privileged ones — root included — because the
 caller is the operator, authenticated. That is the line the roster draws explicitly
 (`phone.enabled` per agent) and the ACL enforces (the bridge's tag may call
@@ -30,7 +31,7 @@ authentication policy, because Slack authenticates the operator and the PSTN can
 
 ```
 operator ─PSTN─► Twilio ─wss (text JSON)─► netd Funnel ─► thicket-phone ─A2A over tailnet─► netd ─► agentd ─► session
-                   │  Flux STT · TTS · barge-in · DTMF          │   greeting → PIN → picker → connected
+                   │  Flux STT · TTS · barge-in · DTMF          │   PIN (DTMF) → picker → connected
                    └─action webhook (after the session)─────────┘   alerts ─► Slack #security-alerts
 ```
 
@@ -51,11 +52,14 @@ Only Twilio ever handles audio. Everything to the right of it is text.
 
 A deterministic state machine runs before any agent hears a word:
 
-1. **greeting** — Aiva answers. A caller not on the allow-list hears a neutral line and
-   the call ends; an alert is posted.
-2. **authenticating** — the PIN, by keypad or spoken; three attempts, then a refusal;
-   repeated failures from one number lock it out for a while. The utterance carrying the
-   PIN is never logged, journaled, or forwarded.
+1. **authenticating** — the call opens with no greeting: nothing is spoken until the
+   caller is authenticated. A caller not on the allow-list is dropped silently and an
+   alert is posted. The PIN arrives as DTMF — normally the post-dial digits of the
+   operator's saved contact (`<number>,<pin>#`), so the phone keys it in the moment the
+   call connects; the keypad works the same way by hand. Three attempts, then the call
+   ends; repeated failures from one number lock it out for a while. The digits are never
+   logged, journaled, or forwarded, and speech before authentication is discarded.
+2. **greeting** — Aiva says hello, briefly; the operator already knows who they called.
 3. **choosing** — Aiva names the phone-enabled agents; the operator names one; if a
    recent session with it exists, resume or start fresh. On resume, what the agent did
    meanwhile is read from the task store and spoken.
@@ -112,7 +116,8 @@ holds the recordings. The ones that shape the design:
   transcripts arrive as `prompt{last:false}` every 200–300 ms and nothing marks Flux's
   eager end-of-turn, so speculative turns have no signal through ConversationRelay.
 - Inbound: `setup`, `prompt{voicePrompt,lang,last}`, `dtmf{digit}` (one per keypress,
-  also during the greeting, and a barge-in under `interruptible="any"`),
+  and a barge-in under `interruptible="any"`; post-dial digits keyed one second after
+  connect arrive intact, eight of them 380 ms apart from 2.2 s after `setup`),
   `interrupt{utteranceUntilInterrupt,durationUntilInterruptMs}`, `error{description}`,
   and `info{name,value}` for `agentSpeaking`, `clientSpeaking` and `tokensPlayed`.
 - Outbound: `text{token,last,preemptible?}` — `preemptible` marks the message that may
@@ -126,8 +131,8 @@ holds the recordings. The ones that shape the design:
   malformed frames → close 1007.
 - `X-Twilio-Signature` is on the WebSocket handshake over the `wss://` URL exactly as
   written, and only the account's primary auth token validates it.
-- 88 s of silence ends nothing; a TTS voice's spoken 8-digit PIN transcribes as words,
-  not digits, in one prompt. A person in a car is still unmeasured.
+- 88 s of silence ends nothing. Speech is never how the PIN arrives, but for the record
+  a TTS voice's spoken 8-digit PIN transcribes as words, not digits, in one prompt.
 - Twilio failing to reach the socket leaves the caller hearing busy; only the Alerts API
   says why.
 

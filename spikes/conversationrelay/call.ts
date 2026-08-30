@@ -33,7 +33,14 @@ const gather = (inner = "") =>
 // Every scenario starts with a pause so the welcome greeting finishes first, unless the
 // point is to act during it. Commands go by keypress (server.ts KEY_COMMANDS) because
 // Flux hears a TTS voice say "long" as "Wrong." and "preempt" as "Prempt.".
-const scenarios: Record<string, string> = {
+// `sendDigits` is Twilio's post-dial DTMF on the caller leg — what a phone contact
+// saved as "<number>,<pin>#" does — so the relay side can see whether digits keyed
+// before its socket is up survive. `w` waits half a second.
+const scenarios: Record<string, string | { twiml: string; sendDigits: string }> = {
+  // A contact dial string: the test PIN one second after connect, no speech at all.
+  "dial-string-pin": { twiml: pause(15) + "<Hangup/>", sendDigits: "ww47290138#" },
+  // The same, keyed four seconds after connect.
+  "dial-string-pin-late": { twiml: pause(15) + "<Hangup/>", sendDigits: "wwwwwwww47290138#" },
   // An 8-digit test PIN (not the real one) spoken as digits, then a spoken sentence.
   pin: pause(5) + say("four seven two nine zero one three eight") + pause(8) + say("the quick brown fox") + pause(8) + "<Hangup/>",
   // A keypress while the greeting is still playing, then one after it.
@@ -59,11 +66,12 @@ const scenarios: Record<string, string> = {
 };
 
 const name = process.argv[2] ?? "";
-const twiml = scenarios[name];
-if (!twiml) {
+const scenario = scenarios[name];
+if (!scenario) {
   console.error(`usage: call.ts <${Object.keys(scenarios).join("|")}>`);
   process.exit(2);
 }
+const { twiml, sendDigits } = typeof scenario === "string" ? { twiml: scenario, sendDigits: undefined } : scenario;
 
 const body = new URLSearchParams({
   To: NUMBER,
@@ -71,6 +79,7 @@ const body = new URLSearchParams({
   Twiml: `<?xml version="1.0" encoding="UTF-8"?><Response>${twiml}</Response>`,
   StatusCallback: `${BASE}/status`,
   StatusCallbackMethod: "POST",
+  ...(sendDigits === undefined ? {} : { SendDigits: sendDigits }),
 });
 for (const ev of ["initiated", "ringing", "answered", "completed"]) body.append("StatusCallbackEvent", ev);
 
