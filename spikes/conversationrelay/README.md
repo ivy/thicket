@@ -56,6 +56,30 @@ mise exec -- bun spikes/conversationrelay/call.ts pin        # or greeting-dtmf,
                                                              # preempt, hold
 ```
 
+## The caller leg (#50)
+
+`operator.ts` is the other half of a self-call: the number dials itself, the caller
+leg runs its own `<Connect><ConversationRelay>` pointed here, and this process is
+the operator — it hears the bridge's leg as `prompt` text, speaks with `text`
+tokens, keys digits, and hangs up. The rig's bridge answers the inbound leg for
+real (the rig allow-list includes the bridge's own number), so this is how a whole
+authenticated session runs with nobody on the phone.
+
+```sh
+/Applications/Tailscale.app/Contents/MacOS/Tailscale funnel --bg --set-path /operator 8797
+set -a; . ./.env; set +a
+mise exec -- bun spikes/conversationrelay/operator.ts
+```
+
+Control port `127.0.0.1:8796`: `GET /` is status plus the two-sided transcript;
+`POST {"cmd":…}` drives it — `call` (`pin`: `dial` | `dial-late` | `none`,
+`hash:false` drops the trailing `#`, which otherwise barges in on the hello — #54),
+`say {text}`, `pin` (keys the PIN as DTMF; only its digit count is ever recorded),
+`digits`, `end`, `rest-hangup`, `attrs`, `clear`. Funnel strips the `/operator`
+mount prefix before proxying, and the edge can refuse a call minutes after a
+reconfig (11200/64102 while HTTP probes pass) — probe via public DNS with
+`curl --resolve`, and retry busy calls.
+
 ## Fixtures
 
 `redact.ts` turns a recording into a fixture: SIDs, numbers, the account, and the

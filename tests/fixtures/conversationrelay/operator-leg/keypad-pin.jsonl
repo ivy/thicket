@@ -1,0 +1,34 @@
+{"t":"2026-08-30T19:59:09.543Z","ms":466791,"dir":"rest","createCall":true,"pin":"none","digitCount":0,"sid":"CA00000000000000000000000000000001"}
+{"t":"2026-08-30T19:59:09.983Z","ms":467231,"dir":"http","path":"/status","callStatus":"ringing","direction":"outbound-api"}
+{"t":"2026-08-30T19:59:10.632Z","ms":467880,"dir":"http","path":"/status","callStatus":"in-progress","direction":"outbound-api"}
+{"t":"2026-08-30T19:59:10.728Z","ms":467976,"dir":"ws","event":"handshake","id":"59a83af6","path":"/relay/fixture","signaturePresent":true,"signatureMatched":{"wss://phone.example.net/relay/fixture":false,"https://phone.example.net/relay/fixture":false,"wss://phone.example.net/operator/relay/fixture":true,"https://phone.example.net/operator/relay/fixture":false}}
+{"t":"2026-08-30T19:59:10.728Z","ms":467976,"dir":"ws","event":"open","id":"59a83af6"}
+{"t":"2026-08-30T19:59:10.728Z","ms":467976,"dir":"in","frame":{"type":"setup","sessionId":"VX00000000000000000000000000000001","callSid":"CA00000000000000000000000000000001","parentCallSid":"","from":"+15550100001","to":"+15550100001","forwardedFrom":"","callerName":"","direction":"outbound-api","callType":"PSTN","callStatus":"IN_PROGRESS","accountSid":"AC00000000000000000000000000000000","customParameters":{}}}
+{"t":"2026-08-30T19:59:13.718Z","ms":470966,"dir":"out","frame":{"type":"sendDigits","digitCount":8}}
+{"t":"2026-08-30T19:59:16.843Z","ms":474091,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"«8 digits»"}}
+{"t":"2026-08-30T19:59:17.669Z","ms":474917,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:59:19.225Z","ms":476473,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:59:19.225Z","ms":476473,"dir":"in","frame":{"type":"prompt","voicePrompt":"Hi. It's Iva. Shall I connect you to hearth?","lang":"en","last":true}}
+{"t":"2026-08-30T19:59:20.075Z","ms":477323,"dir":"out","frame":{"type":"text","token":"What","last":false}}
+{"t":"2026-08-30T19:59:20.076Z","ms":477324,"dir":"out","frame":{"type":"text","token":" is","last":false}}
+{"t":"2026-08-30T19:59:20.076Z","ms":477324,"dir":"out","frame":{"type":"text","token":" the","last":false}}
+{"t":"2026-08-30T19:59:20.076Z","ms":477324,"dir":"out","frame":{"type":"text","token":" weather","last":false}}
+{"t":"2026-08-30T19:59:20.076Z","ms":477324,"dir":"out","frame":{"type":"text","token":" like","last":true}}
+{"t":"2026-08-30T19:59:20.338Z","ms":477586,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:59:21.571Z","ms":478819,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"What is the weather like"}}
+{"t":"2026-08-30T19:59:21.572Z","ms":478820,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:59:22.315Z","ms":479563,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:59:23.205Z","ms":480453,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:59:23.205Z","ms":480453,"dir":"in","frame":{"type":"prompt","voicePrompt":"I didn't catch that.","lang":"en","last":true}}
+{"t":"2026-08-30T19:59:23.260Z","ms":480508,"dir":"out","frame":{"type":"text","token":"Repeat","last":false}}
+{"t":"2026-08-30T19:59:23.260Z","ms":480508,"dir":"out","frame":{"type":"text","token":" that","last":false}}
+{"t":"2026-08-30T19:59:23.260Z","ms":480508,"dir":"out","frame":{"type":"text","token":" please","last":true}}
+{"t":"2026-08-30T19:59:23.629Z","ms":480877,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:59:23.953Z","ms":481201,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:59:24.403Z","ms":481651,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:59:24.403Z","ms":481651,"dir":"in","frame":{"type":"prompt","voicePrompt":"Shall I connect you","lang":"en","last":true}}
+{"t":"2026-08-30T19:59:25.031Z","ms":482279,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Repeat that please"}}
+{"t":"2026-08-30T19:59:25.032Z","ms":482280,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:59:25.350Z","ms":482598,"dir":"out","frame":{"type":"end","handoffData":"{\"reason\":\"operator-spike\"}"}}
+{"t":"2026-08-30T19:59:25.439Z","ms":482687,"dir":"ws","event":"close","code":1000,"reason":"Closing websocket session","sinceSetupMs":14711}
+{"t":"2026-08-30T19:59:30.367Z","ms":487615,"dir":"http","path":"/status","callStatus":"completed","direction":"outbound-api"}

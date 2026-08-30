@@ -32,7 +32,9 @@ function scrubValue(key: string, value: unknown): unknown {
 function walk(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(walk);
   if (v && typeof v === "object") {
-    return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, walk(scrubValue(k, x))]));
+    // Keys are scrubbed too: the caller leg records signature candidates as
+    // {url: matched}, which puts the host and secret path in key position.
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [scrubString(k), walk(scrubValue(k, x))]));
   }
   if (typeof v === "string") return scrubString(v);
   return v;

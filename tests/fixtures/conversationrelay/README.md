@@ -50,3 +50,16 @@ fields are blank. Nothing else was altered.
 call after the fact — `GET /v1/Voice/{CallSid}/Events` and `/Metrics`, redacted the same
 way — so the relay's own `tokensPlayed`/`agentSpeaking` frames can be checked against
 Twilio's `tts_latency`, `first_token_received` and `interrupt` events.
+
+`operator-leg/` is the other vantage (#50): the **caller leg** of a self-call as its
+own ConversationRelay session (`spikes/conversationrelay/operator.ts`), with the rig's
+real bridge answering the inbound leg. `out` frames are what the synthetic operator
+spoke or keyed; `in` frames are the bridge's speech as Flux transcribed it. These are
+not bridge-leg recordings — the codec test replays only the top-level files.
+
+| | |
+|---|---|
+| `dial-string.jsonl` | post-dial `ww<pin>` (no `#`), auth, the hello's tail heard, REST hangup |
+| `dial-string-hash.jsonl` | the documented `ww<pin>#` — the `#` barges in on the hello (#54); picker, resume offer, an agent turn, a mid-speech interrupt, "goodbye" |
+| `keypad-pin.jsonl` | PIN keyed mid-session as a `sendDigits` frame; the full hello heard; one utterance finalizing as fragments, each barging the reply; `end` |
+| `busy.jsonl` | the Funnel edge refusing the call — status callbacks only, no frames at all |

@@ -1,0 +1,95 @@
+{"t":"2026-08-30T19:44:12.269Z","ms":139090,"dir":"rest","createCall":true,"pin":"dial","digitCount":9,"sid":"CA00000000000000000000000000000001"}
+{"t":"2026-08-30T19:44:12.667Z","ms":139488,"dir":"http","path":"/status","callStatus":"initiated","direction":"outbound-api"}
+{"t":"2026-08-30T19:44:19.112Z","ms":145933,"dir":"ws","event":"handshake","id":"ff71f9db","path":"/relay/fixture","signaturePresent":true,"signatureMatched":{"wss://phone.example.net/relay/fixture":false,"https://phone.example.net/relay/fixture":false,"wss://phone.example.net/operator/relay/fixture":true,"https://phone.example.net/operator/relay/fixture":false}}
+{"t":"2026-08-30T19:44:19.112Z","ms":145933,"dir":"ws","event":"open","id":"ff71f9db"}
+{"t":"2026-08-30T19:44:19.112Z","ms":145933,"dir":"in","frame":{"type":"setup","sessionId":"VX00000000000000000000000000000001","callSid":"CA00000000000000000000000000000001","parentCallSid":"","from":"+15550100001","to":"+15550100001","forwardedFrom":"","callerName":"","direction":"outbound-api","callType":"PSTN","callStatus":"IN_PROGRESS","accountSid":"AC00000000000000000000000000000000","customParameters":{}}}
+{"t":"2026-08-30T19:45:47.614Z","ms":234435,"dir":"out","frame":{"type":"text","token":"Hearth","last":true}}
+{"t":"2026-08-30T19:45:47.893Z","ms":234714,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:45:48.516Z","ms":235337,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Hearth"}}
+{"t":"2026-08-30T19:45:48.516Z","ms":235337,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:45:50.237Z","ms":237058,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:45:50.889Z","ms":237710,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:45:50.889Z","ms":237710,"dir":"in","frame":{"type":"prompt","voicePrompt":"Did you say hearth?","lang":"en","last":true}}
+{"t":"2026-08-30T19:46:29.650Z","ms":276471,"dir":"out","frame":{"type":"text","token":"Yes","last":true}}
+{"t":"2026-08-30T19:46:29.910Z","ms":276731,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:46:30.438Z","ms":277259,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Yes"}}
+{"t":"2026-08-30T19:46:30.438Z","ms":277259,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:46:31.453Z","ms":278274,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:46:35.988Z","ms":282809,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:46:35.988Z","ms":282809,"dir":"in","frame":{"type":"prompt","voicePrompt":"You were talking to hearth five hundred and forty nine minutes ago. Resume or start fresh.","lang":"en","last":true}}
+{"t":"2026-08-30T19:47:17.143Z","ms":323964,"dir":"out","frame":{"type":"text","token":"Start","last":false}}
+{"t":"2026-08-30T19:47:17.143Z","ms":323964,"dir":"out","frame":{"type":"text","token":" fresh","last":true}}
+{"t":"2026-08-30T19:47:17.423Z","ms":324244,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:47:18.202Z","ms":325023,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Start fresh"}}
+{"t":"2026-08-30T19:47:18.203Z","ms":325024,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:47:19.670Z","ms":326491,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:47:20.807Z","ms":327628,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:47:20.807Z","ms":327628,"dir":"in","frame":{"type":"prompt","voicePrompt":"Connected to Hearth.","lang":"en","last":true}}
+{"t":"2026-08-30T19:47:46.866Z","ms":353687,"dir":"out","frame":{"type":"text","token":"Count","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" out","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" loud","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" from","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" one","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" to","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" thirty,","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" every","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" single","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" number,","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" no","last":false}}
+{"t":"2026-08-30T19:47:46.867Z","ms":353688,"dir":"out","frame":{"type":"text","token":" shortcuts.","last":true}}
+{"t":"2026-08-30T19:47:47.435Z","ms":354256,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:47:50.838Z","ms":357659,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Count out loud from one to thirty, every single number, no shortcuts."}}
+{"t":"2026-08-30T19:47:50.838Z","ms":357659,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:47:55.364Z","ms":362185,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:48:12.880Z","ms":379701,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:48:12.880Z","ms":379701,"dir":"in","frame":{"type":"prompt","voicePrompt":"One two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twenty one twenty two twenty three twenty four twenty five twenty six twenty seven twenty eight twenty nine thirty.","lang":"en","last":true}}
+{"t":"2026-08-30T19:48:50.938Z","ms":417759,"dir":"out","frame":{"type":"text","token":"Stop","last":false}}
+{"t":"2026-08-30T19:48:50.939Z","ms":417760,"dir":"out","frame":{"type":"text","token":" stop","last":false}}
+{"t":"2026-08-30T19:48:50.939Z","ms":417760,"dir":"out","frame":{"type":"text","token":" stop,","last":false}}
+{"t":"2026-08-30T19:48:50.939Z","ms":417760,"dir":"out","frame":{"type":"text","token":" that","last":false}}
+{"t":"2026-08-30T19:48:50.939Z","ms":417760,"dir":"out","frame":{"type":"text","token":" is","last":false}}
+{"t":"2026-08-30T19:48:50.939Z","ms":417760,"dir":"out","frame":{"type":"text","token":" enough.","last":true}}
+{"t":"2026-08-30T19:48:51.272Z","ms":418093,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:48:52.861Z","ms":419682,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Stop stop stop, that is enough."}}
+{"t":"2026-08-30T19:48:52.862Z","ms":419683,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:48:55.836Z","ms":422657,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:48:57.530Z","ms":424351,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:48:57.531Z","ms":424352,"dir":"in","frame":{"type":"prompt","voicePrompt":"Got it. Stop in there. What would you like to do next?","lang":"en","last":true}}
+{"t":"2026-08-30T19:49:51.886Z","ms":478707,"dir":"out","frame":{"type":"text","token":"Count","last":false}}
+{"t":"2026-08-30T19:49:51.886Z","ms":478707,"dir":"out","frame":{"type":"text","token":" out","last":false}}
+{"t":"2026-08-30T19:49:51.887Z","ms":478708,"dir":"out","frame":{"type":"text","token":" loud","last":false}}
+{"t":"2026-08-30T19:49:51.887Z","ms":478708,"dir":"out","frame":{"type":"text","token":" from","last":false}}
+{"t":"2026-08-30T19:49:51.887Z","ms":478708,"dir":"out","frame":{"type":"text","token":" one","last":false}}
+{"t":"2026-08-30T19:49:51.887Z","ms":478708,"dir":"out","frame":{"type":"text","token":" to","last":false}}
+{"t":"2026-08-30T19:49:51.887Z","ms":478708,"dir":"out","frame":{"type":"text","token":" fifty,","last":false}}
+{"t":"2026-08-30T19:49:51.887Z","ms":478708,"dir":"out","frame":{"type":"text","token":" every","last":false}}
+{"t":"2026-08-30T19:49:51.887Z","ms":478708,"dir":"out","frame":{"type":"text","token":" single","last":false}}
+{"t":"2026-08-30T19:49:51.887Z","ms":478708,"dir":"out","frame":{"type":"text","token":" number.","last":true}}
+{"t":"2026-08-30T19:49:52.236Z","ms":479057,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:49:54.903Z","ms":481724,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Count out loud from one to fifty, every single number."}}
+{"t":"2026-08-30T19:49:54.904Z","ms":481725,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:50:00.634Z","ms":487455,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:50:03.083Z","ms":489904,"dir":"out","frame":{"type":"text","token":"Stop","last":false}}
+{"t":"2026-08-30T19:50:03.083Z","ms":489904,"dir":"out","frame":{"type":"text","token":" stop","last":false}}
+{"t":"2026-08-30T19:50:03.084Z","ms":489905,"dir":"out","frame":{"type":"text","token":" stop,","last":false}}
+{"t":"2026-08-30T19:50:03.084Z","ms":489905,"dir":"out","frame":{"type":"text","token":" that","last":false}}
+{"t":"2026-08-30T19:50:03.084Z","ms":489905,"dir":"out","frame":{"type":"text","token":" is","last":false}}
+{"t":"2026-08-30T19:50:03.084Z","ms":489905,"dir":"out","frame":{"type":"text","token":" enough.","last":true}}
+{"t":"2026-08-30T19:50:03.397Z","ms":490218,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:50:04.631Z","ms":491452,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:50:04.635Z","ms":491456,"dir":"in","frame":{"type":"prompt","voicePrompt":"One two three four five six seven eight nine ten eleven twelve.","lang":"en","last":true}}
+{"t":"2026-08-30T19:50:05.041Z","ms":491862,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Stop stop stop, that is enough."}}
+{"t":"2026-08-30T19:50:05.041Z","ms":491862,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:50:07.540Z","ms":494361,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:50:08.411Z","ms":495232,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:50:08.411Z","ms":495232,"dir":"in","frame":{"type":"prompt","voicePrompt":"stopped. What's next?","lang":"en","last":true}}
+{"t":"2026-08-30T19:50:55.385Z","ms":542206,"dir":"out","frame":{"type":"text","token":"Goodbye","last":true}}
+{"t":"2026-08-30T19:50:55.645Z","ms":542466,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"on"}}
+{"t":"2026-08-30T19:50:56.218Z","ms":543039,"dir":"in","frame":{"type":"info","name":"tokensPlayed","value":"Goodbye"}}
+{"t":"2026-08-30T19:50:56.219Z","ms":543040,"dir":"in","frame":{"type":"info","name":"agentSpeaking","value":"off"}}
+{"t":"2026-08-30T19:50:57.121Z","ms":543942,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:50:57.268Z","ms":544089,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:50:57.268Z","ms":544089,"dir":"in","frame":{"type":"prompt","voicePrompt":"Goodbye.","lang":"en","last":true}}
+{"t":"2026-08-30T19:50:59.226Z","ms":546047,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:50:59.478Z","ms":546299,"dir":"ws","event":"close","code":1000,"reason":"Closing websocket session","sinceSetupMs":400366}
+{"t":"2026-08-30T19:50:59.848Z","ms":546669,"dir":"http","path":"/status","callStatus":"completed","direction":"outbound-api"}

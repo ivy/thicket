@@ -1,0 +1,13 @@
+{"t":"2026-08-30T19:57:32.558Z","ms":369806,"dir":"rest","createCall":true,"pin":"dial","digitCount":8,"sid":"CA00000000000000000000000000000001"}
+{"t":"2026-08-30T19:57:32.944Z","ms":370192,"dir":"http","path":"/status","callStatus":"initiated","direction":"outbound-api"}
+{"t":"2026-08-30T19:57:33.804Z","ms":371052,"dir":"http","path":"/status","callStatus":"in-progress","direction":"outbound-api"}
+{"t":"2026-08-30T19:57:39.335Z","ms":376583,"dir":"ws","event":"handshake","id":"15ab050b","path":"/relay/fixture","signaturePresent":true,"signatureMatched":{"wss://phone.example.net/relay/fixture":false,"https://phone.example.net/relay/fixture":false,"wss://phone.example.net/operator/relay/fixture":true,"https://phone.example.net/operator/relay/fixture":false}}
+{"t":"2026-08-30T19:57:39.335Z","ms":376583,"dir":"ws","event":"open","id":"15ab050b"}
+{"t":"2026-08-30T19:57:39.335Z","ms":376583,"dir":"in","frame":{"type":"setup","sessionId":"VX00000000000000000000000000000001","callSid":"CA00000000000000000000000000000001","parentCallSid":"","from":"+15550100001","to":"+15550100001","forwardedFrom":"","callerName":"","direction":"outbound-api","callType":"PSTN","callStatus":"IN_PROGRESS","accountSid":"AC00000000000000000000000000000000","customParameters":{}}}
+{"t":"2026-08-30T19:57:40.288Z","ms":377536,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"on"}}
+{"t":"2026-08-30T19:57:41.028Z","ms":378276,"dir":"in","frame":{"type":"info","name":"clientSpeaking","value":"off"}}
+{"t":"2026-08-30T19:57:41.029Z","ms":378277,"dir":"in","frame":{"type":"prompt","voicePrompt":"Shall I connect you to hearth?","lang":"en","last":true}}
+{"t":"2026-08-30T19:58:50.085Z","ms":447333,"dir":"ws","event":"close","code":1000,"reason":"Closing websocket session","sinceSetupMs":70750}
+{"t":"2026-08-30T19:58:50.098Z","ms":447346,"dir":"rest","updateStatus":"completed","ok":true,"status":200}
+{"t":"2026-08-30T19:58:50.346Z","ms":447594,"dir":"http","path":"/action","form":{"Called":"+15550100001","ToState":"","CallerCountry":"US","Direction":"outbound-api","SessionDuration":"71","CallerState":"","ToZip":"","SessionStatus":"completed","CallSid":"CA00000000000000000000000000000001","To":"+15550100001","CallerZip":"","ToCountry":"US","SessionId":"VX00000000000000000000000000000001","CalledZip":"","ApiVersion":"2010-04-01","CalledCity":"","CallStatus":"completed","From":"+15550100001","AccountSid":"AC00000000000000000000000000000000","CalledCountry":"US","CallerCity":"","ToCity":"","FromCountry":"US","Caller":"+15550100001","FromCity":"","CalledState":"","FromZip":"","FromState":""}}
+{"t":"2026-08-30T19:58:50.771Z","ms":448019,"dir":"http","path":"/status","callStatus":"completed","direction":"outbound-api"}

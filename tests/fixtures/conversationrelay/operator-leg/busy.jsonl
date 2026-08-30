@@ -1,0 +1,4 @@
+{"t":"2026-08-30T19:51:32.163Z","ms":9411,"dir":"rest","createCall":true,"pin":"dial","digitCount":8,"sid":"CA00000000000000000000000000000001"}
+{"t":"2026-08-30T19:51:32.445Z","ms":9693,"dir":"http","path":"/status","callStatus":"initiated","direction":"outbound-api"}
+{"t":"2026-08-30T19:51:32.599Z","ms":9847,"dir":"http","path":"/status","callStatus":"ringing","direction":"outbound-api"}
+{"t":"2026-08-30T19:51:37.756Z","ms":15004,"dir":"http","path":"/status","callStatus":"busy","direction":"outbound-api"}

@@ -204,11 +204,12 @@ commit, and they get walked through together.
   saying yes is not the client showing it.
 - **A second host.** Anything needing real systemd, a real tailnet, or a
   second agent account.
-- **Hearing the call.** The log proves what was sent to Twilio; whether the
-  greeting is audible, whether a reply was cut off, how the PIN from a real
-  phone's dial string arrives, are heard, not read. The synthetic caller
-  cannot get past the allow-list, so a call that authenticates is always a
-  person's.
+- **Hearing the call.** The log proves what was sent to Twilio, and the
+  caller-leg peer (`spikes/conversationrelay/operator.ts`, #50 — the rig
+  allow-list includes the bridge's own number so its self-calls authenticate)
+  proves what was transcribable on the line. Whether it *sounds* right — the
+  greeting audible, a reply not clipped, the voice bearable for an hour — is
+  still heard, not read.
 
 ## Rules
 
