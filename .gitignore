@@ -6,3 +6,6 @@ netd/netd
 .claude/*.local.*
 dist-bin/
 dist-release/
+
+# Local secrets (Twilio, Deepgram); never committed
+.env
