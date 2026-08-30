@@ -26,6 +26,7 @@ export {
   type RelayPort,
   type Scheduler,
   type SessionEnd,
+  type TurnLatency,
 } from "./engine.js";
 export { MemoryPhoneState, type PhoneSession, type PhoneStatePort } from "./state.js";
 export { CallRegistry, type CallRecord, type LockoutPolicy } from "./registry.js";

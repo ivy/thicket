@@ -41,6 +41,8 @@ const phoneConfigSchema = z
       .strict(),
     /** Who may call at all; the PIN is the gate, this is the pre-filter. */
     operator_numbers: z.array(e164).min(1, { message: "at least one operator number is required" }),
+    /** Warm the agent's session the moment it is chosen, so the first prompt meets a running subprocess. */
+    warm_up: z.boolean().default(true),
     /** Eight digits, compared in constant time by the bridge, never logged. */
     pin: z.string().regex(/^\d{8}$/, { message: "the PIN is exactly eight digits" }),
     /**

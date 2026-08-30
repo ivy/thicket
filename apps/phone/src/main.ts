@@ -112,6 +112,7 @@ export async function run(
         alerts: engineAlerts,
         verifyPin: pinVerifier(config.pin),
         callerAllowed: (from) => allowed.has(from),
+        warmUp: config.warm_up,
         lockout: {
           lockedUntil: (from) => registry.lockedUntil(from, Date.now()),
           failedCall: (from) =>

@@ -86,8 +86,10 @@ class ScriptedClient implements AgentClient {
     })();
   }
 
-  async send(): Promise<Task> {
-    throw new Error("not used");
+  sent: Message[] = [];
+  async send(message: Message): Promise<Task> {
+    this.sent.push(message);
+    return taskIn("ambient", message.contextId, TaskState.TASK_STATE_COMPLETED);
   }
 
   async cancel(taskId: string): Promise<void> {
@@ -159,11 +161,12 @@ class FakeLockout {
   }
 }
 
-function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttempts?: number; lockout?: FakeLockout } = {}) {
+function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttempts?: number; lockout?: FakeLockout; warmUp?: boolean } = {}) {
   const client = new ScriptedClient();
   const commands: RelayCommand[] = [];
   const alerts: PhoneAlert[] = [];
   const warnings: string[] = [];
+  const infos: Array<{ msg: string; fields?: Record<string, unknown> }> = [];
   const scheduler = new ManualScheduler();
   let now = options.now ?? Date.parse("2026-08-30T10:00:00Z");
   const engine = new CallEngine({
@@ -176,9 +179,10 @@ function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttemp
     callerAllowed: (from) => from === "+15550100001",
     lockout: options.lockout,
     maxPinAttempts: options.maxPinAttempts,
+    warmUp: options.warmUp,
     clock: { now: () => now },
     scheduler,
-    logger: { info: () => {}, warn: (msg) => void warnings.push(msg) },
+    logger: { info: (msg, fields) => void infos.push({ msg, fields }), warn: (msg) => void warnings.push(msg) },
   });
   const texts = () => commands.filter((c) => c.type === "text").map((c) => (c.type === "text" ? [c.token, c.last] : []));
   const feed = async (events: CallEvent[]) => {
@@ -186,7 +190,7 @@ function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttemp
   };
   const speech = (text: string): CallEvent => ({ kind: "speech", text, final: true, lang: "en" });
   const tick = (ms: number) => void (now += ms);
-  return { engine, client, commands, alerts, warnings, scheduler, texts, feed, speech, tick };
+  return { engine, client, commands, alerts, warnings, infos, scheduler, texts, feed, speech, tick };
 }
 
 /** The call as the wire saw it: setup, then the PIN keyed from the dial string. */
@@ -593,3 +597,55 @@ test("switching agents by name mid-call ends one session and starts the other; b
   assert.equal(h.engine.state, "choosing");
   assert.deepEqual(h.texts().at(-1), ["Who would you like? Hearth, or Forge.", true]);
 });
+
+test("every turn is clocked from the finalized prompt to the first chunk and the first token, and the call is summarised", async () => {
+  const h = harness();
+  await connectedTo(h);
+  const ctx = phoneSessionId("hearth", CALL_SID);
+
+  const stream = h.client.open();
+  await h.engine.handle(h.speech("how are the disks"));
+  h.tick(700);
+  stream.push(task("t1", ctx));
+  stream.push(chunk("t1", "The disks "));
+  await drain(); // the engine reads the clock as it takes the chunk
+  h.tick(300);
+  stream.push(chunk("t1", "are fine."));
+  await settle(() => h.texts().some(([token]) => token === "The disks "));
+  h.tick(500);
+  stream.push(done("t1", ctx));
+  stream.close();
+  await h.engine.idle();
+  const turn = h.infos.find((l) => l.msg === "turn latency");
+  assert.deepEqual(turn?.fields, { seq: 1, toFirstChunkMs: 700, toFirstTokenMs: 1000, totalMs: 1500, dropped: false, chars: 19 });
+
+  h.client.script([task("t2", ctx), chunk("t2", "Yes."), done("t2", ctx)]);
+  await h.engine.handle(h.speech("thanks"));
+  await h.engine.idle();
+  assert.equal(h.engine.latencies.length, 2);
+
+  await h.engine.hangup();
+  const summary = h.infos.find((l) => l.msg === "call latency");
+  assert.equal(summary?.fields?.turns, 2);
+  assert.equal(summary?.fields?.medianToFirstTokenMs, 0, "the scripted second turn was instant; the median is the lower of the two");
+  assert.equal(summary?.fields?.p90ToFirstTokenMs, 1000);
+  assert.equal(summary?.fields?.warmUp, false);
+});
+
+test("with warm-up on, choosing an agent sends it a context-only message before the operator speaks", async () => {
+  const h = harness({ warmUp: true });
+  await connectedTo(h);
+  await settle(() => h.client.sent.length === 1);
+  const warm = h.client.sent[0]!;
+  assert.equal(warm.metadata?.["thicket.shouldQuery"], false);
+  assert.equal(warm.metadata?.[META_PHONE_KIND], "event");
+  assert.equal(warm.contextId, phoneSessionId("hearth", CALL_SID));
+  assert.equal(h.client.streamed.length, 0, "a warm-up is not a turn");
+  assert.ok(h.infos.some((l) => l.msg === "session warmed"));
+});
+
+async function drain(): Promise<void> {
+  for (let i = 0; i < 20; i += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+}

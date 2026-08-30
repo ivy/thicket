@@ -7,6 +7,7 @@ import {
   META_PHONE_KIND,
   META_PHONE_SESSION_STARTED,
   META_PHONE_TO,
+  META_SHOULD_QUERY,
   META_TRIGGER,
   TRIGGER_PHONE,
   uuidv5,
@@ -74,6 +75,12 @@ export interface CallEngineOptions {
   maxPinAttempts?: number;
   /** How long after the last key a batch of digits is sent as one message. */
   dtmfBatchMs?: number;
+  /**
+   * Send the agent a context-only message the moment a session connects,
+   * so its subprocess is warm before the operator finishes speaking. Off
+   * by default here; the bridge's config turns it on.
+   */
+  warmUp?: boolean;
   clock?: Clock;
   scheduler?: Scheduler;
   logger?: EngineLogger;
@@ -123,6 +130,26 @@ interface Turn {
   /** Set by an interrupt or a newer utterance: forward nothing more from this turn. */
   dropped: boolean;
   done: Promise<void>;
+  /** The stopwatch: from the finalized prompt to the agent's first chunk and to the first token Twilio got. */
+  startedAt: number;
+  firstChunkAt?: number;
+  firstTokenAt?: number;
+}
+
+/** One turn's latencies, in ms from the finalized prompt. */
+export interface TurnLatency {
+  seq: number;
+  toFirstChunkMs?: number;
+  toFirstTokenMs?: number;
+  totalMs: number;
+}
+
+function percentile(values: number[], p: number): number | undefined {
+  if (values.length === 0) {
+    return undefined;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1)];
 }
 
 function normalize(text: string): string {
@@ -197,6 +224,9 @@ export class CallEngine {
   private readonly lockout: LockoutPort | undefined;
   private readonly maxPinAttempts: number;
   private readonly dtmfBatchMs: number;
+  private readonly warmUp: boolean;
+  /** Every finished turn's stopwatch, for the summary at the end of the call. */
+  readonly latencies: TurnLatency[] = [];
   private readonly clock: Clock;
   private readonly scheduler: Scheduler;
   private readonly logger: EngineLogger;
@@ -212,6 +242,7 @@ export class CallEngine {
     this.lockout = options.lockout;
     this.maxPinAttempts = options.maxPinAttempts ?? 3;
     this.dtmfBatchMs = options.dtmfBatchMs ?? 1500;
+    this.warmUp = options.warmUp ?? false;
     this.clock = options.clock ?? { now: () => Date.now() };
     this.scheduler = options.scheduler ?? {
       schedule: (ms, fn) => {
@@ -286,6 +317,19 @@ export class CallEngine {
       this.turn.dropped = true;
     }
     this.connected = undefined;
+    if (this.latencies.length > 0) {
+      const chunks = this.latencies.flatMap((l) => (l.toFirstChunkMs === undefined ? [] : [l.toFirstChunkMs]));
+      const tokens = this.latencies.flatMap((l) => (l.toFirstTokenMs === undefined ? [] : [l.toFirstTokenMs]));
+      this.logger.info("call latency", {
+        callSid: call?.callSid,
+        turns: this.latencies.length,
+        warmUp: this.warmUp,
+        medianToFirstChunkMs: percentile(chunks, 50),
+        p90ToFirstChunkMs: percentile(chunks, 90),
+        medianToFirstTokenMs: percentile(tokens, 50),
+        p90ToFirstTokenMs: percentile(tokens, 90),
+      });
+    }
   }
 
   // ---------------------------------------------------------------- authenticating
@@ -525,9 +569,46 @@ export class CallEngine {
       contextId,
       resumed: previous !== undefined,
     });
+    if (this.warmUp) {
+      void this.warm(agent, contextId);
+    }
     await this.speak(previous === undefined ? `Connected to ${agent.spokenName}.` : `Resuming with ${agent.spokenName}.`);
     if (previous?.runningTaskId !== undefined) {
       await this.pickUp(agent, previous.runningTaskId);
+    }
+  }
+
+  /**
+   * A context-only message: the executor appends it to the transcript
+   * without a turn, and spawning the subprocess to do so is the point —
+   * the first real prompt then meets a warm session.
+   */
+  private async warm(agent: PhoneAgent, contextId: string): Promise<void> {
+    const call = this.call!;
+    const message: Message = {
+      messageId: `${phoneMessageId(call.callSid, 0)}-warm`,
+      contextId,
+      taskId: "",
+      role: 1,
+      parts: [textPart("The operator has connected by phone.")],
+      metadata: {
+        [META_SHOULD_QUERY]: false,
+        [META_TRIGGER]: TRIGGER_PHONE,
+        [META_PHONE_CALL]: call.callSid,
+        [META_PHONE_FROM]: call.from,
+        [META_PHONE_TO]: call.to,
+        [META_PHONE_DIRECTION]: call.direction,
+        [META_PHONE_KIND]: "event",
+        [META_PHONE_SESSION_STARTED]: new Date(this.connected?.startedAt ?? this.clock.now()).toISOString(),
+      },
+      extensions: [],
+      referenceTaskIds: [],
+    };
+    try {
+      await this.clientFor(agent.name).send(message);
+      this.logger.info("session warmed", { agent: agent.name });
+    } catch (err) {
+      this.logger.warn("warm-up failed", { agent: agent.name, err: String(err) });
     }
   }
 
@@ -546,7 +627,7 @@ export class CallEngine {
     if (state === TaskState.TASK_STATE_WORKING || state === TaskState.TASK_STATE_SUBMITTED) {
       await this.speak("It's still working. Here's the rest as it comes.");
       this.seq += 1;
-      const turn: Turn = { seq: this.seq, taskId, spoken: "", dropped: false, done: Promise.resolve() };
+      const turn: Turn = { seq: this.seq, taskId, spoken: "", dropped: false, done: Promise.resolve(), startedAt: this.clock.now() };
       turn.done = this.forward(turn, this.clientFor(agent.name).resubscribe(taskId), agent);
       this.turn = turn;
       return;
@@ -676,7 +757,7 @@ export class CallEngine {
       }
     }
     this.seq += 1;
-    const turn: Turn = { seq: this.seq, spoken: "", dropped: false, done: Promise.resolve() };
+    const turn: Turn = { seq: this.seq, spoken: "", dropped: false, done: Promise.resolve(), startedAt: this.clock.now() };
     turn.done = this.runTurn(turn, this.buildMessage(text, kind));
     this.turn = turn;
   }
@@ -730,6 +811,22 @@ export class CallEngine {
       if (this.turn === turn) {
         this.turn = undefined;
       }
+      this.clockTurn(turn);
+    }
+  }
+
+  /** One log line per turn with its stopwatch; dropped turns are logged but not counted. */
+  private clockTurn(turn: Turn): void {
+    const now = this.clock.now();
+    const latency: TurnLatency = {
+      seq: turn.seq,
+      ...(turn.firstChunkAt === undefined ? {} : { toFirstChunkMs: turn.firstChunkAt - turn.startedAt }),
+      ...(turn.firstTokenAt === undefined ? {} : { toFirstTokenMs: turn.firstTokenAt - turn.startedAt }),
+      totalMs: now - turn.startedAt,
+    };
+    this.logger.info("turn latency", { ...latency, dropped: turn.dropped, chars: turn.spoken.length });
+    if (!turn.dropped) {
+      this.latencies.push(latency);
     }
   }
 
@@ -742,10 +839,12 @@ export class CallEngine {
         if (event.text === "") {
           return;
         }
+        turn.firstChunkAt ??= this.clock.now();
         // Hold one chunk back: the final token must carry `last`, and the
         // stream only says which chunk was final once the task is terminal.
         if (turn.held !== undefined) {
           await this.relay.send(say(turn.held, false));
+          turn.firstTokenAt ??= this.clock.now();
           turn.spoken += turn.held;
         }
         turn.held = event.text;
@@ -769,6 +868,7 @@ export class CallEngine {
         turn.held = undefined;
         if (finalToken !== "") {
           await this.relay.send(say(finalToken, true));
+          turn.firstTokenAt ??= this.clock.now();
           turn.spoken += finalToken;
         } else if (turn.spoken !== "") {
           // Everything was already sent without `last`; close the utterance.

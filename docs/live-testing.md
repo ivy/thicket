@@ -143,9 +143,17 @@ command type=text last=true  Aiva's hello and the picker
 frame kind=speech final=true "Hearth"
 alert kind=session_started   agent, contextId — the row in the registry gains its agent
 command type=text …          the agent's reply, one token per chunk, last on the final one
+turn latency                 per turn: toFirstChunkMs (the agent), toFirstTokenMs (what Twilio got)
 alert kind=session_ended     durationMs
+call latency                 median and p90 of both, over the call's turns, and whether warm_up was on
 webhook path=/action         reason=goodbye (or completed, or failed:64105 for a drop)
 ```
+
+The stopwatch starts at the finalized prompt. `toFirstTokenMs` is what the
+operator waits through; `toFirstChunkMs` is the agent's share of it. With
+`"warm_up": true` (the default) the bridge sends the agent a context-only
+message the moment it is chosen, so its subprocess is up before the first
+question; set it `false` for the comparison the vertical slice asks for.
 
 **Without a phone.** `mise exec -- bun spikes/conversationrelay/call.ts hold-short`
 makes Twilio dial the number from itself. That number is not on the
