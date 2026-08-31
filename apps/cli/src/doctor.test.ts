@@ -260,6 +260,9 @@ test("every link of the phone path is reported, and one broken link exits non-ze
   const cases: Array<[Partial<DoctorProbes>, RegExp]> = [
     [{ phoneConfig: async () => ({ ok: false, source: "/x (this account)", error: "phone config /x/phone.json is invalid:\n  pin: the PIN is exactly eight digits" }) }, /phone\.json will not load: [\s\S]*pin: the PIN is exactly eight digits/],
     [{ phonePublic: async () => { throw new Error("fetch failed"); } }, /public hostname not answering: .*fetch failed — is the phone account's netd up/],
+    // A caller refused by its own allow-list has learned nothing about the
+    // target, so the netd/Funnel hint must not appear beside it.
+    [{ phonePublic: async () => { throw new Error("egress proxy refused CONNECT: HTTP/1.1 403 Forbidden"); } }, /public hostname not checked: .*egress allow-list/],
     [{ phonePublic: async () => ({ url: "https://x/", status: 502 }) }, /answered HTTP 502, not the bridge's 404 — netd is up but nothing is listening behind it: the phone bridge is down/],
     [{ phonePublic: async () => ({ url: "https://x/", status: 200 }) }, /answered HTTP 200, not the bridge's 404 — something else is in front/],
     [{ phoneHealth: async () => ({ ts: new Date(Date.now() - 120_000).toISOString(), openCalls: 1 }) }, /phone heartbeat is stale \(last 120s ago\).*a restart drops live calls/],

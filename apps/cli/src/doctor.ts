@@ -74,7 +74,25 @@ function describeProbeError(err: unknown): string {
   if (missing !== null) {
     return `cannot check: \`${missing[1]}\` is not installed on this host`;
   }
+  const refused = /egress proxy refused CONNECT: (.+)/.exec(message);
+  if (refused !== null) {
+    return (
+      `cannot check: this account's own netd refused the connection (${refused[1]}) — ` +
+      `the host is not in its egress allow-list. This says nothing about whether the ` +
+      `thing being checked is healthy`
+    );
+  }
   return `cannot check: ${message}`;
+}
+
+/**
+ * Did the probe fail because it was not allowed out, rather than because the
+ * target is broken? A caller refused by its own allow-list knows nothing about
+ * the target, so any hint about what might be wrong with it is a guess — and a
+ * guess printed beside a real error reads as a finding.
+ */
+function refusedByOwnEgress(probeError: string): boolean {
+  return probeError.includes("egress allow-list");
 }
 
 type Probed<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -295,7 +313,13 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
 
   const publicProbe = await attempt(() => probes.phonePublic());
   if (!publicProbe.ok) {
-    push("phone", false, `public hostname not answering: ${publicProbe.error} — is the phone account's netd up, and is Funnel permitted for its tag?`);
+    push(
+      "phone",
+      false,
+      refusedByOwnEgress(publicProbe.error)
+        ? `public hostname not checked: ${publicProbe.error}`
+        : `public hostname not answering: ${publicProbe.error} — is the phone account's netd up, and is Funnel permitted for its tag?`,
+    );
   } else if (publicProbe.value !== undefined) {
     if (publicProbe.value.status === 404) {
       push("phone", true, `public hostname answers from the bridge (${publicProbe.value.url})`);
