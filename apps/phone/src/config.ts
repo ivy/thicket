@@ -21,6 +21,11 @@ const phoneConfigSchema = z
     db_path: z.string().min(1).optional(),
     /** Unix socket the server listens on, for netd to front; default under the runtime dir. */
     socket_path: z.string().min(1).optional(),
+    /**
+     * netd's egress socket: the phone bridge's only way out, for the agents
+     * it dials and the alerts it posts alike.
+     */
+    egress_socket: z.string().min(1).optional(),
     /** `host:port` to listen on TCP instead — the dev rig, behind `tailscale funnel`. */
     listen: z.string().regex(/^[^:\s]+:\d{1,5}$/, { message: "must be host:port" }).optional(),
     /** Where Twilio reaches the bridge: the Funnel base URL, https only. */

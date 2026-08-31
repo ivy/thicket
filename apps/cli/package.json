@@ -21,11 +21,12 @@
     "@a2a-js/sdk": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@thicket/agentd": "workspace:*",
+    "@thicket/egress": "workspace:*",
     "@thicket/phone": "workspace:*",
     "@thicket/roster": "workspace:*",
     "@thicket/slack-manifest": "workspace:*",
+    "ws": "^8.21.3",
     "yaml": "^2.9.0",
-    "zod": "^4.4.3",
-    "ws": "^8.21.3"
+    "zod": "^4.4.3"
   }
 }

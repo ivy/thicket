@@ -288,6 +288,11 @@ binary, one config, one auth key. In `~/.config/thicket/netd.json`:
 }
 ```
 
+Outbound is the same story as everywhere else: the phone bridge dials agents
+and posts alerts through `egress_socket`, and refuses to start without it.
+Its `egress_allow` therefore needs the agents that answer the phone, and
+`slack.com` if alerts are configured.
+
 The public handler forwards only `path_prefix`, strips every `X-Thicket-*`
 header, and stamps **nothing** — an internet caller has no tags, and the
 bridge authenticates Twilio by its signature. The tailnet side of port 443

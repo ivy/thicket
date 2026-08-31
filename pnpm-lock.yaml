@@ -109,6 +109,9 @@ importers:
       '@thicket/agentd':
         specifier: workspace:*
         version: link:../agentd
+      '@thicket/egress':
+        specifier: workspace:*
+        version: link:../../packages/egress
       '@thicket/phone':
         specifier: workspace:*
         version: link:../phone
@@ -146,6 +149,9 @@ importers:
       '@thicket/a2a-client':
         specifier: workspace:*
         version: link:../../packages/a2a-client
+      '@thicket/egress':
+        specifier: workspace:*
+        version: link:../../packages/egress
       '@thicket/executor':
         specifier: workspace:*
         version: link:../../packages/executor

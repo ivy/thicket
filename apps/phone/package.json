@@ -20,6 +20,7 @@
   "dependencies": {
     "@a2a-js/sdk": "^1.1.0",
     "@thicket/a2a-client": "workspace:*",
+    "@thicket/egress": "workspace:*",
     "@thicket/executor": "workspace:*",
     "@thicket/roster": "workspace:*",
     "ws": "^8.21.3",

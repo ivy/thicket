@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 
 import { RemoteAgentClient, type AgentClient } from "@thicket/a2a-client";
+import { assertEgressSocket, egressFetch } from "@thicket/egress";
 import { agentUrl, configDir, parseRoster, phoneEnabledAgents, socketPath, stateDir } from "@thicket/roster";
 
 import { maskNumber, SlackAlertPoster } from "./alerts.js";
@@ -62,12 +63,25 @@ export async function run(
     process.env.THICKET_PHONE_ENDPOINTS !== undefined
       ? (JSON.parse(process.env.THICKET_PHONE_ENDPOINTS) as Record<string, string>)
       : {};
+  // The phone bridge is the one component the public internet reaches, so
+  // what it can reach back is worth being exact about: everything it sends
+  // leaves through netd, and there is no second way out. Checked before
+  // anything dials, because a process that finds this out at its first
+  // outbound call has already been running as something it should not be.
+  const egressSocket = config.egress_socket ?? socketPath("netd-egress");
+  assertEgressSocket(egressSocket);
+  const outbound = egressFetch(egressSocket);
+  logger.info("egress socket", { path: egressSocket });
+
   const clients = new Map<string, AgentClient>();
   for (const agent of agents) {
     const entry = roster.agents[agent.name]!;
     clients.set(
       agent.name,
-      new RemoteAgentClient(endpointOverrides[agent.name] ?? agentUrl(entry).replace(/\/a2a\/v1$/, "")),
+      new RemoteAgentClient(
+        endpointOverrides[agent.name] ?? agentUrl(entry).replace(/\/a2a\/v1$/, ""),
+        outbound,
+      ),
     );
   }
 
@@ -87,6 +101,7 @@ export async function run(
           botToken: config.alerts.bot_token,
           showNumbers: config.alerts.show_numbers,
           logger,
+          fetchImpl: outbound,
         });
   if (poster === undefined) {
     logger.warn("alerts: no channel configured; alerts are log lines only");

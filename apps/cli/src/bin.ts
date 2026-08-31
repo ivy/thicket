@@ -2,7 +2,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { configDir, parseRoster, toAgentCard, type Roster } from "@thicket/roster";
+import { egressFetch } from "@thicket/egress";
+import { configDir, parseRoster, socketPath, toAgentCard, type Roster } from "@thicket/roster";
 import { toSlackManifest, type SlackManifest } from "@thicket/slack-manifest";
 
 import { doctorExitCode, formatResults, runDoctor } from "./doctor.js";
@@ -25,6 +26,15 @@ function usage(): never {
       "       thicket phone-test run <scenario|all> | list | redact <recording>…\n",
   );
   process.exit(2);
+}
+
+/**
+ * The operator account's way out. The CLI dials agents and vendors alike
+ * through netd, so its calls carry this account's tailnet identity and are
+ * bounded by the same allowlist as everything else here.
+ */
+function egressSocketPath(): string {
+  return process.env.THICKET_EGRESS_SOCKET ?? socketPath("netd-egress");
 }
 
 /** Where a rendered tree lands unless a caller says otherwise. */
@@ -100,7 +110,12 @@ async function main(): Promise<void> {
     } else if (only === undefined) {
       await provisionNumber(
         { number: twilio.number, publicBaseUrl: twilio.public_base_url, dryRun },
-        { api: new HttpTwilioNumberApi(twilio), report },
+        {
+          // Twilio is reached the way everything else is: through this
+          // account's netd, never by dialing.
+          api: new HttpTwilioNumberApi(twilio, egressFetch(egressSocketPath())),
+          report,
+        },
       );
     }
 
@@ -128,9 +143,8 @@ async function main(): Promise<void> {
   if (command === "fleet") {
     const { fleetHealth, formatFleet } = await import("./fleet.js");
     const { egressHttp } = await import("./mcp/http.js");
-    const { socketPath } = await import("@thicket/roster");
     const results = await fleetHealth(loadRoster(), {
-      http: egressHttp(process.env.THICKET_EGRESS_SOCKET ?? socketPath("netd-egress")),
+      http: egressHttp(egressSocketPath()),
       tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
       endpointOverrides:
         process.env.THICKET_MCP_ENDPOINTS !== undefined
@@ -149,8 +163,7 @@ async function main(): Promise<void> {
     );
     const { buildMcpServer } = await import("./mcp/server.js");
     const { egressHttp } = await import("./mcp/http.js");
-    const { socketPath } = await import("@thicket/roster");
-    const egressSocket = process.env.THICKET_EGRESS_SOCKET ?? socketPath("netd-egress");
+    const egressSocket = egressSocketPath();
     const server = buildMcpServer({
       roster: loadRoster(),
       http: egressHttp(egressSocket),
