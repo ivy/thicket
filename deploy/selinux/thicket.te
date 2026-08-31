@@ -164,7 +164,18 @@ allow { thicket_netd_t thicket_bridge_t thicket_phone_t } self : unix_dgram_sock
 # The journal, which is where everything they say goes.
 allow { thicket_netd_t thicket_bridge_t thicket_phone_t } devlog_t : sock_file write;
 allow { thicket_netd_t thicket_bridge_t thicket_phone_t } kernel_t : unix_dgram_socket sendto;
-allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_t : unix_stream_socket { connect getattr ioctl };
+# `write` is the one that carries every line these domains ever print. The
+# service manager connects to the journal's stdout socket itself and hands the
+# process the descriptor, so the socket is labelled with the manager's type
+# rather than the journal's, and writing to it is checked against that.
+#
+# Its absence does not look like a permission problem. The write is denied,
+# the denial is dontaudit'd, and the process is left running correctly and
+# completely silent — no startup lines, no audit lines, and no message from a
+# unit that exits on an error. Nothing in the journal, nothing in the audit
+# log, and the same binary run by hand outside the unit works. Do not narrow
+# this rule.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_t : unix_stream_socket { connect getattr ioctl read write };
 # Bun compiles as it runs. Without this the first turn dies, which is the
 # same reason MemoryDenyWriteExecute is never set in the units.
 allow { thicket_bridge_t thicket_phone_t } self : process execmem;

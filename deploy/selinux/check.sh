@@ -29,6 +29,17 @@ done
 grep -qE "^allow thicket_netd_t self : tcp_socket" "$te" ||
   err "thicket_netd_t cannot open a tcp socket; it is the one domain that must"
 
+# --- every domain can still say what happened -----------------------------
+# The service manager hands each process the journal's stdout socket, labelled
+# with the manager's own type. Without write on it a domain runs correctly and
+# says nothing at all — no startup lines, no error from a unit that exits on
+# one, and no denial either, because that one is dontaudit'd. A module that
+# confines what it cannot observe is not one anybody can operate.
+for domain in thicket_netd_t thicket_bridge_t thicket_phone_t; do
+  grep -qE "^allow[^;]*\\b$domain\\b[^;]*init_t : unix_stream_socket[^;]*\\bwrite\\b" "$te" ||
+    err "$domain cannot write to the journal socket; it would run silently, and the denial is dontaudit'd"
+done
+
 # --- layout drift ---------------------------------------------------------
 # The .fc labels paths the units name. If one moves without the other, the
 # domains are never entered and the failure looks like a missing binary.
