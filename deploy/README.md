@@ -252,6 +252,47 @@ Three things are off deliberately, each with the reason in the unit:
 - **`PrivateUsers`** — it maps away every uid but the service's own, and the
   runtime has to hand its socket to the group netd reaches it through.
 
+### And confined by SELinux
+
+On a Fedora targeted-policy host, a service with no policy of its own runs
+`unconfined_service_t`: SELinux is enforcing and doing nothing for it. The
+module in `deploy/selinux/` gives the edge three domains — `thicket_netd_t`,
+`thicket_bridge_t`, `thicket_phone_t` — and the asymmetry between them is
+the design. netd holds the network permissions because it is the only
+process in these accounts that may reach a network; the two runtimes hold
+none, so a dependency that decides to phone home is denied at the socket
+class rather than at a destination list it might find a hole in.
+
+```sh
+cd deploy/selinux
+make                 # builds thicket.pp with checkpolicy alone
+sudo make install    # installs it and labels what is already on disk
+```
+
+The module is written in the base policy language rather than against
+refpolicy interfaces, so it builds on a host with no policy headers, and
+what it grants can be read in one file instead of chased through m4.
+
+**Bring it up permissive.** `sudo make permissive` puts the three domains in
+permissive mode; run real traffic through them, read the AVCs
+(`ausearch -m avc -ts recent`), fold what they turn up into `thicket.te`,
+and only then `sudo make enforce`. That is not ceremony — the module as
+shipped exists because a soak produced things no amount of reading the
+source would have listed. Two worth knowing:
+
+- **The runtimes need the CA store**, though they have no network. netd is a
+  blind tunnel: it moves bytes it cannot read, so TLS to Slack or Twilio is
+  terminated by the runtime at this end.
+- **systemd needs its own permissions** on the labelled directories. It
+  creates and bind-mounts them as `init_t`, which is never permissive, so a
+  module that labels these paths and forgets that stops the unit at
+  `226/NAMESPACE` before its domain is ever entered — and with
+  `NoNewPrivileges=yes` set, the transition itself needs `nnp_transition` or
+  the exec fails `203/EXEC`, which reads like a missing binary.
+
+Agent accounts stay unconfined. Their sessions have to do real work, and
+confining them is a different problem.
+
 Edge components are **Linux-only** by policy. launchd has no equivalent for
 any of the above worth trusting, and the containment is the point of the
 account.

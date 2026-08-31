@@ -1,0 +1,21 @@
+# Where the module's types live on disk.
+#
+# The executables are labelled per binary rather than per directory: the
+# three domains are only distinct if the kernel can tell which one it is
+# entering, and a shared exec type would put them all in one. The version
+# component is a pattern so an upgrade needs no policy change — /opt/thicket
+# holds every installed version and a `current` symlink, and only the real
+# path carries a label.
+/opt/thicket/[^/]+/bin/thicket-netd     --  system_u:object_r:thicket_netd_exec_t:s0
+/opt/thicket/[^/]+/bin/thicket-bridge   --  system_u:object_r:thicket_bridge_exec_t:s0
+/opt/thicket/[^/]+/bin/thicket-phone    --  system_u:object_r:thicket_phone_exec_t:s0
+
+# What the operator writes. Root-owned; the domains only read it.
+/etc/thicket(/.*)?                          system_u:object_r:thicket_conf_t:s0
+
+# What a process keeps. The suffix covers a netd that keeps its tsnet state
+# apart from the runtime it fronts, which is what the split accounts need.
+/var/lib/thicket(-[^/]+)?(/.*)?             system_u:object_r:thicket_var_lib_t:s0
+
+# Where the two halves of a pair meet.
+/run/thicket(/.*)?                          system_u:object_r:thicket_runtime_t:s0

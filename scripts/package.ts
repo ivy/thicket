@@ -10,7 +10,7 @@
  * then has a single candidate to score, and four tools cannot end up
  * installed from four different releases into the same directory.
  */
-import { mkdirSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { chosenPlatforms, compileInto } from "./compile.ts";
@@ -45,8 +45,17 @@ function archive(platform: Platform, version: string): string {
 
   // `<name>-<version>-<os>-<arch>.tar.gz`: the os and arch tokens sit on
   // word boundaries, which is what mise's asset matcher scores on.
+  // The units and the SELinux module travel with the binaries they
+  // describe: a policy that labels a path is only right for the layout it
+  // shipped with, and an operator should never have to match a module to a
+  // release by hand.
+  cpSync("deploy/systemd", join(stage, "deploy", "systemd"), { recursive: true });
+  cpSync("deploy/selinux", join(stage, "deploy", "selinux"), { recursive: true });
+  rmSync(join(stage, "deploy", "selinux", "thicket.pp"), { force: true });
+  rmSync(join(stage, "deploy", "selinux", "thicket.mod"), { force: true });
+
   const archivePath = join(OUT_ROOT, `thicket-${version}-${platform.name}.tar.gz`);
-  run(["tar", "-czf", archivePath, "-C", stage, "bin"]);
+  run(["tar", "-czf", archivePath, "-C", stage, "bin", "deploy"]);
   rmSync(stage, { recursive: true, force: true });
   return archivePath;
 }

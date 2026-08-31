@@ -1,0 +1,256 @@
+# thicket's edge, confined.
+#
+# On a Fedora targeted-policy host a service with no policy of its own runs
+# unconfined_service_t: SELinux is enforcing and doing nothing for it. The
+# edge components have a small, frozen surface — read one config type, write
+# one state type, meet each other on one runtime socket type — which is
+# exactly the shape a module this size can hold.
+#
+# The asymmetry is the design. netd holds the network permissions because it
+# is the only process here that may reach a network; the JavaScript runtimes
+# hold none, so a compromised dependency inside one finds no socket class it
+# is allowed to create. That is what the systemd units and the nftables rules
+# also say, said a third time by a mechanism that survives either of them
+# being edited.
+#
+# Written in the base language rather than against refpolicy interfaces: it
+# builds with checkpolicy alone, on a host with no policy headers installed,
+# and what it grants can be read here instead of chased through m4.
+module thicket 0.1.0;
+
+require {
+    attribute domain;
+    attribute file_type;
+    type init_t;
+    type unconfined_service_t;
+    type bin_t;
+    type lib_t;
+    type ld_so_cache_t;
+    type locale_t;
+    type etc_t;
+    type net_conf_t;
+    type cert_t;
+    type proc_t;
+    type sysctl_net_t;
+    type proc_net_t;
+    type cgroup_t;
+    type passwd_file_t;
+    type init_var_run_t;
+    type systemd_userdbd_runtime_t;
+    type systemd_userdbd_t;
+    type sysctl_vm_t;
+    type node_t;
+    type port_t;
+    type http_port_t;
+    type dns_port_t;
+    type unreserved_port_t;
+    type urandom_device_t;
+    type null_device_t;
+    type zero_device_t;
+    type random_device_t;
+    type devlog_t;
+    type kernel_t;
+    type fs_t;
+    type tmpfs_t;
+    type devpts_t;
+    type user_devpts_t;
+    type console_device_t;
+    role system_r;
+    class file { append create entrypoint execute execute_no_trans getattr ioctl lock map mounton open read relabelfrom relabelto rename setattr unlink write };
+    class dir { add_name create getattr ioctl lock mounton open read relabelfrom relabelto remove_name rmdir search setattr write };
+    class lnk_file { getattr read relabelfrom relabelto };
+    class chr_file { append getattr ioctl open read write };
+    class fifo_file { create getattr ioctl open read write };
+    class sock_file { create getattr open read relabelfrom relabelto setattr unlink write };
+    class filesystem getattr;
+    class process { execmem fork getsched setrlimit setsched sigchld signal signull transition };
+    class process2 { nnp_transition nosuid_transition };
+    class unix_stream_socket { accept bind connect connectto create getattr getopt ioctl listen read setopt shutdown write };
+    class unix_dgram_socket { connect create getattr sendto setopt write };
+    class tcp_socket { accept bind connect create getattr getopt listen name_bind name_connect node_bind read setopt shutdown write };
+    class udp_socket { bind connect create getattr getopt name_bind node_bind read setopt write };
+    class netlink_route_socket { bind create getattr getopt nlmsg_read read setopt write };
+    class netlink_kobject_uevent_socket { bind create getattr read setopt };
+    class tun_socket { create relabelfrom relabelto };
+    class capability { net_admin net_raw setgid setuid };
+    class association { recvfrom sendto };
+}
+
+########################################
+# The three domains, and the files they own
+########################################
+
+type thicket_netd_t;
+type thicket_netd_exec_t;
+typeattribute thicket_netd_t domain;
+typeattribute thicket_netd_exec_t file_type;
+role system_r types thicket_netd_t;
+
+type thicket_bridge_t;
+type thicket_bridge_exec_t;
+typeattribute thicket_bridge_t domain;
+typeattribute thicket_bridge_exec_t file_type;
+role system_r types thicket_bridge_t;
+
+type thicket_phone_t;
+type thicket_phone_exec_t;
+typeattribute thicket_phone_t domain;
+typeattribute thicket_phone_exec_t file_type;
+role system_r types thicket_phone_t;
+
+# What the operator writes, what a process keeps, and where a pair meet.
+type thicket_conf_t;
+typeattribute thicket_conf_t file_type;
+type thicket_var_lib_t;
+typeattribute thicket_var_lib_t file_type;
+type thicket_runtime_t;
+typeattribute thicket_runtime_t file_type;
+
+########################################
+# systemd starts them, and only systemd
+#
+# The transition is from init_t alone. An agent account runs the same netd
+# binary from a user unit and stays unconfined by design: those sessions
+# have to do real work, and confining them is a different problem.
+########################################
+
+type_transition init_t thicket_netd_exec_t : process thicket_netd_t;
+type_transition init_t thicket_bridge_exec_t : process thicket_bridge_t;
+type_transition init_t thicket_phone_exec_t : process thicket_phone_t;
+
+allow init_t thicket_netd_t : process transition;
+allow init_t thicket_bridge_t : process transition;
+allow init_t thicket_phone_t : process transition;
+# NoNewPrivileges is set on every one of these units, and a transition under
+# it needs saying separately: without this the exec fails 203/EXEC and the
+# domain is never entered, which reads like a missing binary.
+allow init_t { thicket_netd_t thicket_bridge_t thicket_phone_t } : process2 nnp_transition;
+allow init_t { thicket_netd_exec_t thicket_bridge_exec_t thicket_phone_exec_t } : file { read open getattr execute map };
+# systemd creates ConfigurationDirectory, StateDirectory and RuntimeDirectory
+# itself, chowns them, and bind-mounts them into the unit's namespace. All of
+# that happens as init_t, which is not one of the domains above and is never
+# permissive — so a module that labels these paths and forgets this stops the
+# unit at `226/NAMESPACE` before its own domain is ever entered.
+allow init_t { thicket_conf_t thicket_var_lib_t thicket_runtime_t } : dir { search getattr open read write add_name remove_name create rmdir setattr mounton relabelfrom relabelto };
+allow init_t { thicket_conf_t thicket_var_lib_t thicket_runtime_t } : file { getattr open read write create unlink setattr mounton relabelfrom relabelto };
+allow init_t { thicket_conf_t thicket_var_lib_t thicket_runtime_t } : sock_file { getattr unlink setattr relabelfrom relabelto };
+allow init_t { thicket_conf_t thicket_var_lib_t thicket_runtime_t } : lnk_file { getattr read relabelfrom relabelto };
+
+allow thicket_netd_t thicket_netd_exec_t : file { entrypoint read open getattr execute execute_no_trans map };
+allow thicket_bridge_t thicket_bridge_exec_t : file { entrypoint read open getattr execute execute_no_trans map };
+allow thicket_phone_t thicket_phone_exec_t : file { entrypoint read open getattr execute execute_no_trans map };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_t : process sigchld;
+
+########################################
+# What every one of them needs to be a process at all
+########################################
+
+# The runtime, its libraries, and the locale the C library insists on.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } { bin_t lib_t ld_so_cache_t locale_t } : file { read open getattr execute execute_no_trans map ioctl };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } { bin_t lib_t locale_t etc_t } : dir { read open getattr search ioctl };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } { bin_t lib_t etc_t } : lnk_file { read getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } etc_t : file { read open getattr ioctl };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } { null_device_t zero_device_t urandom_device_t random_device_t } : chr_file { read write open getattr ioctl append };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } proc_t : file { read open getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } proc_t : dir { read open getattr search };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } proc_t : lnk_file read;
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } fs_t : filesystem getattr;
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } tmpfs_t : file { read write open getattr map create unlink };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } tmpfs_t : dir { read write open getattr search add_name remove_name };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } self : process { fork getsched setsched signal signull setrlimit };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } self : fifo_file { read write open getattr ioctl create };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } self : unix_stream_socket { create connect read write bind listen accept getattr setopt getopt shutdown };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } self : unix_dgram_socket { create connect write getattr setopt };
+# The journal, which is where everything they say goes.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } devlog_t : sock_file write;
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } kernel_t : unix_dgram_socket sendto;
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_t : unix_stream_socket { connect getattr ioctl };
+# Bun compiles as it runs. Without this the first turn dies, which is the
+# same reason MemoryDenyWriteExecute is never set in the units.
+allow { thicket_bridge_t thicket_phone_t } self : process execmem;
+
+########################################
+# Config, state, and the sockets a pair meet on
+########################################
+
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } thicket_conf_t : dir { read open getattr search ioctl };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } thicket_conf_t : file { read open getattr ioctl lock };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } thicket_conf_t : lnk_file { read getattr };
+
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } thicket_var_lib_t : dir { read write open getattr search add_name remove_name create rmdir setattr lock ioctl };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } thicket_var_lib_t : file { read write open getattr create unlink rename setattr lock append map ioctl };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } thicket_var_lib_t : lnk_file { read getattr };
+
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } thicket_runtime_t : dir { read write open getattr search add_name remove_name create setattr ioctl };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } thicket_runtime_t : sock_file { create read write open getattr unlink setattr };
+# The rendezvous itself: each side connects to the socket the other made.
+allow thicket_netd_t { thicket_bridge_t thicket_phone_t } : unix_stream_socket { connectto getattr };
+allow { thicket_bridge_t thicket_phone_t } thicket_netd_t : unix_stream_socket { connectto getattr };
+
+########################################
+# The network, and who does not get it
+#
+# Everything below is netd's. The two JavaScript domains are named nowhere in
+# it, which is the whole point: no tcp_socket, no udp_socket, no name_connect
+# — a dependency that decides to phone home inside one of them is denied at
+# the class, not at a destination list it might find a hole in.
+########################################
+
+allow thicket_netd_t self : tcp_socket { create connect read write bind getattr setopt getopt shutdown };
+allow thicket_netd_t self : udp_socket { create connect read write bind getattr setopt getopt };
+allow thicket_netd_t self : netlink_route_socket { create bind read write nlmsg_read getattr setopt getopt };
+allow thicket_netd_t self : netlink_kobject_uevent_socket { create bind read getattr setopt };
+allow thicket_netd_t self : tun_socket { create relabelfrom relabelto };
+allow thicket_netd_t self : capability { net_admin net_raw };
+allow thicket_netd_t node_t : tcp_socket node_bind;
+allow thicket_netd_t node_t : udp_socket node_bind;
+allow thicket_netd_t { port_t http_port_t dns_port_t unreserved_port_t } : tcp_socket { name_connect name_bind };
+allow thicket_netd_t { port_t dns_port_t unreserved_port_t } : udp_socket { name_bind };
+# Resolving names is netd's job precisely so that nothing behind it does it.
+allow thicket_netd_t { net_conf_t cert_t } : file { read open getattr };
+allow thicket_netd_t { net_conf_t cert_t } : dir { read open getattr search };
+allow thicket_netd_t { net_conf_t cert_t } : lnk_file { read getattr };
+allow thicket_netd_t sysctl_net_t : dir search;
+allow thicket_netd_t sysctl_net_t : file { read open getattr };
+allow thicket_netd_t self : tcp_socket { listen accept };
+
+########################################
+# What a soak turned up
+#
+# These came from running the domains permissive under real traffic and
+# reading the AVCs, which is the only way to learn them: each is a thing the
+# runtime does that no amount of reading the source would have listed.
+########################################
+
+# Its own cgroup, which the Go runtime reads to size itself.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } cgroup_t : dir search;
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } cgroup_t : file { read open getattr };
+# /proc/net, for the interface list a tailnet node needs.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } proc_net_t : file { read open getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } proc_net_t : lnk_file { read getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } proc_net_t : dir { read open getattr search };
+# Resolving the group a socket is shared with means reading the group file.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } passwd_file_t : file { read open getattr };
+# The CA store. netd is a blind tunnel — it moves bytes it cannot read — so
+# TLS to Slack or Twilio is terminated by the runtime at this end, and the
+# runtime is what needs the certificates. A domain with no network still
+# needs them, which is not obvious until it is denied them.
+allow { thicket_bridge_t thicket_phone_t } cert_t : dir { read open getattr search };
+allow { thicket_bridge_t thicket_phone_t } cert_t : file { read open getattr };
+allow { thicket_bridge_t thicket_phone_t } cert_t : lnk_file { read getattr };
+# Resolving a user or group goes through systemd's userdb socket.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } systemd_userdbd_runtime_t : dir { read open getattr search };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } systemd_userdbd_runtime_t : sock_file { write getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } systemd_userdbd_runtime_t : lnk_file { read getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } { kernel_t systemd_userdbd_t } : unix_stream_socket connectto;
+# The runtime sizes its heap from these.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } sysctl_vm_t : dir search;
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } sysctl_vm_t : file { read open getattr };
+# systemd's own /proc entries, which the runtimes read on the way to the
+# journal and their own cgroup.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_t : dir { search getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_t : file { read open getattr };
+# systemd's own runtime directory, on the way to the journal socket.
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_var_run_t : dir { search getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_var_run_t : file { read open getattr };
+allow { thicket_netd_t thicket_bridge_t thicket_phone_t } init_var_run_t : sock_file write;
