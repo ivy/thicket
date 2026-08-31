@@ -202,6 +202,28 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
+    name: "offer-yes",
+    proves: 'a bare "yes" to the single-agent offer connects (#57)',
+    async run(context) {
+      await context.leg.place({});
+      await awaitUntilWords(context.leg, [["connect"]], {});
+      await context.leg.say("Yes");
+      for (let i = 0; i < 5; i++) {
+        const heard = (await context.leg.awaitReply({ timeoutMs: 30_000 })).text.toLowerCase();
+        if (heard.includes("connected")) {
+          await sayGoodbye(context);
+          return;
+        }
+        if (heard.includes("resume") || heard.includes("fresh")) {
+          await context.leg.say("Start fresh");
+        } else if (heard.includes("did you say")) {
+          await context.leg.say("Yes");
+        }
+      }
+      throw new ScenarioFailure('never heard "Connected" after answering yes');
+    },
+  },
+  {
     name: "wrong-pin",
     proves: "three wrong PINs are refused one by one and the third ends the call",
     async run(context) {

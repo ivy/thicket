@@ -161,7 +161,7 @@ class FakeLockout {
   }
 }
 
-function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttempts?: number; lockout?: FakeLockout; warmUp?: boolean } = {}) {
+function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttempts?: number; lockout?: FakeLockout; warmUp?: boolean; agents?: PhoneAgent[] } = {}) {
   const client = new ScriptedClient();
   const commands: RelayCommand[] = [];
   const alerts: PhoneAlert[] = [];
@@ -170,7 +170,7 @@ function harness(options: { state?: MemoryPhoneState; now?: number; maxPinAttemp
   const scheduler = new ManualScheduler();
   let now = options.now ?? Date.parse("2026-08-30T10:00:00Z");
   const engine = new CallEngine({
-    agents: AGENTS,
+    agents: options.agents ?? AGENTS,
     clientFor: () => client,
     relay: { send: (c) => void commands.push(c) },
     state: options.state ?? new MemoryPhoneState(),
@@ -420,6 +420,27 @@ test("keypresses batch into one message; control phrases never start a turn", as
   assert.equal(h.engine.state, "ending");
   assert.deepEqual(h.commands.at(-1), { type: "end", handoffData: "goodbye" });
   assert.equal(h.alerts.at(-1)?.kind, "session_ended");
+});
+
+test("a bare yes answers the single-agent offer; several agents still want a name (#57)", async () => {
+  // One agent: the offer is "Shall I connect you to Hearth?" — a yes/no
+  // question, so yes must connect.
+  const h = harness({ agents: [AGENTS[0]!] });
+  await h.feed(DIAL_IN);
+  assert.equal(h.engine.state, "choosing");
+  await h.engine.handle(h.speech("Yes."));
+  assert.equal(h.engine.state, "connected");
+  assert.ok(
+    h.texts().some(([token]) => String(token).includes("Connected to Hearth")),
+    "the yes connected",
+  );
+
+  // Two agents: the offer asks "Who would you like?", and yes is not a name.
+  const h2 = harness();
+  await h2.feed(DIAL_IN);
+  await h2.engine.handle(h2.speech("Yes."));
+  assert.equal(h2.engine.state, "choosing");
+  assert.match(String(h2.texts().at(-1)?.[0]), /didn't catch/);
 });
 
 test("the dial string's trailing # cannot silence the hello: the question is re-asked (#54)", async () => {

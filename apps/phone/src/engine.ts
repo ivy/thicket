@@ -519,6 +519,15 @@ export class CallEngine {
       await this.speak("Resume, or start fresh?");
       return;
     }
+    // The single-agent offer is a yes/no question — "Shall I connect you to
+    // Hearth?" — so a bare affirmative is an answer, not a failed name (#57;
+    // the operator's first real call found it). With several agents the offer
+    // asks "Who would you like?", and still takes only a name.
+    const [only] = this.agents;
+    if (this.agents.length === 1 && only !== undefined && /\b(yes|yeah|yep|sure|okay|ok|please|go ahead|connect)\b/.test(said)) {
+      await this.choose(only);
+      return;
+    }
     const agent = this.agentNamed(text);
     if (agent !== undefined) {
       await this.choose(agent);
