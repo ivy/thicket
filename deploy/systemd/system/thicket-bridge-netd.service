@@ -25,7 +25,9 @@ Group=thicket-bridge
 # not by the shared one. The bridge has no business reading netd's tailnet
 # identity.
 SupplementaryGroups=thicket-bridge-netd
-ExecStart=/usr/local/bin/thicket-netd
+# Named outright: both edge pairs keep their config in one /etc/thicket,
+# so neither netd can be the one that takes the default name.
+ExecStart=/usr/local/bin/thicket-netd --config /etc/thicket/bridge-netd.json
 # netd.json may name its auth key file relative to the config directory, and
 # netd resolves that against the working directory.
 WorkingDirectory=/etc/thicket

@@ -254,15 +254,22 @@ is two pairs, and they have to stay apart:
   directory and names the paths, because the defaults are derived from
   `XDG_RUNTIME_DIR` and both units pin that at `/run`.
 
+- **A config file is exactly one pair.** Both netds read
+  `$XDG_CONFIG_HOME/thicket/netd.json` by default, and both units pin that
+  variable at `/etc`, so without `--config` the second pair to start reads the
+  first one's hostname, tag, allowlist and credential. The shipped units name
+  their own — `bridge-netd.json` and `phone-netd.json` — and each names its own
+  tailnet credential inside it, because one key mints for one tag.
+
 The shipped units put the phone bridge's pair in `/run/thicket-phone`, so its
-`netd.json` and `phone.json` name what lives there:
+config names what lives there:
 
 ```json
-// /etc/thicket/netd.json — the phone bridge's netd
+// /etc/thicket/phone-netd.json — the phone bridge's netd
 {
   "hostname": "thicket-phone",
   "tag": "tag:thicket-phone",
-  "auth_key_file": "tailnet-auth-key",
+  "auth_key_file": "/etc/thicket/phone-tailnet-auth-key",
   "state_dir": "/var/lib/thicket-phone-netd/tsnet",
   "egress_socket": "/run/thicket-phone/netd-egress.sock",
   "socket_group": "thicket-phone",
@@ -388,13 +395,16 @@ The bridge's netd was already there for egress. Attachments also need the
 reverse: an agent fetches the bytes of a file a human uploaded, because the
 bot token that redeems Slack's private URL lives only in the bridge. So point
 that netd's upstream at the bridge instead of at an agentd that does not exist
-in this account, in `~/.config/thicket/netd.json`:
+in this account, in `/etc/thicket/bridge-netd.json` — named for its pair,
+because the phone bridge's netd keeps its own config in the same directory:
 
 ```json
 {
   "hostname": "thicket-bridge",
   "tag": "tag:thicket-bridge",
-  "upstream_socket": "/run/user/1001/thicket/bridge.sock",
+  "auth_key_file": "/etc/thicket/bridge-tailnet-auth-key",
+  "upstream_socket": "/run/thicket/bridge.sock",
+  "socket_group": "thicket-bridge",
   "egress_allow": [
     "thicket-hearth.tailXXXX.ts.net",
     "slack.com",
@@ -452,19 +462,26 @@ The phone bridge is the one component the public internet reaches: Twilio
 dials its WebSocket. That edge is a mode of the same netd, not a new
 component — a Tailscale Funnel listener on port 443 in front of the
 bridge's socket — so the account keeps the shape of every other: one
-binary, one config, one auth key. In `~/.config/thicket/netd.json`:
+binary, one config, one auth key. In `/etc/thicket/phone-netd.json`:
 
 ```json
 {
   "hostname": "thicket-phone",
   "tag": "tag:thicket-phone",
-  "upstream_socket": "/run/user/1002/thicket/agentd.sock",
+  "auth_key_file": "/etc/thicket/phone-tailnet-auth-key",
+  "upstream_socket": "/run/thicket-phone/agentd.sock",
+  "socket_group": "thicket-phone",
   "funnel": {
     "path_prefix": "/",
-    "upstream_socket": "/run/user/1002/thicket/phone.sock"
+    "upstream_socket": "/run/thicket-phone/phone.sock"
   }
 }
 ```
+
+`upstream_socket` names a socket that does not exist in this account, and
+deliberately: it is what the *tailnet* side of port 443 is pointed at, so a
+peer that dials this node gets a 502 and nothing more. Only the internet
+side, through Funnel, reaches the bridge.
 
 Outbound is the same story as everywhere else: the phone bridge dials agents
 and posts alerts through `egress_socket`, and refuses to start without it.
@@ -568,9 +585,10 @@ usermod --append --groups thicket-phone thicket-phone-netd
 # The roster-derived half, rendered by `provision` or `thicket render`, plus
 # the deployment paths from "Two pairs on one host" above.
 install -m 0644 -o root -g root rendered/phone/agents.yaml /etc/thicket/
-install -m 0640 -o root -g thicket-phone-netd rendered/phone/netd.json /etc/thicket/
+install -m 0640 -o root -g thicket-phone-netd rendered/phone/netd.json \
+  /etc/thicket/phone-netd.json
 install -m 0640 -o root -g thicket-phone-netd /dev/stdin \
-  /etc/thicket/tailnet-auth-key <<<'tskey-client-xxxx?ephemeral=false&preauthorized=true'
+  /etc/thicket/phone-tailnet-auth-key <<<'tskey-client-xxxx?ephemeral=false&preauthorized=true'
 
 # The secrets half: the operator writes it, nothing renders it. Root's
 # alone — the account never reads this path, LoadCredential hands the

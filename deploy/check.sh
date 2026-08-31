@@ -172,6 +172,12 @@ for pair in $pairs; do
   grep -q "^SupplementaryGroups=thicket-$pair-netd\$" "$netd" ||
     err "$netd: its own group must come back as a supplementary; its credential is readable by that alone"
 
+  # Both pairs keep their config in one /etc/thicket, so neither netd can be
+  # the one that takes the default name — and a netd started without --config
+  # reads netd.json, which is the other one's or nobody's.
+  grep -q "^ExecStart=.*--config /etc/thicket/$pair-netd\.json\$" "$netd" ||
+    err "$netd: must name its own config; without --config it reads the name both pairs would take"
+
   # netd declares the directory; the runtime is only allowed to write in it.
   runtime_dir=$(sed -n 's/^RuntimeDirectory=//p' "$netd")
   grep -q "^ReadWritePaths=/run/$runtime_dir\$" "$unit" ||
@@ -184,6 +190,10 @@ done
 duplicates=$(printf '%s\n' "$pair_groups" | sort | uniq -d)
 [ -z "$duplicates" ] ||
   err "two pairs share a group: $(printf '%s' "$duplicates" | tr '\n' ' ')"
+configs=$(sed -n 's/^ExecStart=.*--config //p' $system_units)
+duplicates=$(printf '%s\n' "$configs" | sort | uniq -d)
+[ -z "$duplicates" ] ||
+  err "two system units read the same config: $(printf '%s' "$duplicates" | tr '\n' ' ')"
 for field in RuntimeDirectory StateDirectory; do
   duplicates=$(sed -n "s/^$field=//p" $system_units | sort | uniq -d)
   [ -z "$duplicates" ] ||
