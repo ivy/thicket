@@ -393,18 +393,23 @@ account.
 
 The bridge's netd was already there for egress. Attachments also need the
 reverse: an agent fetches the bytes of a file a human uploaded, because the
-bot token that redeems Slack's private URL lives only in the bridge. So point
-that netd's upstream at the bridge instead of at an agentd that does not exist
-in this account, in `/etc/thicket/bridge-netd.json` — named for its pair,
-because the phone bridge's netd keeps its own config in the same directory:
+bot token that redeems Slack's private URL lives only in the bridge. So this
+netd's upstream is the bridge itself rather than an agentd that does not exist
+in this account.
+
+`render` writes that file — `rendered/bridge/netd.json`, beside the agents'
+and the phone's. Install it as `/etc/thicket/bridge-netd.json`, named for its
+pair because the phone bridge's netd keeps its own config in the same
+directory, and add what belongs to the deployment rather than the roster: the
+credential's path, the group the pair meet in, and a state directory of its
+own. What is rendered:
 
 ```json
 {
   "hostname": "thicket-bridge",
   "tag": "tag:thicket-bridge",
-  "auth_key_file": "/etc/thicket/bridge-tailnet-auth-key",
-  "upstream_socket": "/run/thicket/bridge.sock",
-  "socket_group": "thicket-bridge",
+  "auth_key_file": "tailnet-auth-key",
+  "upstream_socket": "bridge",
   "egress_allow": [
     "thicket-hearth.tailXXXX.ts.net",
     "slack.com",
@@ -412,6 +417,13 @@ because the phone bridge's netd keeps its own config in the same directory:
   ]
 }
 ```
+
+`upstream_socket` is a **name**, not a path: netd resolves a bare name under
+its own runtime directory, so one rendered file is right in a user-unit
+account whose runtime directory is `/run/user/<uid>/thicket` and in a system
+unit whose is `/run/thicket`. A deployment that puts a pair somewhere of its
+own — a second pair on one host — writes a path instead, and netd takes it as
+written.
 
 The bridge is the account with the most to reach and the most to lose: it
 holds every agent's Slack tokens, and its way out is this socket alone —

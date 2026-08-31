@@ -72,6 +72,10 @@ test("render writes the per-account tree with no Slack credential in reach", (t)
   assert.deepEqual(
     Object.keys(files).sort(),
     [
+      // The Slack bridge is an account like the others: its node, its tag and
+      // an allowlist that follows the roster. Its tokens are not rendered.
+      "bridge/agents.yaml",
+      "bridge/netd.json",
       "forge/agentd.json",
       "forge/agents.yaml",
       "forge/netd.json",

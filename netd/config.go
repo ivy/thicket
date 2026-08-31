@@ -21,10 +21,14 @@ type Config struct {
 	AuthKeyFile string `json:"auth_key_file,omitempty"`
 	// ControlURL overrides the coordination server (tests, headscale).
 	ControlURL string `json:"control_url,omitempty"`
-	// UpstreamSocket is agentd's unix socket. Default: socketPath("agentd").
+	// UpstreamSocket is the unix socket netd proxies inbound tailnet traffic
+	// to — an agentd's, or the Slack bridge's in the account that runs it.
+	// A bare name is resolved under the runtime directory, so a rendered
+	// config is the same file whether the account runs as a user unit or a
+	// system one; an absolute path is taken as written. Default: "agentd".
 	UpstreamSocket string `json:"upstream_socket,omitempty"`
-	// EgressSocket is the unix socket the outbound HTTP proxy listens on.
-	// Default: socketPath("netd-egress").
+	// EgressSocket is the unix socket the outbound HTTP proxy listens on,
+	// resolved the same way. Default: "netd-egress".
 	EgressSocket string `json:"egress_socket,omitempty"`
 	// StateDir holds tsnet state. Default: stateDir()/tsnet.
 	StateDir string `json:"state_dir,omitempty"`
@@ -53,7 +57,8 @@ type FunnelConfig struct {
 	// Anything else is refused before it is read.
 	PathPrefix string `json:"path_prefix"`
 	// UpstreamSocket is the unix socket the prefix is proxied to — the
-	// phone bridge's, never agentd's. Default: socketPath("phone").
+	// phone bridge's, never agentd's. A bare name is resolved under the
+	// runtime directory. Default: "phone".
 	UpstreamSocket string `json:"upstream_socket,omitempty"`
 	// RateLimit bounds what this listener will spend before anything is
 	// proxied. Optional: the defaults hold without configuration.
@@ -81,6 +86,23 @@ const (
 	defaultFunnelBurst = 20
 )
 
+// resolveSocket turns a configured socket into a path. A bare name — no
+// separator — is a component under the runtime directory, the same shape the
+// defaults take, so a rendered config is portable between a user-unit account
+// whose runtime directory is /run/user/<uid>/thicket and a system unit whose
+// is /run/thicket. Anything with a separator is a path and is taken as
+// written; empty means the default.
+func resolveSocket(configured, fallback string) string {
+	name := configured
+	if name == "" {
+		name = fallback
+	}
+	if strings.ContainsRune(name, filepath.Separator) {
+		return name
+	}
+	return socketPath(name)
+}
+
 func defaultConfigPath() string {
 	return filepath.Join(configDir(), "netd.json")
 }
@@ -102,12 +124,8 @@ func loadConfig(path string) (*Config, error) {
 	if !strings.HasPrefix(cfg.Tag, "tag:") {
 		return nil, fmt.Errorf("config %s: tag must start with \"tag:\", got %q", path, cfg.Tag)
 	}
-	if cfg.UpstreamSocket == "" {
-		cfg.UpstreamSocket = socketPath("agentd")
-	}
-	if cfg.EgressSocket == "" {
-		cfg.EgressSocket = socketPath("netd-egress")
-	}
+	cfg.UpstreamSocket = resolveSocket(cfg.UpstreamSocket, "agentd")
+	cfg.EgressSocket = resolveSocket(cfg.EgressSocket, "netd-egress")
 	if cfg.StateDir == "" {
 		cfg.StateDir = filepath.Join(stateDir(), "tsnet")
 	}
@@ -120,9 +138,7 @@ func loadConfig(path string) (*Config, error) {
 		if !strings.HasPrefix(cfg.Funnel.PathPrefix, "/") {
 			return nil, fmt.Errorf("config %s: funnel.path_prefix must start with \"/\", got %q", path, cfg.Funnel.PathPrefix)
 		}
-		if cfg.Funnel.UpstreamSocket == "" {
-			cfg.Funnel.UpstreamSocket = socketPath("phone")
-		}
+		cfg.Funnel.UpstreamSocket = resolveSocket(cfg.Funnel.UpstreamSocket, "phone")
 		if cfg.Funnel.UpstreamSocket == cfg.UpstreamSocket {
 			return nil, fmt.Errorf("config %s: funnel.upstream_socket must not be agentd's socket; the internet never reaches an agent", path)
 		}

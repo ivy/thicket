@@ -6,7 +6,13 @@ import { join } from "node:path";
 
 import { parseRoster } from "@thicket/roster";
 
-import { BRIDGE_HOSTNAME, PHONE_TAG, SLACK_API_HOST, renderAccountConfigs } from "./render-config.js";
+import {
+  BRIDGE_HOSTNAME,
+  PHONE_TAG,
+  SLACK_API_HOST,
+  SLACK_RUNTIME_HOSTS,
+  renderAccountConfigs,
+} from "./render-config.js";
 
 const YAML = `
 agents:
@@ -97,4 +103,67 @@ test("without a tailnet domain the allowlist carries the bare MagicDNS names", (
     egress_allow: string[];
   };
   assert.deepEqual(netd.egress_allow, [BRIDGE_HOSTNAME, "thicket-hearth", "thicket-forge"]);
+});
+
+test("the Slack bridge's account is rendered, and follows the roster", (t) => {
+  const out = mkdtempSync(join(tmpdir(), "render-"));
+  t.after(() => rmSync(out, { recursive: true, force: true }));
+  renderAccountConfigs(parseRoster(YAML), YAML, {
+    outDir: out,
+    allowedPeerTags: ["tag:thicket-bridge"],
+    tailnetDomain: "tail42.ts.net",
+  });
+
+  const netd = JSON.parse(readFileSync(join(out, "bridge", "netd.json"), "utf8")) as Record<string, unknown>;
+  assert.deepEqual(netd, {
+    hostname: BRIDGE_HOSTNAME,
+    tag: "tag:thicket-bridge",
+    auth_key_file: "tailnet-auth-key",
+    // A name, not a path: the same file has to be right in a user-unit
+    // account and in a system unit, whose runtime directories differ.
+    upstream_socket: "bridge",
+    // Every agent, and Slack twice — the wildcard does not admit the bare
+    // domain, and the file and websocket hosts are Slack's to choose.
+    egress_allow: [
+      "thicket-hearth.tail42.ts.net",
+      "thicket-forge.tail42.ts.net",
+      SLACK_API_HOST,
+      SLACK_RUNTIME_HOSTS,
+    ],
+  });
+  // The roster it is configured from travels with it, as every account's does.
+  assert.equal(readFileSync(join(out, "bridge", "agents.yaml"), "utf8"), YAML);
+  // The tokens are the operator's; nothing renders them.
+  assert.ok(!existsSync(join(out, "bridge", "bridge.json")), "the secrets half is never rendered");
+});
+
+test("adding an agent changes the bridge's allowlist and nothing else about it", (t) => {
+  const render = (yaml: string) => {
+    const out = mkdtempSync(join(tmpdir(), "render-"));
+    t.after(() => rmSync(out, { recursive: true, force: true }));
+    renderAccountConfigs(parseRoster(yaml), yaml, {
+      outDir: out,
+      allowedPeerTags: ["tag:thicket-bridge"],
+      tailnetDomain: "tail42.ts.net",
+    });
+    return JSON.parse(readFileSync(join(out, "bridge", "netd.json"), "utf8")) as { egress_allow: string[] };
+  };
+
+  const before = render(YAML);
+  const after = render(
+    YAML +
+      `
+  ember:
+    host: home
+    user: ember
+    description: An agent added to the roster and to nothing else.
+    tag: tag:thicket-ember
+    harness: { type: claude-agent-sdk, cwd: /home/ember, model: claude-opus-5 }
+`,
+  );
+  assert.deepEqual(
+    after.egress_allow.filter((name) => !before.egress_allow.includes(name)),
+    ["thicket-ember.tail42.ts.net"],
+    "the roster moved and the allowlist did not follow",
+  );
 });

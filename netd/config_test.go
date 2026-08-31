@@ -120,3 +120,47 @@ func TestSocketGroupIsOptional(t *testing.T) {
 		t.Errorf("SocketGroup = %q, want thicket", cfg.SocketGroup)
 	}
 }
+
+// A bare name is a component under the runtime directory, the shape the
+// defaults take. That is what makes one rendered config work in an account
+// whose runtime directory is /run/user/<uid>/thicket and in a system unit
+// whose is /run/thicket, without the renderer being told which.
+func TestSocketNamesResolveUnderTheRuntimeDir(t *testing.T) {
+	runtime := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", runtime)
+	base := `"hostname": "thicket-bridge", "tag": "tag:thicket-bridge"`
+
+	cfg, err := loadConfig(writeConfig(t, `{`+base+`, "upstream_socket": "bridge", "egress_socket": "out"}`))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if want := filepath.Join(runtime, "thicket", "bridge.sock"); cfg.UpstreamSocket != want {
+		t.Errorf("upstream_socket = %q, want %q", cfg.UpstreamSocket, want)
+	}
+	if want := filepath.Join(runtime, "thicket", "out.sock"); cfg.EgressSocket != want {
+		t.Errorf("egress_socket = %q, want %q", cfg.EgressSocket, want)
+	}
+
+	// A path is a path: a deployment that puts a pair somewhere of its own
+	// says so, and nothing reinterprets it.
+	cfg, err = loadConfig(writeConfig(t, `{`+base+`, "upstream_socket": "/run/thicket-phone/bridge.sock"}`))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.UpstreamSocket != "/run/thicket-phone/bridge.sock" {
+		t.Errorf("an absolute path was rewritten: %q", cfg.UpstreamSocket)
+	}
+
+	// The funnel upstream resolves the same way, and must still differ from
+	// the inbound one after both have been resolved.
+	cfg, err = loadConfig(writeConfig(t, `{`+base+`, "upstream_socket": "agentd", "funnel": {"path_prefix": "/", "upstream_socket": "phone"}}`))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if want := filepath.Join(runtime, "thicket", "phone.sock"); cfg.Funnel.UpstreamSocket != want {
+		t.Errorf("funnel.upstream_socket = %q, want %q", cfg.Funnel.UpstreamSocket, want)
+	}
+	if _, err := loadConfig(writeConfig(t, `{`+base+`, "upstream_socket": "agentd", "funnel": {"path_prefix": "/", "upstream_socket": "agentd"}}`)); err == nil {
+		t.Error("a funnel pointed at the inbound socket by name was accepted")
+	}
+}

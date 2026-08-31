@@ -9,6 +9,7 @@ export const PHONE_HOSTNAME = "thicket-phone";
 
 /** The bridge's tailnet node: the fleet's Slack surface, and its file surface. */
 export const BRIDGE_HOSTNAME = "thicket-bridge";
+export const BRIDGE_TAG = "tag:thicket-bridge";
 
 /**
  * Where the Slack Web API answers. The phone bridge posts its security
@@ -21,6 +22,14 @@ export const BRIDGE_HOSTNAME = "thicket-bridge";
  * none of the hosts Slack hands out at run time.
  */
 export const SLACK_API_HOST = "slack.com";
+
+/**
+ * The hosts Slack hands out at run time — files, and the websocket a Socket
+ * Mode connection is opened to. A wildcard rather than today's names, which
+ * are Slack's to change; and beside `SLACK_API_HOST` rather than instead of
+ * it, because `*.slack.com` deliberately does not admit `slack.com`.
+ */
+export const SLACK_RUNTIME_HOSTS = "*.slack.com";
 
 /**
  * The name a tailnet node is dialed by — fully qualified once the domain is
@@ -91,6 +100,36 @@ export function renderAccountConfigs(
       tag: entry.tag,
       auth_key_file: "tailnet-auth-key",
       egress_allow: fleet,
+    };
+    writeFileSync(join(dir, "netd.json"), JSON.stringify(netd, null, 2) + "\n");
+    written.push(join(dir, "netd.json"));
+  }
+
+  // The Slack bridge's account. Nothing in it is a judgement call: its node
+  // and tag are fixed, and what it may reach is the whole fleet plus Slack.
+  // The fleet half is the reason this is rendered at all — it moves every
+  // time the roster does, and an allowlist that drifts from the roster fails
+  // closed and quietly, leaving a newly added agent unreachable for a reason
+  // that lives in a file nobody re-reads.
+  {
+    const dir = join(options.outDir, "bridge");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "agents.yaml"), rosterYaml);
+    written.push(join(dir, "agents.yaml"));
+    const netd = {
+      hostname: BRIDGE_HOSTNAME,
+      tag: BRIDGE_TAG,
+      auth_key_file: "tailnet-auth-key",
+      // The bridge's own socket, not an agentd's: this account runs no agent,
+      // and what a tailnet peer comes here for is the bytes of a file the
+      // bridge holds. A name rather than a path, so one rendered file is
+      // right whether the account runs as a user unit or a system one.
+      upstream_socket: "bridge",
+      egress_allow: [
+        ...Object.values(roster.agents).map((entry) => tailnetName(nodeName(entry), options.tailnetDomain)),
+        SLACK_API_HOST,
+        SLACK_RUNTIME_HOSTS,
+      ],
     };
     writeFileSync(join(dir, "netd.json"), JSON.stringify(netd, null, 2) + "\n");
     written.push(join(dir, "netd.json"));
