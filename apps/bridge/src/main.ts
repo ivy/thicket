@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 
@@ -223,7 +223,10 @@ export async function run(
       // group has one member, and putting the operator in it would hand them
       // the account that holds every token to read a timestamp. Nothing here
       // is a secret: a time, and how many connections or calls are up.
-      writeFileSync(healthPath + ".tmp", JSON.stringify(doc) + "\n", { mode: 0o644 });
+      writeFileSync(healthPath + ".tmp", JSON.stringify(doc) + "\n");
+      // chmod rather than the create mode, which the unit's 0077 umask masks
+      // straight back down to 0600 — the one value that helps nobody here.
+      chmodSync(healthPath + ".tmp", 0o644);
       renameSync(healthPath + ".tmp", healthPath);
     } catch (err) {
       logger.warn("health file write failed", { path: healthPath, err: String(err) });
