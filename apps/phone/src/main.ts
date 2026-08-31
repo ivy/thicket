@@ -169,7 +169,10 @@ export async function run(
   const writeHealth = () => {
     try {
       const doc = { ts: new Date().toISOString(), openCalls: registry.openCalls().length };
-      writeFileSync(healthPath + ".tmp", JSON.stringify(doc) + "\n");
+      // 0640, not the unit's 0077 umask: the heartbeat exists to be read by
+      // an operator running `thicket doctor` from their own account, and a
+      // file only this service can read answers no question.
+      writeFileSync(healthPath + ".tmp", JSON.stringify(doc) + "\n", { mode: 0o640 });
       renameSync(healthPath + ".tmp", healthPath);
     } catch (err) {
       logger.warn("health file write failed", { path: healthPath, err: String(err) });

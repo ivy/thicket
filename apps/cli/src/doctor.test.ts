@@ -30,7 +30,7 @@ function healthyProbes(): DoctorProbes {
     ],
     slackApp: async () => ({ installed: true, socketMode: true }),
     workspaceAppUsage: async () => ({ installed: 4, cap: 10 }),
-    lingeringEnabled: async () => true,
+    startsAtBoot: async () => ({ enabled: true, mechanism: "loginctl lingering" }),
     phoneNumber: async () => ({ number: "+15550100002", drift: [] }),
     phoneConfig: async () => ({ ok: true }),
     phonePublic: async () => ({ url: "https://thicket-phone.tail0000.ts.net/", status: 404 }),
@@ -111,7 +111,10 @@ test("stale card is detected and distinct from an unreachable card", async () =>
 
 test("account without lingering is detected with remediation", async () => {
   const probes = healthyProbes();
-  probes.lingeringEnabled = async (_agent, user) => user !== "forge";
+  probes.startsAtBoot = async (_agent: string, user: string) => ({
+    enabled: user !== "forge",
+    mechanism: "loginctl lingering",
+  });
   const results = await runDoctor(ROSTER, probes);
   const failure = results.find((r) => !r.ok);
   assert.ok(failure);
@@ -168,7 +171,7 @@ test("a stale bridge heartbeat is a failure; an absent one is not", async () => 
 
 test("formatResults marks failures loudly and names the agent", async () => {
   const probes = healthyProbes();
-  probes.lingeringEnabled = async () => false;
+  probes.startsAtBoot = async () => ({ enabled: false, mechanism: "loginctl lingering" });
   const lines = formatResults(await runDoctor(ROSTER, probes));
   assert.ok(lines.some((l) => l.startsWith("FAIL [lingering] hearth:")));
   assert.ok(lines.some((l) => l.startsWith("ok ")));
@@ -179,7 +182,7 @@ test("a throwing probe becomes a failed check and every other check still runs",
   probes.tailnetNodes = async () => {
     throw new Error("spawn tailscale ENOENT");
   };
-  probes.lingeringEnabled = async () => {
+  probes.startsAtBoot = async () => {
     throw new Error("spawn loginctl ENOENT");
   };
   const results = await runDoctor(ROSTER, probes);

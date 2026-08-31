@@ -18,6 +18,34 @@ import type { FileStore } from "./store.js";
 const execFileAsync = promisify(execFile);
 
 /**
+ * The state directories a heartbeat could be in, most specific first.
+ *
+ * An edge component deployed as a system unit keeps its state in
+ * /var/lib/thicket, and doctor is run by the operator from their own
+ * account — so reading only this process's XDG state dir means a bridge
+ * that is serving perfectly reports as absent. Both are checked, and the
+ * one that answered is reported, because a wrong inference should be
+ * visible rather than silent.
+ */
+const SYSTEM_STATE_DIR = "/var/lib/thicket";
+
+async function readHealth<T>(component: string): Promise<(T & { source?: string }) | undefined> {
+  const candidates = [
+    { dir: SYSTEM_STATE_DIR, source: `${SYSTEM_STATE_DIR} (system unit)` },
+    { dir: stateDir(), source: `${stateDir()} (this account)` },
+  ];
+  for (const { dir, source } of candidates) {
+    try {
+      const raw = await readFile(join(dir, component, "health.json"), "utf8");
+      return { ...(JSON.parse(raw) as T), source };
+    } catch {
+      // Absent or unparsable both mean "not here"; try the next shape.
+    }
+  }
+  return undefined;
+}
+
+/**
  * Real-world probes for `thicket doctor`. Read-only by construction:
  * `tailscale status`, `loginctl show-user`, card GETs, and Slack reads.
  */
@@ -27,10 +55,17 @@ export function realProbes(options: {
   /** Dev-rig stand-in for the tailnet: agent name -> local base URL. */
   endpointOverrides?: Record<string, string>;
   fetchImpl?: typeof fetch;
+  /**
+   * How that fetch leaves this host, for the lines that report a failure.
+   * A card that cannot be fetched means something different depending on
+   * whether the request went through netd or straight out.
+   */
+  route?: string;
   /** The operator's config dir, where twilio.json lives when there is a phone. */
   store?: FileStore;
 } = {}): DoctorProbes {
   const fetchImpl = options.fetchImpl ?? fetch;
+  const route = options.route ?? "this host's own network";
   const entryFor = (agent: string): AgentEntry | undefined => options.roster?.agents[agent];
 
   return {
@@ -52,11 +87,11 @@ export function realProbes(options: {
         const detail = cause instanceof Error ? cause.message : String(cause);
         if (/ENOTFOUND|EAI_AGAIN/.test(detail)) {
           throw new Error(
-            `${new URL(base).hostname} does not resolve from here — no tailnet on this ` +
+            `${new URL(base).hostname} does not resolve over ${route} — no tailnet on this ` +
               `host? (dev rigs set THICKET_MCP_ENDPOINTS to probe local agents)`,
           );
         }
-        throw new Error(detail);
+        throw new Error(`${detail} (over ${route})`);
       }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -95,14 +130,7 @@ export function realProbes(options: {
     },
 
     async bridgeHealth() {
-      // Same path the bridge writes; absent or unparsable both mean "no
-      // bridge heartbeat here", which doctor reports without failing.
-      try {
-        const raw = await readFile(join(stateDir(), "bridge", "health.json"), "utf8");
-        return JSON.parse(raw) as BridgeHealth;
-      } catch {
-        return undefined;
-      }
+      return readHealth<BridgeHealth>("bridge");
     },
 
     async phoneNumber() {
@@ -145,23 +173,28 @@ export function realProbes(options: {
     },
 
     async phoneHealth() {
-      try {
-        const raw = await readFile(join(stateDir(), "phone", "health.json"), "utf8");
-        return JSON.parse(raw) as PhoneHealth;
-      } catch {
-        return undefined;
-      }
+      return readHealth<PhoneHealth>("phone");
     },
 
-    async lingeringEnabled(_agent, user) {
-      // Throws when loginctl is absent (macOS, containers): "cannot
-      // check" is the honest report there, not "no lingering".
+    async startsAtBoot(_agent, user) {
+      // The question is the same on both platforms and the answer is not.
+      // On Linux an agent's user units survive logout only with lingering;
+      // on macOS a LaunchAgent survives because it is bootstrapped into the
+      // account's domain, and asking loginctl there produces a failure that
+      // says nothing about whether the agent will come back.
+      if (process.platform === "darwin") {
+        const { stdout } = await execFileAsync("launchctl", ["list"]);
+        return {
+          enabled: stdout.split("\n").some((line) => line.includes("com.thicket.agentd")),
+          mechanism: "launchd: com.thicket.agentd bootstrapped",
+        };
+      }
       const { stdout } = await execFileAsync("loginctl", [
         "show-user",
         user,
         "--property=Linger",
       ]);
-      return stdout.trim() === "Linger=yes";
+      return { enabled: stdout.trim() === "Linger=yes", mechanism: "loginctl lingering" };
     },
   };
 }

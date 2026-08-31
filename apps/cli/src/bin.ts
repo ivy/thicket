@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { egressFetch } from "@thicket/egress";
@@ -35,6 +35,18 @@ function usage(): never {
  */
 function egressSocketPath(): string {
   return process.env.THICKET_EGRESS_SOCKET ?? socketPath("netd-egress");
+}
+
+/**
+ * The fetch doctor's probes use, and a name for it. Through netd when this
+ * account has one, so the probe measures the path the fleet actually uses.
+ */
+function doctorRoute(): { fetchImpl?: typeof fetch; route: string } {
+  const socket = egressSocketPath();
+  if (!existsSync(socket)) {
+    return { route: "this host's own network — no netd egress socket here" };
+  }
+  return { fetchImpl: egressFetch(socket), route: `netd (${socket})` };
 }
 
 /** Where a rendered tree lands unless a caller says otherwise. */
@@ -305,6 +317,11 @@ async function main(): Promise<void> {
       realProbes({
         roster,
         store: new FileStore(configDir()),
+        // The same route everything else here takes, when there is one. A
+        // doctor that reaches agents by a path the fleet does not use is
+        // answering a question nobody asked; without netd — a laptop, a
+        // fresh host — it falls back and says so.
+        ...doctorRoute(),
         tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
         // Same dev-rig override fleet and mcp honour: agents reachable on
         // local ports where there is no tailnet.

@@ -11,8 +11,12 @@ export interface DoctorProbes {
   slackApp(agent: string): Promise<{ installed: boolean; socketMode: boolean } | undefined>;
   /** Installed app count and the workspace's cap. */
   workspaceAppUsage(): Promise<{ installed: number; cap: number }>;
-  /** loginctl lingering for the agent's unix account on its host. */
-  lingeringEnabled(agent: string, user: string): Promise<boolean>;
+  /**
+   * Whether the agent comes back after a reboot, and by what mechanism.
+   * Lingering on Linux, a bootstrapped LaunchAgent on macOS — the question
+   * is the same and the answer is not, so the probe reports which it asked.
+   */
+  startsAtBoot(agent: string, user: string): Promise<{ enabled: boolean; mechanism: string }>;
   /** The bridge's heartbeat file, if a bridge runs on this host. */
   bridgeHealth(): Promise<BridgeHealth | undefined>;
   /**
@@ -32,12 +36,16 @@ export interface DoctorProbes {
 export interface PhoneHealth {
   ts: string;
   openCalls: number;
+  /** Which layout answered — a system unit's /var/lib, or this account's. */
+  source?: string;
 }
 
 /** Shape of the health file the bridge rewrites every few seconds. */
 export interface BridgeHealth {
   ts: string;
   agents: { agent: string; connected: boolean; attempts: number }[];
+  /** Which layout answered — a system unit's /var/lib, or this account's. */
+  source?: string;
 }
 
 /** Two missed heartbeats: the bridge is down or wedged, not merely busy. */
@@ -149,10 +157,10 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
       push("slack", true, "Slack app installed with Socket Mode", agent);
     }
 
-    const lingeringProbe = await attempt(() => probes.lingeringEnabled(agent, entry.user));
+    const lingeringProbe = await attempt(() => probes.startsAtBoot(agent, entry.user));
     if (!lingeringProbe.ok) {
       push("lingering", false, lingeringProbe.error, agent);
-    } else if (!lingeringProbe.value) {
+    } else if (!lingeringProbe.value.enabled) {
       push(
         "lingering",
         false,
@@ -160,7 +168,12 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
         agent,
       );
     } else {
-      push("lingering", true, `lingering enabled for ${entry.user}`, agent);
+      push(
+        "lingering",
+        true,
+        `${entry.user} starts at boot (${lingeringProbe.value.mechanism})`,
+        agent,
+      );
     }
   }
 
@@ -180,7 +193,7 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
       push(
         "bridge",
         false,
-        `bridge health file is stale (last heartbeat ${Number.isFinite(ageMs) ? `${Math.round(ageMs / 1000)}s ago` : "unreadable"}) — the bridge is down or wedged`,
+        `bridge health file is stale (last heartbeat ${Number.isFinite(ageMs) ? `${Math.round(ageMs / 1000)}s ago` : "unreadable"}, from ${health.source ?? "this account"}) — the bridge is down or wedged`,
       );
     } else {
       for (const entry of health.agents) {
