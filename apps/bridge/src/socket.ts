@@ -1,3 +1,5 @@
+import type { Agent } from "node:https";
+
 import { SocketModeClient } from "@slack/socket-mode";
 
 import type { EngineLogger } from "./engine.js";
@@ -52,6 +54,14 @@ export interface SlackSocketOptions {
   /** Injectable for tests; production builds a real SocketModeClient. */
   client?: SocketishClient;
   recoveryDeadlineMs?: number;
+  /**
+   * Node agent for the library's own Web API calls — the `apps.connections.open`
+   * that fetches each wss URL. The library reuses it for the WebSocket too,
+   * which under Bun is a no-op: Bun ships its own `ws`, the built-in wins over
+   * the installed package, and it ignores `agent`. So this contains the call
+   * and not yet the socket (#69).
+   */
+  agent?: Agent;
 }
 
 /**
@@ -82,12 +92,15 @@ export class SlackSocketConnection implements Connection {
       (new SocketModeClient({
         appToken,
         logger: libraryLogger(logger),
-        // Bound the hidden apps.connections.open retries. The default
-        // ({retries: 100, factor: 1.3}) buries reconnection inside the
-        // WebClient where it is unobservable, uncancellable, and grows to
-        // hour-long waits; failures should instead surface to the
-        // library's own reconnect loop, which we can watch and stop.
-        clientOptions: { retryConfig: { retries: 3, factor: 2 } },
+        clientOptions: {
+          // Bound the hidden apps.connections.open retries. The default
+          // ({retries: 100, factor: 1.3}) buries reconnection inside the
+          // WebClient where it is unobservable, uncancellable, and grows to
+          // hour-long waits; failures should instead surface to the
+          // library's own reconnect loop, which we can watch and stop.
+          retryConfig: { retries: 3, factor: 2 },
+          ...(options.agent === undefined ? {} : { agent: options.agent }),
+        },
       }) as unknown as SocketishClient);
     this.client.on(
       "slack_event",

@@ -1,23 +1,31 @@
-import { Agent as HttpAgent, request as httpRequest } from "node:http";
-import { connect as netConnect, type Socket } from "node:net";
-import { Readable } from "node:stream";
-import { connect as tlsConnect } from "node:tls";
-
-const BANNER_LIMIT = 8192;
-
 /**
- * A fetch that leaves through netd's egress socket.
- *
- * netd runs an HTTP forward proxy there and dials via the tailnet, so
- * everything reachable through this function is a tailnet peer and nothing
- * else — not the public internet, not localhost, not a metadata endpoint.
- * That containment is what lets a URL arriving in an inbound message be
- * fetched at all, without an allow-list to write and keep true.
+ * The way out of an account that has no network of its own: netd runs a
+ * forward proxy on a unix socket, admits only the destinations its
+ * `egress_allow` names, and dials tailnet names through the tailnet so they
+ * carry this account's tag. What a process reaches is therefore what was
+ * rendered into its config, which is what lets a URL arriving in an inbound
+ * message be fetched at all.
  *
  * Every request goes through a CONNECT tunnel, https included, so TLS is
  * terminated by the peer rather than by the proxy: netd moves bytes it
  * cannot read.
+ *
+ * Two shapes of the same thing. `egressFetch` is for our own code, which
+ * takes a `fetch`; `egressAgent` is for libraries that take a Node agent
+ * instead — `@slack/web-api`, and anything else with a client we did not
+ * write.
  */
+
+import { statSync } from "node:fs";
+import { Agent as HttpAgent, request as httpRequest, type ClientRequestArgs } from "node:http";
+import { Agent as HttpsAgent } from "node:https";
+import { connect as netConnect, type Socket } from "node:net";
+import { Readable, type Duplex } from "node:stream";
+import { connect as tlsConnect } from "node:tls";
+
+const BANNER_LIMIT = 8192;
+
+/** A fetch that leaves through the egress socket. */
 export function egressFetch(socketPath: string): typeof fetch {
   return (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
@@ -71,7 +79,7 @@ function headersOf(init: RequestInit | undefined): Record<string, string> {
 }
 
 /** Open a CONNECT tunnel through the proxy, then TLS over it when asked. */
-function tunnel(
+export function tunnel(
   socketPath: string,
   hostname: string,
   port: number,
@@ -123,4 +131,61 @@ function tunnel(
     };
     proxy.on("data", onData);
   });
+}
+
+/**
+ * An https.Agent whose every connection is a CONNECT tunnel through the
+ * egress socket. Pass it to a library that dials for itself; the TLS the
+ * agent would normally do is done inside the tunnel instead, so the far end
+ * still terminates it.
+ *
+ * Connections are pooled — Node keys them by destination, so no two
+ * destinations share a tunnel — because a bridge streaming a reply makes
+ * many calls to one host and a fresh CONNECT and handshake for each is
+ * latency nobody asked for.
+ */
+export function egressAgent(socketPath: string): HttpsAgent {
+  return new EgressAgent(socketPath);
+}
+
+class EgressAgent extends HttpsAgent {
+  constructor(private readonly socketPath: string) {
+    super({ keepAlive: true });
+  }
+
+  override createConnection(
+    options: ClientRequestArgs,
+    callback?: (err: Error | null, stream: Duplex) => void,
+  ): undefined {
+    const host = options.host ?? "";
+    const port = Number(options.port ?? 443);
+    tunnel(this.socketPath, host, port, true).then(
+      (socket) => callback?.(null, socket),
+      // Node's own callback ignores the stream once the error is set, and
+      // a tunnel that never opened has none to hand over.
+      (err: Error) => callback?.(err, undefined as unknown as Duplex),
+    );
+    return undefined;
+  }
+}
+
+/**
+ * Fail at startup rather than at the first outbound call. A process meant
+ * to have no network of its own must never quietly find another way out, so
+ * an absent socket is fatal and says which path it looked at — the ordinary
+ * cause is netd not started, or started as another user.
+ */
+export function assertEgressSocket(socketPath: string): void {
+  let stats;
+  try {
+    stats = statSync(socketPath);
+  } catch {
+    throw new Error(
+      `no egress socket at ${socketPath}: netd owns it, so start netd first — ` +
+        `there is no direct-dial fallback, by design`,
+    );
+  }
+  if (!stats.isSocket()) {
+    throw new Error(`egress path ${socketPath} is not a socket`);
+  }
 }

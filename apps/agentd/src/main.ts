@@ -7,6 +7,7 @@ import { Role, TaskState } from "@a2a-js/sdk";
 import type { Message, Task } from "@a2a-js/sdk";
 import { DefaultRequestHandler, ServerCallContext } from "@a2a-js/sdk/server";
 
+import { egressFetch } from "@thicket/egress";
 import { parseRoster, toAgentCard } from "@thicket/roster";
 import {
   AttachmentStore,
@@ -17,7 +18,6 @@ import {
 } from "@thicket/executor";
 
 import { defaultConfigPath, loadConfig, sessionEnv, type AgentdConfig } from "./config.js";
-import { egressFetch } from "./egress.js";
 import { pruneAttachments } from "./attachments-cache.js";
 import { listen, resolveListenTarget } from "./listen.js";
 import { buildToolbelt, TOOLBELT_ALLOWED_TOOLS } from "./toolbelt.js";

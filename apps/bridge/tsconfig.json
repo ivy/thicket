@@ -16,6 +16,9 @@
     },
     {
       "path": "../../packages/a2a-client"
+    },
+    {
+      "path": "../../packages/egress"
     }
   ]
 }

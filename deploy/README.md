@@ -179,9 +179,27 @@ in this account, in `~/.config/thicket/netd.json`:
 {
   "hostname": "thicket-bridge",
   "tag": "tag:thicket-bridge",
-  "upstream_socket": "/run/user/1001/thicket/bridge.sock"
+  "upstream_socket": "/run/user/1001/thicket/bridge.sock",
+  "egress_allow": [
+    "thicket-hearth.tailXXXX.ts.net",
+    "slack.com",
+    "*.slack.com"
+  ]
 }
 ```
+
+The bridge is the account with the most to reach and the most to lose: it
+holds every agent's Slack tokens, and its way out is this socket alone. Every
+agent it serves belongs in `egress_allow`, and so does Slack — twice, because
+`*.slack.com` deliberately does not admit `slack.com` itself. The wildcard is
+not laziness: the file and WebSocket hosts Slack hands out at run time are
+Slack's to choose, and an allowlist that named today's would fail on the day
+they changed.
+
+Nothing else is reachable, and there is no fallback: with no egress socket the
+bridge refuses to start and says which path it looked at. `egress_socket` in
+`bridge.json` overrides the default (`$XDG_RUNTIME_DIR/thicket/netd-egress.sock`),
+which is netd's own default in the same account and rarely needs saying.
 
 and write the bridge's own config, `~/.config/thicket/bridge.json`:
 

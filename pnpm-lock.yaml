@@ -32,6 +32,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.247
         version: 0.3.247(@anthropic-ai/sdk@0.121.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.30.0(zod@4.4.3))(zod@4.4.3)
+      '@thicket/egress':
+        specifier: workspace:*
+        version: link:../../packages/egress
       '@thicket/executor':
         specifier: workspace:*
         version: link:../../packages/executor
@@ -69,6 +72,9 @@ importers:
       '@thicket/a2a-client':
         specifier: workspace:*
         version: link:../../packages/a2a-client
+      '@thicket/egress':
+        specifier: workspace:*
+        version: link:../../packages/egress
       '@thicket/executor':
         specifier: workspace:*
         version: link:../../packages/executor
@@ -181,6 +187,15 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  packages/egress:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.17.0
+        version: 22.20.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3

@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 
 import { WebClient } from "@slack/web-api";
 import { RemoteAgentClient } from "@thicket/a2a-client";
+import { assertEgressSocket, egressAgent, egressFetch } from "@thicket/egress";
 import { agentUrl, configDir, parseRoster, socketPath, stateDir } from "@thicket/roster";
 
 import { BridgeEngine, type EngineLogger } from "./engine.js";
@@ -35,6 +36,11 @@ interface BridgeConfig {
   file_base_url?: string;
   /** Unix socket the file surface listens on; netd's upstream. */
   socket_path?: string;
+  /**
+   * Unix socket netd's egress proxy listens on: the bridge's only way out,
+   * for Slack and for the agents alike. Default: socketPath("netd-egress").
+   */
+  egress_socket?: string;
   agents: Record<string, BridgeAgentConfig>;
 }
 
@@ -60,6 +66,7 @@ async function startFileServer(
   roster: ReturnType<typeof parseRoster>,
   state: BridgeState,
   logger: EngineLogger,
+  fetchImpl: typeof fetch,
 ): Promise<{ close(): void } | undefined> {
   if (config.file_base_url === undefined) {
     logger.info("file surface disabled: no file_base_url configured");
@@ -76,6 +83,7 @@ async function startFileServer(
     agentByTag,
     botTokenFor: (agent) => config.agents[agent]?.bot_token,
     logger,
+    fetchImpl,
   });
   const server = createServer(app);
   const path = config.socket_path ?? socketPath("bridge");
@@ -118,6 +126,17 @@ export async function run(
   );
   assertAgentsConfigured(config, configPath);
 
+  // The bridge holds every agent's Slack tokens and is meant to run with no
+  // network of its own, so every leg — Slack, the agents, the files it
+  // redeems — leaves through netd. Checked before anything dials, because a
+  // process that discovers this at the first outbound call has already been
+  // running as something it should not be.
+  const egressSocket = config.egress_socket ?? socketPath("netd-egress");
+  assertEgressSocket(egressSocket);
+  const outbound = egressFetch(egressSocket);
+  const slackAgent = egressAgent(egressSocket);
+  logger.info("egress socket", { path: egressSocket });
+
   const state = new BridgeState(config.db_path ?? join(stateDir(), "bridge", "bridge.db"));
 
   // Per-agent base-URL overrides for local development (no tailnet):
@@ -140,8 +159,9 @@ export async function run(
       client: new RemoteAgentClient(
         endpointOverrides[name] ??
           agentUrl(entry, { tailnetDomain: config.tailnet_domain }).replace(/\/a2a\/v1$/, ""),
+        outbound,
       ),
-      slack: new WebSlackApi(new WebClient(agentConfig.bot_token), logger),
+      slack: new WebSlackApi(new WebClient(agentConfig.bot_token, { agent: slackAgent }), logger),
       state,
       logger,
       ...(config.file_base_url === undefined ? {} : { fileBaseUrl: config.file_base_url }),
@@ -151,7 +171,7 @@ export async function run(
     await engine.start();
   }
 
-  const fileServer = await startFileServer(config, roster, state, logger);
+  const fileServer = await startFileServer(config, roster, state, logger, outbound);
 
   const supervisor = new ConnectionSupervisor({
     agents: [...engines.keys()],
@@ -172,6 +192,7 @@ export async function run(
           });
         },
         scoped,
+        { agent: slackAgent },
       );
     },
   });

@@ -179,6 +179,29 @@ test("a consumer streams a message and cancels a task with only this package", a
   }
 });
 
+// Discovery decides where everything after it goes, so it has to leave by
+// the same door. The SDK's shared default resolver uses global fetch, which
+// would send this one request around a caller's egress socket.
+test("the agent card is fetched through the injected fetch, not around it", async () => {
+  const agent = await startAgent();
+  try {
+    const seen: string[] = [];
+    const counting = ((input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      seen.push(input instanceof Request ? input.url : String(input));
+      return fetch(input, init);
+    }) as typeof fetch;
+
+    const client = new RemoteAgentClient(agent.url, counting);
+    assert.deepEqual(await client.fetchCard(), { streaming: true });
+    assert.ok(
+      seen.some((url) => url.includes("/.well-known/agent-card.json")),
+      `card discovery bypassed the injected fetch; it only saw ${JSON.stringify(seen)}`,
+    );
+  } finally {
+    agent.server.close();
+  }
+});
+
 test("toA2AEvent keeps activity artifacts apart from text and lifts status text", () => {
   const activity = toA2AEvent({
     payload: {

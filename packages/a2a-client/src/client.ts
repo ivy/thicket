@@ -1,9 +1,9 @@
 import type { Message, StreamResponse, Task } from "@a2a-js/sdk";
 import { ACTIVITY_ARTIFACT_ID, parseAgentActivity, type AgentActivity } from "@thicket/executor";
 import {
-  AgentCardResolver,
   ClientFactory,
   ClientFactoryOptions,
+  DefaultAgentCardResolver,
   JsonRpcTransportFactory,
   type Client,
 } from "@a2a-js/sdk/client";
@@ -73,11 +73,16 @@ export function toA2AEvent(response: StreamResponse): A2AEvent | undefined {
 export class RemoteAgentClient implements AgentClient {
   private readonly baseUrl: string;
   private readonly factory: ClientFactory;
-  private readonly resolver = AgentCardResolver.default;
+  private readonly resolver: DefaultAgentCardResolver;
   private client: Client | null = null;
 
   constructor(baseUrl: string, fetchImpl: typeof fetch = fetch) {
     this.baseUrl = baseUrl;
+    // The card is fetched over the same route as everything after it. The
+    // SDK's shared default resolver uses global fetch, which would send
+    // discovery around whatever the transport was told to use — the one
+    // request that decides where the rest go.
+    this.resolver = new DefaultAgentCardResolver({ fetchImpl });
     this.factory = new ClientFactory(
       ClientFactoryOptions.createFrom(ClientFactoryOptions.default, {
         transports: [new JsonRpcTransportFactory({ fetchImpl })],

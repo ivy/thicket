@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttpServer, type Server } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { connect, createServer as createSocketServer, type Server as SocketServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { egressFetch } from "./egress.js";
+import { assertEgressSocket, egressAgent, egressFetch } from "./egress.js";
 
 interface Proxy {
   socketPath: string;
@@ -173,4 +174,45 @@ test("a large body streams through without being buffered whole", async (t) => {
     total += part.length;
   }
   assert.equal(total, 16 * 64 * 1024);
+});
+
+test("an absent egress socket is a startup failure that names the path", async (t) => {
+  const p = await proxy(t);
+  assertEgressSocket(p.socketPath);
+
+  const missing = join(tmpdir(), "thicket-no-such-egress.sock");
+  assert.throws(
+    () => assertEgressSocket(missing),
+    (err: Error) => {
+      assert.ok(err.message.includes(missing), "the message names the path it looked at");
+      assert.match(err.message, /netd/);
+      assert.match(err.message, /no direct-dial fallback/);
+      return true;
+    },
+  );
+
+  const dir = mkdtempSync(join(tmpdir(), "egress-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const notASocket = join(dir, "regular-file");
+  writeFileSync(notASocket, "");
+  assert.throws(() => assertEgressSocket(notASocket), /not a socket/);
+});
+
+test("the agent takes every connection to the proxy, and a refusal is not a fallback", async (t) => {
+  const p = await proxy(t);
+  p.refuse = true;
+  const agent = egressAgent(p.socketPath);
+
+  await assert.rejects(
+    () =>
+      new Promise((resolve, reject) => {
+        // slack.example is never dialed by this process: the proxy is asked
+        // for it, and the proxy is what says no.
+        const req = httpsRequest({ agent, host: "slack.example", port: 443, path: "/" }, resolve);
+        req.on("error", reject);
+        req.end();
+      }),
+    /refused CONNECT: .*403/,
+  );
+  assert.deepEqual(p.connects, ["slack.example:443"]);
 });

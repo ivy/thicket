@@ -5,6 +5,9 @@
       "path": "packages/roster"
     },
     {
+      "path": "packages/egress"
+    },
+    {
       "path": "packages/executor"
     },
     {

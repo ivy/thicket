@@ -22,6 +22,7 @@
     "@slack/socket-mode": "^2.0.7",
     "@slack/web-api": "^7.19.0",
     "@thicket/a2a-client": "workspace:*",
+    "@thicket/egress": "workspace:*",
     "@thicket/executor": "workspace:*",
     "@thicket/roster": "workspace:*",
     "express": "^5.2.1"

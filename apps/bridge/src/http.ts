@@ -22,7 +22,12 @@ export interface FileServerOptions {
   /** Bot token for the agent's Slack app, by agent name. */
   botTokenFor: (agent: string) => string | undefined;
   logger: FileServerLogger;
-  fetchImpl?: typeof fetch;
+  /**
+   * Every call this surface makes to Slack. Required rather than defaulted:
+   * the bridge's way out is netd's socket, and a default would put a direct
+   * dial one forgotten argument away.
+   */
+  fetchImpl: typeof fetch;
 }
 
 export function parsePeerTags(value: string | undefined): string[] {
@@ -118,8 +123,7 @@ function nextCursor(body: Record<string, unknown>): Record<string, unknown> {
  * another agent's thread is indistinguishable from one that does not exist.
  */
 export function buildFileServer(options: FileServerOptions): express.Express {
-  const { state, agentByTag, botTokenFor, logger } = options;
-  const fetchImpl = options.fetchImpl ?? fetch;
+  const { state, agentByTag, botTokenFor, logger, fetchImpl } = options;
   const app = express();
   app.disable("x-powered-by");
 
