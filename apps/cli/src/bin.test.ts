@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -29,17 +30,13 @@ interface Run {
   stderr: string;
 }
 
-async function render(args: string[], env: Record<string, string>): Promise<Run> {
-  const proc = Bun.spawn(["bun", BIN, ...args], {
+// The same runtime running the tests, so this needs nothing on PATH.
+function render(args: string[], env: Record<string, string>): Run {
+  const result = spawnSync(process.execPath, [BIN, ...args], {
     env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...env },
-    stdout: "pipe",
-    stderr: "pipe",
+    encoding: "utf8",
   });
-  const [stdout, stderr] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-  ]);
-  return { code: await proc.exited, stdout, stderr };
+  return { code: result.status ?? -1, stdout: result.stdout, stderr: result.stderr };
 }
 
 function tree(dir: string): Record<string, string> {
@@ -56,14 +53,14 @@ function tree(dir: string): Record<string, string> {
 // A deployer regenerates config far more often than it provisions Slack, and
 // must never risk doing the second while meaning the first. So the command
 // runs with no Slack credential anywhere and touches nothing but --out.
-test("render writes the per-account tree with no Slack credential in reach", async (t) => {
+test("render writes the per-account tree with no Slack credential in reach", (t) => {
   const work = mkdtempSync(join(tmpdir(), "render-cmd-"));
   t.after(() => rmSync(work, { recursive: true, force: true }));
   const rosterPath = join(work, "agents.yaml");
   writeFileSync(rosterPath, YAML);
   const out = join(work, "out");
 
-  const run = await render(["render", "--out", out], {
+  const run = render(["render", "--out", out], {
     THICKET_AGENTS_FILE: rosterPath,
     THICKET_TAILNET_DOMAIN: "tail42.ts.net",
     XDG_CONFIG_HOME: join(work, "empty-config"),
@@ -100,7 +97,7 @@ test("render writes the per-account tree with no Slack credential in reach", asy
   ]);
 
   // Re-rendering over the tree is what a re-run of a deploy does.
-  const again = await render(["render", "--out", out], {
+  const again = render(["render", "--out", out], {
     THICKET_AGENTS_FILE: rosterPath,
     THICKET_TAILNET_DOMAIN: "tail42.ts.net",
     XDG_CONFIG_HOME: join(work, "empty-config"),
@@ -109,13 +106,13 @@ test("render writes the per-account tree with no Slack credential in reach", asy
   assert.deepEqual(tree(out), files, "a second render produced different bytes");
 });
 
-test("render without a directory after --out refuses rather than guessing", async (t) => {
+test("render without a directory after --out refuses rather than guessing", (t) => {
   const work = mkdtempSync(join(tmpdir(), "render-cmd-"));
   t.after(() => rmSync(work, { recursive: true, force: true }));
   const rosterPath = join(work, "agents.yaml");
   writeFileSync(rosterPath, YAML);
 
-  const run = await render(["render", "--out"], {
+  const run = render(["render", "--out"], {
     THICKET_AGENTS_FILE: rosterPath,
     XDG_CONFIG_HOME: join(work, "empty-config"),
   });
