@@ -24,10 +24,16 @@ agents:
 function healthyProbes(): DoctorProbes {
   return {
     fetchCard: async (agent) => ({ name: agent }),
-    tailnetNodes: async () => [
-      { hostname: "thicket-hearth", tags: ["tag:thicket-hearth"] },
-      { hostname: "thicket-forge", tags: ["tag:thicket-forge"] },
-    ],
+    tailnetNodes: async () => ({
+      nodes: [
+        { hostname: "thicket-hearth", tags: ["tag:thicket-hearth"] },
+        { hostname: "thicket-forge", tags: ["tag:thicket-forge"] },
+      ],
+      // A member device: it sees the whole tailnet, so an absent node is
+      // absent rather than merely out of view.
+      selfTags: [],
+      selfHostname: "laptop",
+    }),
     installedVersions: async () => [
       { name: "thicket", version: "1.2.3", path: "/usr/local/bin/thicket" },
     ],
@@ -56,10 +62,14 @@ test("all checks pass: exit code 0", async () => {
 
 test("missing tailnet tag is detected with a distinct message", async () => {
   const probes = healthyProbes();
-  probes.tailnetNodes = async () => [
+  probes.tailnetNodes = async () => ({
+    nodes: [
     { hostname: "thicket-hearth", tags: [] },
     { hostname: "thicket-forge", tags: ["tag:thicket-forge"] },
-  ];
+  ],
+    selfTags: [],
+    selfHostname: "laptop",
+  });
   const results = await runDoctor(ROSTER, probes);
   const failure = results.find((r) => !r.ok);
   assert.ok(failure);
@@ -71,9 +81,13 @@ test("missing tailnet tag is detected with a distinct message", async () => {
 
 test("a node absent from the tailnet is reported differently from a missing tag", async () => {
   const probes = healthyProbes();
-  probes.tailnetNodes = async () => [
+  probes.tailnetNodes = async () => ({
+    nodes: [
     { hostname: "thicket-forge", tags: ["tag:thicket-forge"] },
-  ];
+  ],
+    selfTags: [],
+    selfHostname: "laptop",
+  });
   const results = await runDoctor(ROSTER, probes);
   const failure = results.find((r) => !r.ok);
   assert.ok(failure);
@@ -302,4 +316,35 @@ test("a phone config only root can read is the file being right, not missing", a
   assert.equal(line.ok, true);
   assert.match(line.message, /readable only by root.*system unit/);
   assert.doesNotMatch(line.message, /does not run here/);
+});
+
+test("from a tagged host, a node it cannot see is not reported as absent", async () => {
+  // A tagged machine's netmap holds only the peers the policy lets it reach,
+  // so on the server that runs the fleet the fleet is invisible. Reporting
+  // that as "no tailnet node named …" called four healthy agents missing.
+  const probes = healthyProbes();
+  probes.tailnetNodes = async () => ({
+    nodes: [{ hostname: "core", tags: ["tag:server"] }],
+    selfTags: ["tag:server"],
+    selfHostname: "core",
+  });
+  const results = await runDoctor(ROSTER, probes);
+  const line = results.find((r) => r.check === "tailnet" && r.agent === "hearth");
+  assert.ok(line, "no tailnet line for hearth");
+  assert.equal(line.ok, true, "an unverifiable check was reported as a failure");
+  assert.match(line.message, /not in this host's view/);
+  assert.match(line.message, /core is tagged \(tag:server\)/);
+  assert.doesNotMatch(line.message, /no tailnet node named/);
+
+  // From a member device the same absence is a real one.
+  probes.tailnetNodes = async () => ({
+    nodes: [{ hostname: "laptop", tags: [] }],
+    selfTags: [],
+    selfHostname: "laptop",
+  });
+  const fromMember = await runDoctor(ROSTER, probes);
+  const strict = fromMember.find((r) => r.check === "tailnet" && r.agent === "hearth");
+  assert.ok(strict);
+  assert.equal(strict.ok, false);
+  assert.match(strict.message, /no tailnet node named thicket-hearth/);
 });

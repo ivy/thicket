@@ -8,7 +8,12 @@ export interface DoctorProbes {
   /** Fetch and parse an agent's card; throws when unreachable/invalid. */
   fetchCard(agent: string): Promise<{ name: string }>;
   /** Tailnet nodes visible to this operator, with their ACL tags. */
-  tailnetNodes(): Promise<{ hostname: string; tags: string[] }[]>;
+  tailnetNodes(): Promise<{
+    nodes: { hostname: string; tags: string[] }[];
+    /** Empty when this machine is a member, which sees the whole tailnet. */
+    selfTags: string[];
+    selfHostname: string;
+  }>;
   /** Slack app state per agent (undefined: app unknown/not provisioned). */
   slackApp(agent: string): Promise<{ installed: boolean; socketMode: boolean } | undefined>;
   /** Installed app count and the workspace's cap. */
@@ -108,14 +113,27 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
     push("tailnet", false, nodesProbe.error);
   }
   const byHostname = new Map(
-    (nodesProbe.ok ? nodesProbe.value : []).map((node) => [node.hostname, node]),
+    (nodesProbe.ok ? nodesProbe.value.nodes : []).map((node) => [node.hostname, node]),
   );
+  // A tagged machine sees only what the policy lets it reach, so from here
+  // "absent" and "not mine to see" are the same observation. Saying the first
+  // when it is the second reports four healthy agents as missing.
+  const partialView = nodesProbe.ok && nodesProbe.value.selfTags.length > 0;
 
   for (const [agent, entry] of Object.entries(roster.agents)) {
     if (nodesProbe.ok) {
       const expectedNode = nodeName(entry);
       const node = byHostname.get(expectedNode);
-      if (node === undefined) {
+      if (node === undefined && partialView) {
+        push(
+          "tailnet",
+          true,
+          `${expectedNode} is not in this host's view of the tailnet: ${nodesProbe.value.selfHostname} is tagged ` +
+            `(${nodesProbe.value.selfTags.join(", ")}), so its netmap holds only what the policy lets that tag ` +
+            `reach — run doctor from a member device to check this node`,
+          agent,
+        );
+      } else if (node === undefined) {
         push("tailnet", false, `no tailnet node named ${expectedNode}`, agent);
       } else if (!node.tags.includes(entry.tag)) {
         push(

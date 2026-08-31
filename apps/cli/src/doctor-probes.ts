@@ -160,7 +160,12 @@ export function realProbes(options: {
       if (status.Self !== undefined) {
         nodes.push({ hostname: status.Self.HostName, tags: status.Self.Tags ?? [] });
       }
-      return nodes;
+      // This is one machine's view, and a tagged machine's view is narrow: a
+      // node's netmap holds only the peers the policy lets it reach. From a
+      // tagged server the fleet can be entirely invisible while every node is
+      // up, so what the caller needs alongside the list is whether the list
+      // could have been complete.
+      return { nodes, selfTags: status.Self?.Tags ?? [], selfHostname: status.Self?.HostName ?? "this host" };
     },
 
     async slackApp() {
