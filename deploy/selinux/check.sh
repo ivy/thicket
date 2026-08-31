@@ -43,8 +43,11 @@ done
 # --- layout drift ---------------------------------------------------------
 # The .fc labels paths the units name. If one moves without the other, the
 # domains are never entered and the failure looks like a missing binary.
+# Anchored past the path, or a rename that keeps the prefix passes: a rule
+# for /run/thicketmoved would satisfy a plain prefix match for /run/thicket
+# and label nothing the units use.
 for path in /etc/thicket /var/lib/thicket /run/thicket; do
-  grep -q "^$path" "$fc" || err "$fc does not label $path"
+  grep -qE "^$path([([:space:]]|\$)" "$fc" || err "$fc does not label $path"
 done
 for exe in netd bridge phone; do
   grep -q "/opt/thicket/\[^/\]+/bin/thicket-$exe" "$fc" ||
