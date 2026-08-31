@@ -204,6 +204,58 @@ which netd proxies to. Split the accounts with only netd's option set and
 netd can no longer reach the bridge; set neither and both stay 0600, which
 is what a single-account deployment wants.
 
+## The edge is not an agent
+
+The Slack bridge and the phone bridge are not agents and should not be
+deployed like them. An agent is a `(host, unix user)` pair with a home it
+manages, and there are as many as the roster says. There is exactly one of
+each bridge per fleet, their config belongs to the operator, and they run no
+sessions at all.
+
+Deployed as user units they would inherit the agent model's weakest step —
+lingering, the single most common way a user-unit deployment silently fails —
+and none of the containment a system unit can carry. So they are system
+units, in `deploy/systemd/system/`, and nothing about them needs lingering.
+
+Both runtimes already read the XDG variables, so this costs no code. Pinning
+them lines the paths up with the directories systemd creates and owns:
+
+| Variable | Value | systemd directive | Holds |
+|---|---|---|---|
+| `XDG_CONFIG_HOME` | `/etc` | `ConfigurationDirectory=thicket` | what the operator writes |
+| `XDG_STATE_HOME` | `/var/lib` | `StateDirectory=thicket` | what the process keeps |
+| `XDG_RUNTIME_DIR` | `/run` | `RuntimeDirectory=thicket` | the sockets the pair meet on |
+
+**Secrets arrive as credentials.** `LoadCredential=` hands the process a copy
+that exists only while it runs, so the file on disk can be root's alone and
+the service account cannot read that path at all — stronger than making it
+unwritable.
+
+**The runtime has no network.** `PrivateNetwork=yes`: no interface, no route,
+no resolver. netd's socket beside it is not the preferred way out, it is the
+only one. That is honest only because every leg is routed — for the bridge,
+A2A, the Slack Web API and the Socket Mode websocket, which is why the bridge
+speaks that protocol itself rather than through a library that cannot be
+told where to go.
+
+`systemd-analyze security` scores the shipped files 0.8 for each runtime and
+4.1 for each netd, which has the network on purpose. `deploy/check.sh` fails
+if a runtime drifts above 1.5.
+
+Three things are off deliberately, each with the reason in the unit:
+
+- **`MemoryDenyWriteExecute`** — Bun compiles as it runs and dies on its
+  first turn without a writable-executable mapping.
+- **`PrivateTmp`** — the two units meet on a socket under `/run`, and a
+  private namespace is one step from a rendezvous that silently does not
+  happen.
+- **`PrivateUsers`** — it maps away every uid but the service's own, and the
+  runtime has to hand its socket to the group netd reaches it through.
+
+Edge components are **Linux-only** by policy. launchd has no equivalent for
+any of the above worth trusting, and the containment is the point of the
+account.
+
 ### The bridge's netd faces inward too
 
 The bridge's netd was already there for egress. Attachments also need the

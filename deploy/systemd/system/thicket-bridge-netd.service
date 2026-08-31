@@ -1,0 +1,68 @@
+# The bridge's netd. Faces both ways: inbound, so agents can fetch the bytes
+# of a file a human uploaded from the bridge's own socket, and outbound,
+# because it is the only way the bridge can reach anything at all.
+#
+# Its own account, deliberately. netd is the one process in this pair that
+# may speak to the network, and a firewall rule can only say so if the two
+# are different uids — see "One account, or two" in ../../README.md.
+#
+# systemd-analyze security: 4.1 OK. It has the network, which is the point.
+[Unit]
+Description=thicket netd for the Slack bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=thicket-bridge-netd
+# The shared group is primary so the runtime directory systemd creates below
+# is owned by it: that directory is where the bridge, which is in this group
+# and nothing else of netd's, creates its own socket.
+Group=thicket
+# And netd's own group back, because its credential is readable by that and
+# not by the shared one. The bridge has no business reading netd's tailnet
+# identity.
+SupplementaryGroups=thicket-bridge-netd
+ExecStart=/usr/local/bin/thicket-netd
+# netd.json may name its auth key file relative to the config directory, and
+# netd resolves that against the working directory.
+WorkingDirectory=/etc/thicket
+Restart=on-failure
+RestartSec=5
+RestartSteps=5
+RestartMaxDelaySec=120
+
+# The XDG variables both binaries read, pinned at the directories systemd
+# creates and owns: /etc for what the operator writes, /var/lib for what the
+# process keeps, /run for the sockets the pair meet on.
+ConfigurationDirectory=thicket
+# Its own state. The bridge owns /var/lib/thicket and they are not the same
+# user; netd.json points tsnet at this one with "state_dir".
+StateDirectory=thicket-netd
+# tsnet's state includes this node's key. Nobody but netd, group included.
+StateDirectoryMode=0700
+RuntimeDirectory=thicket
+RuntimeDirectoryPreserve=yes
+RuntimeDirectoryMode=0770
+Environment=XDG_CONFIG_HOME=/etc
+Environment=XDG_STATE_HOME=/var/lib
+Environment=XDG_RUNTIME_DIR=/run
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=
+AmbientCapabilities=
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

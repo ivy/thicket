@@ -1,0 +1,89 @@
+# The Slack bridge. It holds every agent's tokens, it is the component an
+# upstream dependency would most like to be inside, and it has no network of
+# its own: every byte it sends leaves through netd's socket beside it.
+#
+# systemd-analyze security: 0.8 SAFE.
+[Unit]
+Description=thicket Slack bridge
+# netd owns the runtime directory the two of them meet in, and there is
+# nothing for the bridge to say until it exists. Wants, not Requires: netd
+# restarting must not take the bridge with it.
+After=thicket-bridge-netd.service
+Wants=thicket-bridge-netd.service
+
+[Service]
+Type=simple
+User=thicket-bridge
+Group=thicket-bridge
+# The one thing it shares with netd: the group owning the two sockets they
+# meet on, and nothing else of netd's.
+SupplementaryGroups=thicket
+ExecStart=/usr/local/bin/thicket-bridge
+Restart=on-failure
+RestartSec=5
+RestartSteps=5
+RestartMaxDelaySec=120
+# Let SIGTERM drain an in-flight turn before systemd escalates.
+TimeoutStopSec=45
+KillMode=mixed
+
+ConfigurationDirectory=thicket
+StateDirectory=thicket
+# netd creates and owns /run/thicket; the bridge is ordered after it and
+# writes its own socket there as a member of the group.
+ReadWritePaths=/run/thicket
+Environment=XDG_CONFIG_HOME=/etc
+Environment=XDG_STATE_HOME=/var/lib
+Environment=XDG_RUNTIME_DIR=/run
+
+# Every agent's Slack tokens, handed over by systemd rather than left where
+# the account could read them. The file on disk is root's alone; the process
+# sees a copy that exists only while it runs.
+LoadCredential=bridge.json:/etc/thicket/bridge.json
+Environment=THICKET_BRIDGE_CONFIG=%d/bridge.json
+
+# The containment. No network namespace at all — no interface, no route, no
+# resolver — so netd's socket is not the preferred way out, it is the only
+# one. Honest only because every leg is routed: A2A, the Slack Web API, and
+# the Socket Mode websocket, which the bridge speaks itself for this reason.
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+# Not PrivateUsers: it maps away every uid but this service's own, and the
+# bridge has to hand its socket to the group netd reaches it through. What
+# contains this unit is having no network, not that.
+#
+# Never MemoryDenyWriteExecute: Bun compiles as it runs, and the process dies
+# on its first turn without a writable-executable mapping.
+#
+# PrivateTmp is off deliberately. The two units meet on a socket under /run,
+# and a private namespace is one step away from a rendezvous that silently
+# does not happen — each unit would get its own /tmp, and anything that fell
+# back to it would find an empty directory rather than an error.
+PrivateTmp=no
+
+[Install]
+WantedBy=multi-user.target
