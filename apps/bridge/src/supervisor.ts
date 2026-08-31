@@ -2,7 +2,7 @@ import type { EngineLogger } from "./engine.js";
 
 /**
  * One Socket Mode connection's lifecycle, abstracted so tests can drive
- * disconnects without a network. Production wraps @slack/socket-mode.
+ * disconnects without a network.
  */
 export interface Connection {
   start(): Promise<void>;

@@ -192,7 +192,7 @@ export async function run(
           });
         },
         scoped,
-        { agent: slackAgent },
+        { agent: slackAgent, fetchImpl: outbound },
       );
     },
   });

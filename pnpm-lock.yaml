@@ -63,9 +63,6 @@ importers:
       '@a2a-js/sdk':
         specifier: ^1.1.0
         version: 1.1.0(express@5.2.1)
-      '@slack/socket-mode':
-        specifier: ^2.0.7
-        version: 2.0.7
       '@slack/web-api':
         specifier: ^7.19.0
         version: 7.19.0
@@ -84,6 +81,9 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
+      slack-ws:
+        specifier: npm:ws@^8.21.3
+        version: ws@8.21.3
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -91,6 +91,9 @@ importers:
       '@types/node':
         specifier: ^22.17.0
         version: 22.20.1
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -451,10 +454,6 @@ packages:
 
   '@slack/logger@4.0.1':
     resolution: {integrity: sha512-6cmdPrV/RYfd2U0mDGiMK8S7OJqpCTm7enMLRR3edccsPX8j7zXTLnaEF4fhxxJJTAIOil6+qZrnUPTuaLvwrQ==}
-    engines: {node: '>= 18', npm: '>= 8.6.0'}
-
-  '@slack/socket-mode@2.0.7':
-    resolution: {integrity: sha512-qYy07je71WnEHgRwmw12DlAnZLi5HXmdlI2WUzUK2LH/rYXQpP6uEg462S5CwfE8FoCKUdIigHtYnOOfzZH1lQ==}
     engines: {node: '>= 18', npm: '>= 8.6.0'}
 
   '@slack/types@2.22.0':
@@ -1486,20 +1485,6 @@ snapshots:
   '@slack/logger@4.0.1':
     dependencies:
       '@types/node': 22.20.1
-
-  '@slack/socket-mode@2.0.7':
-    dependencies:
-      '@slack/logger': 4.0.1
-      '@slack/web-api': 7.19.0
-      '@types/node': 22.20.1
-      '@types/ws': 8.18.1
-      eventemitter3: 5.0.4
-      ws: 8.21.3
-    transitivePeerDependencies:
-      - bufferutil
-      - debug
-      - supports-color
-      - utf-8-validate
 
   '@slack/types@2.22.0': {}
 

@@ -202,7 +202,9 @@ in this account, in `~/.config/thicket/netd.json`:
 ```
 
 The bridge is the account with the most to reach and the most to lose: it
-holds every agent's Slack tokens, and its way out is this socket alone. Every
+holds every agent's Slack tokens, and its way out is this socket alone —
+including its Socket Mode websockets, which is why the bridge speaks that
+protocol itself rather than through a library that cannot be routed. Every
 agent it serves belongs in `egress_allow`, and so does Slack — twice, because
 `*.slack.com` deliberately does not admit `slack.com` itself. The wildcard is
 not laziness: the file and WebSocket hosts Slack hands out at run time are

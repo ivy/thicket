@@ -1,8 +1,7 @@
 import type { Agent } from "node:https";
 
-import { SocketModeClient } from "@slack/socket-mode";
-
 import type { EngineLogger } from "./engine.js";
+import { SocketModeConnection } from "./socket-mode.js";
 import type { Connection } from "./supervisor.js";
 import { translateSlackEvent, translateSlackInteraction } from "./translate.js";
 import type { InboundEvent } from "./types.js";
@@ -27,50 +26,22 @@ export interface SocketishClient {
   disconnect(): Promise<void>;
 }
 
-type SlackLoggerOption = NonNullable<ConstructorParameters<typeof SocketModeClient>[0]>["logger"];
-
-/**
- * Adapts the library's logger interface onto ours, so warnings like
- * "A pong wasn't received from the server" appear in the bridge's own
- * structured log instead of a bare console. Debug/info are dropped: at
- * debug the library prints every websocket payload.
- */
-function libraryLogger(logger: EngineLogger): SlackLoggerOption {
-  const forward = (level: string) => (...msgs: unknown[]) => {
-    logger.warn("socket mode library", { level, detail: msgs.map(String).join(" ") });
-  };
-  return {
-    debug: () => {},
-    info: () => {},
-    warn: forward("warn"),
-    error: forward("error"),
-    setLevel: () => {},
-    setName: () => {},
-    getLevel: () => "warn",
-  } as unknown as SlackLoggerOption;
-}
-
 export interface SlackSocketOptions {
-  /** Injectable for tests; production builds a real SocketModeClient. */
+  /** Injectable for tests; production builds a real Socket Mode client. */
   client?: SocketishClient;
   recoveryDeadlineMs?: number;
-  /**
-   * Node agent for the library's own Web API calls — the `apps.connections.open`
-   * that fetches each wss URL. The library reuses it for the WebSocket too,
-   * which under Bun is a no-op: Bun ships its own `ws`, the built-in wins over
-   * the installed package, and it ignores `agent`. So this contains the call
-   * and not yet the socket (#69).
-   */
+  /** The Web API leg: `apps.connections.open`, for the socket's URL. */
+  fetchImpl?: typeof fetch;
+  /** The socket leg. Production passes an agent that tunnels through netd. */
   agent?: Agent;
 }
 
 /**
- * Socket Mode connection for one agent app. The @slack/socket-mode client
- * handles ping/pong and transparent reconnects; this wrapper watches the
- * recovery, because a socket that stops delivering looks healthy from the
- * outside while the library retries — and its retries can stall for an
- * hour inside an unbounded web API backoff. Once a disruption outlives the
- * deadline the whole client is abandoned and the supervisor starts over.
+ * Socket Mode connection for one agent app. The client underneath does not
+ * reconnect — it reports a dead socket up and the supervisor builds a fresh
+ * one — so this wrapper's job is to notice a socket that stops delivering
+ * without closing. Once a disruption outlives the deadline the client is
+ * abandoned and the supervisor starts over.
  */
 export class SlackSocketConnection implements Connection {
   private readonly client: SocketishClient;
@@ -87,20 +58,16 @@ export class SlackSocketConnection implements Connection {
     options: SlackSocketOptions = {},
   ) {
     this.recoveryDeadlineMs = options.recoveryDeadlineMs ?? RECOVERY_DEADLINE_MS;
+    if (options.client === undefined && options.fetchImpl === undefined) {
+      throw new Error("SlackSocketConnection needs a fetch for apps.connections.open");
+    }
     this.client =
       options.client ??
-      (new SocketModeClient({
+      (new SocketModeConnection({
         appToken,
-        logger: libraryLogger(logger),
-        clientOptions: {
-          // Bound the hidden apps.connections.open retries. The default
-          // ({retries: 100, factor: 1.3}) buries reconnection inside the
-          // WebClient where it is unobservable, uncancellable, and grows to
-          // hour-long waits; failures should instead surface to the
-          // library's own reconnect loop, which we can watch and stop.
-          retryConfig: { retries: 3, factor: 2 },
-          ...(options.agent === undefined ? {} : { agent: options.agent }),
-        },
+        fetchImpl: options.fetchImpl!,
+        logger,
+        ...(options.agent === undefined ? {} : { agent: options.agent }),
       }) as unknown as SocketishClient);
     this.client.on(
       "slack_event",
