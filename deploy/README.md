@@ -33,20 +33,49 @@ User managers only run while a session exists. Without lingering **nothing
 starts at boot and everything dies at logout** — this is the single most common
 way a user-unit deployment silently fails. `thicket doctor` checks it.
 
-## 3. Mint a tagged tailnet auth key (operator)
+## 3. Give the account a tailnet credential (operator)
 
-In the tailscale admin console (or via API), create an auth key that:
+Two forms work, and they differ in one way that matters: whether they expire.
 
-- is **tagged** with this agent's tag, e.g. `tag:thicket-hearth` (the key must
-  own the tag or `netd` will refuse to start),
-- is reusable or single-use per your rotation policy.
-
-Install it for the account:
+**An OAuth client secret, for a fleet.** In the admin console create an OAuth
+client with the `auth_keys` scope, owning the tags the fleet uses. Its secret
+does not expire; netd resolves it through the OAuth2 client-credentials flow
+and mints a fresh short-lived key at every start, using the tag the node
+already advertises. Nothing to rotate, nothing to propagate, nothing to
+restart.
 
 ```sh
 sudo -u hearth mkdir -p ~hearth/.config/thicket
-sudo -u hearth sh -c 'umask 077; cat > ~/.config/thicket/tailnet-auth-key'   # paste key, ^D
+sudo -u hearth sh -c 'umask 077; cat > ~/.config/thicket/tailnet-auth-key'
+# tskey-client-xxxx?ephemeral=false&preauthorized=true   ^D
 ```
+
+`ephemeral=false` is the part to get right. An ephemeral node is
+garbage-collected the moment it goes offline, which for an always-on agent
+means an ACL edge that disappears rather than a node that reconnects.
+
+One client per tag rather than one for the fleet, if the accounts differ in
+how exposed they are: a secret that can register any tag lets a compromised
+account come up as another one, while per tag a leak is worth exactly the
+node it already was.
+
+**A tagged auth key, for one account or a rig.** In the admin console create
+a key **tagged** with this agent's tag, e.g. `tag:thicket-hearth` — the key
+must own the tag or netd refuses to start — reusable or single-use per your
+rotation policy. It is one paste, and it dies within ninety days: that is the
+maximum Tailscale allows, and there is no such thing as an auth key that does
+not expire.
+
+That expiry is worth stating plainly because of how it fails. A node already
+running is unaffected, so nothing looks wrong until something restarts — and
+then registration is refused at start:
+
+```
+netd: joining tailnet: invalid key: unauthorized
+```
+
+A fleet installed on keys stops being able to re-register one account at a
+time, on a schedule nobody wrote down. The client secret has no such day.
 
 ## 4. Provision Slack apps and config (operator)
 

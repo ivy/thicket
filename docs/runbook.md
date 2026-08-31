@@ -56,11 +56,17 @@ thicket doctor                                 # app installed? workspace at app
 config (`~/.config/thicket/bridge.json`), restart the bridge. Connections are
 per-agent: one bad token never takes other agents down.
 
-## Tailnet auth key expired
+## Tailnet credential expired or wrong
 
-**Symptom.** `thicket-netd` exits immediately at start; log shows
-`joining tailnet:` or `auth key does not own tag ...`; `fleet` shows the agent
-DOWN; `doctor` reports the node missing.
+**Symptom.** `thicket-netd` exits immediately at start; the log shows
+`netd: joining tailnet: invalid key: unauthorized` for a key that has expired,
+or `auth key does not own tag ...` for one that never owned it; `fleet` shows
+the agent DOWN; `doctor` reports the node missing.
+
+**Why it looks sudden.** A node already running is unaffected by its key
+expiring, so nothing looks wrong until something restarts — a deploy, a
+reboot, a crash. The whole fleet can be one restart away from this and give
+no sign.
 
 **Diagnose.**
 
@@ -75,6 +81,12 @@ tailscale status | grep thicket-               # operator: is the node there?
 systemd drop-in, then `systemctl --user restart thicket-netd`. netd refuses to
 start with a key that does not own the configured tag — that is deliberate;
 fix the key, not the check.
+
+**Fix it for good.** An OAuth client secret in the same file does not expire
+and mints its own short-lived key at every start
+(`tskey-client-xxxx?ephemeral=false&preauthorized=true`, see §3 of
+`deploy/README.md`). A fleet on auth keys will be back here in ninety days;
+a fleet on a client secret will not.
 
 ## A session is wedged
 
