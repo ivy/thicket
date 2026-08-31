@@ -76,6 +76,12 @@ for unit in $user_units $system_units; do
   # starts nothing, which is the one state no alert, dashboard or glance is
   # watching for. That is not hypothetical: it hid a service that was off the
   # network for twenty-three days.
+  # In [Unit], not [Service]: set in the wrong section the interval is
+  # silently ignored and only the compatibility spelling of the burst applies,
+  # which looks like it worked.
+  if sed -n '/^\[Service\]/,$p' "$unit" | grep -q '^StartLimit'; then
+    err "$unit: a StartLimit directive is in [Service], where the interval is ignored"
+  fi
   interval=$(sed -n 's/^StartLimitIntervalSec=//p' "$unit")
   burst=$(sed -n 's/^StartLimitBurst=//p' "$unit")
   max_delay=$(sed -n 's/^RestartMaxDelaySec=//p' "$unit")

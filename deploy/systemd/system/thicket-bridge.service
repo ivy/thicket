@@ -4,6 +4,19 @@
 #
 # systemd-analyze security: 0.8 SAFE.
 [Unit]
+# A restart loop has to be able to end, and these are [Unit] directives: in
+# [Service] the interval is silently ignored, because only the old
+# StartLimitBurst survives there for compatibility. That looks like it worked
+# and does not.
+#
+# systemd's defaults cannot be reached by anything that waits between
+# attempts — a ten-second window against a five-second delay fits two — so a
+# unit that will never start reports `active` forever, and `failed` is the
+# state every alert, dashboard and glance is watching for. With the backoff
+# below capped at 120s, ten attempts take at most twenty minutes; thirty is
+# comfortably past them.
+StartLimitIntervalSec=1800
+StartLimitBurst=10
 Description=thicket Slack bridge
 # netd owns the runtime directory the two of them meet in, and there is
 # nothing for the bridge to say until it exists. Wants, not Requires: netd
@@ -23,14 +36,6 @@ Restart=on-failure
 RestartSec=5
 RestartSteps=5
 RestartMaxDelaySec=120
-# And a limit it can actually reach. The defaults cannot: a ten-second window
-# against a five-second delay fits two attempts, so a unit that will never
-# start reports `active` forever and nothing downstream can see it — `failed`
-# is the state every alert, dashboard and glance is watching for. With the
-# backoff above capped at 120s, ten attempts take at most twenty minutes and
-# thirty is comfortably past them.
-StartLimitIntervalSec=1800
-StartLimitBurst=10
 # Let SIGTERM drain an in-flight turn before systemd escalates.
 TimeoutStopSec=45
 KillMode=mixed
