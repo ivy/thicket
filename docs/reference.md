@@ -36,6 +36,9 @@ run time there is no shared config: each agent serves its own `AgentCard`.
   the unix user is the instance.
 - Every generated artifact is reproducible from `agents.yaml`. If something must be
   hand-edited after generation, that is a bug in the generator.
+- Outbound traffic leaves an account through its own `netd`, which admits only the
+  destinations `egress_allow` names — by name, never by address. Nothing configured
+  means no egress.
 
 ## External references
 

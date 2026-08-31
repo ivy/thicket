@@ -1,9 +1,10 @@
 // Command netd holds one agent's tailnet identity and moves bytes:
 // inbound tailnet TLS traffic is proxied to agentd's unix socket with a
 // WhoIs-verified peer-tag header; outbound requests leave through an HTTP
-// forward proxy on a second unix socket, dialed via the tailnet so they
-// carry this node's identity. It parses no A2A and makes no authorization
-// decisions.
+// forward proxy on a second unix socket, which admits only the destinations
+// egress_allow names and dials tailnet ones via the tailnet, so they carry
+// this node's identity. It parses no A2A and makes no authorization
+// decisions about the agent's callers.
 package main
 
 import (
@@ -139,8 +140,14 @@ func run(ctx context.Context, configPath string, logf *log.Logger) error {
 		Handler:  newInboundProxy(cfg.UpstreamSocket, &whoisIdentifier{lc}, logf),
 		ErrorLog: logf,
 	}
+	suffix := tailnetSuffix(status)
+	if suffix == "" {
+		logf.Printf("egress: this tailnet reports no MagicDNS suffix; only short names take the tailnet route")
+	}
+	policy := newEgressPolicy(cfg.egressRules, suffix, ts.Dial)
+	logf.Printf("egress: %s", policy.summary())
 	egress := &http.Server{
-		Handler:  newEgressProxy(ts.Dial, logf),
+		Handler:  newEgressProxy(policy, logf),
 		ErrorLog: logf,
 	}
 	servers := []serverListener{

@@ -179,8 +179,26 @@ func TestEndToEndOverTailnet(t *testing.T) {
 		}
 	})
 
-	t.Run("egress dials via tailnet and peer sees this node's tag", func(t *testing.T) {
-		egressFront := httptest.NewServer(newEgressProxy(hearth.Dial, testLogger(t)))
+	t.Run("egress dials an allowed tailnet name and the peer sees this node's tag", func(t *testing.T) {
+		st, err := hearthLC.StatusWithoutPeers(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		suffix := tailnetSuffix(st)
+		if suffix != "test.ts.net" {
+			t.Fatalf("tailnetSuffix = %q, want test.ts.net — the routing decision reads this", suffix)
+		}
+		peer := "thicket-caller." + suffix
+
+		rules, err := parseEgressAllow([]string{peer})
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy := newEgressPolicy(rules, suffix, hearth.Dial)
+		if got := policy.route(peer); got != routeTailnet {
+			t.Fatalf("route(%q) = %q, want %q", peer, got, routeTailnet)
+		}
+		egressFront := httptest.NewServer(newEgressProxy(policy, testLogger(t)))
 		defer egressFront.Close()
 		proxyURL, err := url.Parse(egressFront.URL)
 		if err != nil {
@@ -191,7 +209,7 @@ func TestEndToEndOverTailnet(t *testing.T) {
 		var tags []string
 		deadline := time.Now().Add(90 * time.Second)
 		for {
-			resp, err := client.Get(fmt.Sprintf("http://%s:9090/", callerIP))
+			resp, err := client.Get(fmt.Sprintf("http://%s:9090/", peer))
 			if err == nil {
 				raw, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
@@ -212,6 +230,17 @@ func TestEndToEndOverTailnet(t *testing.T) {
 		}
 		if len(tags) != 1 || tags[0] != "tag:thicket-hearth" {
 			t.Errorf("peer WhoIs tags = %v, want [tag:thicket-hearth]", tags)
+		}
+
+		// The same peer, reachable a moment ago, is refused by its address:
+		// a rule names a name, and netd is the one that resolves it.
+		resp, err := client.Get(fmt.Sprintf("http://%s:9090/", callerIP))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("status for the peer's address = %d, want 403", resp.StatusCode)
 		}
 	})
 }

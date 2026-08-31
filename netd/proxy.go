@@ -105,19 +105,50 @@ func newPublicProxy(upstreamSocket, pathPrefix string, logf *log.Logger) http.Ha
 	})
 }
 
+// egressHost returns the destination hostname a request names — the
+// authority for CONNECT, the URL's host otherwise — without its port.
+func egressHost(r *http.Request) string {
+	if r.Method != http.MethodConnect {
+		return r.URL.Hostname()
+	}
+	if host, _, err := net.SplitHostPort(r.Host); err == nil {
+		return host
+	}
+	return r.Host
+}
+
+// egressTarget is what the audit line records: the authority for CONNECT,
+// the full URL otherwise.
+func egressTarget(r *http.Request) string {
+	if r.Method == http.MethodConnect {
+		return r.Host
+	}
+	return r.URL.String()
+}
+
 // newEgressProxy is an HTTP forward proxy (absolute-form requests and
-// CONNECT tunnels) whose upstream connections are made through dial —
-// in production, tsnet's Dial, so outbound traffic carries this node's
-// tailnet identity.
-func newEgressProxy(dial func(ctx context.Context, network, addr string) (net.Conn, error), logf *log.Logger) http.Handler {
-	transport := &http.Transport{DialContext: dial}
+// CONNECT tunnels) for a process that has no network of its own. It is a
+// policy point rather than a relay: the destination of every request is put
+// to the account's egress policy, allowed and refused alike are logged, and
+// the connection leaves by the route the policy chose — in production
+// tsnet's Dial for tailnet names, so they carry this node's identity.
+func newEgressProxy(policy *egressPolicy, logf *log.Logger) http.Handler {
+	transport := &http.Transport{DialContext: policy.dial}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodConnect {
-			handleConnect(w, r, dial, logf)
+		if r.Method != http.MethodConnect && !r.URL.IsAbs() {
+			http.Error(w, "egress proxy requires absolute-form request URIs or CONNECT", http.StatusBadRequest)
 			return
 		}
-		if !r.URL.IsAbs() {
-			http.Error(w, "egress proxy requires absolute-form request URIs or CONNECT", http.StatusBadRequest)
+		target := egressTarget(r)
+		rule, route, err := policy.decide(egressHost(r))
+		if err != nil {
+			logf.Printf("egress: deny %s %s: %v", r.Method, target, err)
+			http.Error(w, "egress destination not allowed", http.StatusForbidden)
+			return
+		}
+		logf.Printf("egress: allow %s %s (rule %s, route %s)", r.Method, target, rule, route)
+		if r.Method == http.MethodConnect {
+			handleConnect(w, r, policy.dial, logf)
 			return
 		}
 		out := r.Clone(r.Context())

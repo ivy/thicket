@@ -133,6 +133,40 @@ rm ~/.config/systemd/user/thicket-agentd.socket
 systemctl --user daemon-reload
 ```
 
+### Egress is deny-by-default
+
+netd's second socket is the way out for a process that has none of its own.
+It is a policy point, not a relay: it reaches only the destinations
+`egress_allow` names in `netd.json`, and an account whose config lists none
+has no egress at all.
+
+```json
+{
+  "hostname": "thicket-hearth",
+  "tag": "tag:thicket-hearth",
+  "auth_key_file": "tailnet-auth-key",
+  "egress_allow": ["thicket-bridge.tailXXXX.ts.net", "thicket-forge.tailXXXX.ts.net"]
+}
+```
+
+An entry is a hostname, or `*.example.com` for the names under a domain — the
+domain itself is not one of them. `provision` renders the list from
+`agents.yaml`, so hand-editing it is a bug in the generator.
+
+Two properties are worth knowing before reading the logs:
+
+- **Names only.** A `CONNECT` to an address is refused even when that address
+  is exactly where an allowed name leads, because netd is the one that
+  resolves — the process behind it never handles DNS, and a rule is written
+  about a name.
+- **Two routes.** A short MagicDNS name, or one under the tailnet's own
+  suffix, is dialed through tsnet and arrives carrying this node's tag.
+  Everything else leaves through the host's network stack.
+
+netd prints its allowlist at startup and one line per request either way —
+`egress: allow`, with the rule and route that carried it, or `egress: deny`
+with what was asked for and why it was refused.
+
 ### The bridge's netd faces inward too
 
 The bridge's netd was already there for egress. Attachments also need the

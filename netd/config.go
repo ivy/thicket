@@ -28,11 +28,18 @@ type Config struct {
 	EgressSocket string `json:"egress_socket,omitempty"`
 	// StateDir holds tsnet state. Default: stateDir()/tsnet.
 	StateDir string `json:"state_dir,omitempty"`
+	// EgressAllow lists the destinations the egress proxy may reach: an
+	// exact hostname, or "*.example.com" for the names under it. Nothing
+	// is reachable until a rule names it, so an absent list is no egress.
+	EgressAllow []string `json:"egress_allow,omitempty"`
 	// Funnel, when set, exposes one path prefix of one upstream to the
 	// public internet on port 443 through Tailscale Funnel. The public
 	// handler stamps no tags: an internet caller has none, and whatever
 	// stands behind it authenticates its callers itself.
 	Funnel *FunnelConfig `json:"funnel,omitempty"`
+
+	// egressRules is EgressAllow, parsed and validated at load.
+	egressRules []egressRule
 }
 
 // FunnelConfig is the public edge: which paths, and which socket they reach.
@@ -75,6 +82,11 @@ func loadConfig(path string) (*Config, error) {
 	if cfg.StateDir == "" {
 		cfg.StateDir = filepath.Join(stateDir(), "tsnet")
 	}
+	rules, err := parseEgressAllow(cfg.EgressAllow)
+	if err != nil {
+		return nil, fmt.Errorf("config %s: %w", path, err)
+	}
+	cfg.egressRules = rules
 	if cfg.Funnel != nil {
 		if !strings.HasPrefix(cfg.Funnel.PathPrefix, "/") {
 			return nil, fmt.Errorf("config %s: funnel.path_prefix must start with \"/\", got %q", path, cfg.Funnel.PathPrefix)

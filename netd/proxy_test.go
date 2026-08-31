@@ -200,19 +200,17 @@ func TestInboundProxyServesOnceTheUpstreamAppears(t *testing.T) {
 	}
 }
 
-func TestEgressProxyAbsoluteForm(t *testing.T) {
+// An allowlisted name that no tailnet node serves is reached over the host
+// network stack, and the audit line records the rule that admitted it.
+func TestEgressProxyAbsoluteFormReachesAnAllowedNameViaTheHostStack(t *testing.T) {
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "hello from %s", r.Host)
 	}))
 	defer target.Close()
 
-	var dialed []string
-	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialed = append(dialed, addr)
-		var d net.Dialer
-		return d.DialContext(ctx, network, addr)
-	}
-	front := httptest.NewServer(newEgressProxy(dial, testLogger(t)))
+	policy, routes := namedPolicy(t, []string{"api.example.com"}, "example-tailnet.ts.net", target.Listener.Addr().String())
+	logf, logged := bufferLogger()
+	front := httptest.NewServer(newEgressProxy(policy, logf))
 	defer front.Close()
 
 	// A client configured with an HTTP proxy sends absolute-form requests.
@@ -221,7 +219,7 @@ func TestEgressProxyAbsoluteForm(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyURL)}}
-	resp, err := client.Get(target.URL + "/x")
+	resp, err := client.Get("http://api.example.com/x")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,8 +228,11 @@ func TestEgressProxyAbsoluteForm(t *testing.T) {
 	if !strings.HasPrefix(string(raw), "hello from") {
 		t.Fatalf("body = %q", raw)
 	}
-	if len(dialed) == 0 {
-		t.Fatal("egress proxy did not use the provided dial function")
+	if got := routes(); len(got) != 1 || got[0] != routeHost {
+		t.Fatalf("routes taken = %v, want one %q", got, routeHost)
+	}
+	if got := logged(); !strings.Contains(got, "egress: allow GET http://api.example.com/x (rule api.example.com, route host)") {
+		t.Errorf("audit log = %q, want an allow line naming the rule and route", got)
 	}
 }
 
@@ -241,16 +242,13 @@ func TestEgressProxyConnectTunnel(t *testing.T) {
 	}))
 	defer target.Close()
 
-	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		var d net.Dialer
-		return d.DialContext(ctx, network, addr)
-	}
+	policy, routes := namedPolicy(t, []string{"*.example.com"}, "example-tailnet.ts.net", target.Listener.Addr().String())
 	socket := shortSocketPath(t, "egress.sock")
 	ln, err := net.Listen("unix", socket)
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := &http.Server{Handler: newEgressProxy(dial, testLogger(t))}
+	srv := &http.Server{Handler: newEgressProxy(policy, testLogger(t))}
 	go srv.Serve(ln)
 	defer srv.Close()
 
@@ -260,7 +258,7 @@ func TestEgressProxyConnectTunnel(t *testing.T) {
 	}
 	defer conn.Close()
 
-	targetHost := strings.TrimPrefix(target.URL, "http://")
+	const targetHost = "api.example.com:443"
 	fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", targetHost, targetHost)
 	br := bufio.NewReader(conn)
 	resp, err := http.ReadResponse(br, nil)
@@ -281,6 +279,143 @@ func TestEgressProxyConnectTunnel(t *testing.T) {
 	if string(raw) != "tunneled" {
 		t.Fatalf("tunneled body = %q, want %q", raw, "tunneled")
 	}
+	if got := routes(); len(got) != 1 || got[0] != routeHost {
+		t.Fatalf("routes taken = %v, want one %q", got, routeHost)
+	}
+}
+
+// The starting state: a config that lists no egress_allow is an account with
+// no way out, by either form the proxy speaks.
+func TestEgressProxyRefusesEverythingWhenNothingIsAllowed(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("a refused request reached the destination")
+	}))
+	defer target.Close()
+
+	policy, routes := namedPolicy(t, nil, "example-tailnet.ts.net", target.Listener.Addr().String())
+	logf, logged := bufferLogger()
+	socket := shortSocketPath(t, "egress.sock")
+	ln, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: newEgressProxy(policy, logf)}
+	go srv.Serve(ln)
+	defer srv.Close()
+
+	if status := connectStatus(t, socket, "api.example.com:443"); status != http.StatusForbidden {
+		t.Errorf("CONNECT status = %d, want 403", status)
+	}
+
+	// Proxy set, so the transport writes absolute-form; the dialer ignores
+	// the proxy's address and lands on the egress socket.
+	client := &http.Client{Transport: &http.Transport{
+		Proxy: func(*http.Request) (*url.URL, error) { return url.Parse("http://netd-egress") },
+		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", socket)
+		},
+	}}
+	resp, err := client.Get("http://api.example.com/x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("absolute-form status = %d, want 403", resp.StatusCode)
+	}
+
+	if got := routes(); len(got) != 0 {
+		t.Errorf("refused requests still dialed: %v", got)
+	}
+	log := logged()
+	for _, want := range []string{
+		"egress: deny CONNECT api.example.com:443",
+		"egress: deny GET http://api.example.com/x",
+		"egress_allow is empty",
+	} {
+		if !strings.Contains(log, want) {
+			t.Errorf("audit log = %q, want it to contain %q", log, want)
+		}
+	}
+}
+
+// Names only: a rule is written about a name, and netd does the resolving, so
+// an address literal is refused even when it is exactly where an allowed name
+// would have led.
+func TestEgressProxyRefusesAddressLiteralsServingAllowedNames(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("a refused request reached the destination")
+	}))
+	defer target.Close()
+
+	addr := target.Listener.Addr().String()
+	policy, _ := namedPolicy(t, []string{"api.example.com"}, "example-tailnet.ts.net", addr)
+	logf, logged := bufferLogger()
+	socket := shortSocketPath(t, "egress.sock")
+	ln, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: newEgressProxy(policy, logf)}
+	go srv.Serve(ln)
+	defer srv.Close()
+
+	if status := connectStatus(t, socket, addr); status != http.StatusForbidden {
+		t.Errorf("CONNECT %s status = %d, want 403", addr, status)
+	}
+	if got := logged(); !strings.Contains(got, "is an address, not a name") {
+		t.Errorf("audit log = %q, want it to say why the address was refused", got)
+	}
+}
+
+// A wildcard admits the names under a domain and nothing else — not the
+// domain itself, and not a name that merely ends in the same letters.
+func TestEgressProxyWildcardAdmitsSubdomainsOnly(t *testing.T) {
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "reached")
+	}))
+	defer target.Close()
+
+	policy, _ := namedPolicy(t, []string{"*.example.com"}, "example-tailnet.ts.net", target.Listener.Addr().String())
+	socket := shortSocketPath(t, "egress.sock")
+	ln, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: newEgressProxy(policy, testLogger(t))}
+	go srv.Serve(ln)
+	defer srv.Close()
+
+	for host, want := range map[string]int{
+		"api.example.com:443":       http.StatusOK,
+		"a.b.example.com:443":       http.StatusOK,
+		"example.com:443":           http.StatusForbidden,
+		"notexample.com:443":        http.StatusForbidden,
+		"example.com.evil.test:443": http.StatusForbidden,
+	} {
+		if status := connectStatus(t, socket, host); status != want {
+			t.Errorf("CONNECT %s status = %d, want %d", host, status, want)
+		}
+	}
+}
+
+// connectStatus sends one CONNECT through the egress socket and reports the
+// status the proxy answered with.
+func connectStatus(t *testing.T, socket, authority string) int {
+	t.Helper()
+	conn, err := net.Dial("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	fmt.Fprintf(conn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", authority, authority)
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
 }
 
 func TestServeUntilSignaledDrainsInFlightRequests(t *testing.T) {
