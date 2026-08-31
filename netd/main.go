@@ -169,11 +169,13 @@ func run(ctx context.Context, configPath string, logf *log.Logger) error {
 			return fmt.Errorf("funnel listener: %w", err)
 		}
 		public := &http.Server{
-			Handler:  newPublicProxy(cfg.Funnel.UpstreamSocket, cfg.Funnel.PathPrefix, logf),
+			Handler:  newPublicProxy(cfg.Funnel.UpstreamSocket, cfg.Funnel.PathPrefix, cfg.Funnel.RateLimit, logf),
 			ErrorLog: logf,
 		}
 		servers = append(servers, serverListener{public, funnelLn, "public"})
-		logf.Printf("funnel: serving %s to %s on the public internet", cfg.Funnel.PathPrefix, cfg.Funnel.UpstreamSocket)
+		logf.Printf("funnel: serving %s to %s on the public internet, at most %.3g request(s)/s (burst %d)",
+			cfg.Funnel.PathPrefix, cfg.Funnel.UpstreamSocket,
+			cfg.Funnel.RateLimit.RequestsPerSecond, cfg.Funnel.RateLimit.Burst)
 	}
 
 	return serveUntilSignaled(ctx, logf, servers)

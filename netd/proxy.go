@@ -9,6 +9,10 @@ import (
 	"net/http/httputil"
 	"net/textproto"
 	"strings"
+	"sync"
+	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // PeerTagsHeader carries the caller's WhoIs-verified ACL tags to agentd.
@@ -74,7 +78,8 @@ func newInboundProxy(upstreamSocket string, ident peerIdentifier, logf *log.Logg
 // bridge behind this handler authenticates its callers by other means.
 // Anything outside the prefix is refused without touching the upstream.
 // WebSocket upgrades ride through the reverse proxy unchanged.
-func newPublicProxy(upstreamSocket, pathPrefix string, logf *log.Logger) http.Handler {
+func newPublicProxy(upstreamSocket, pathPrefix string, limit *FunnelRateLimit, logf *log.Logger) http.Handler {
+	budget := newPublicBudget(limit, logf)
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			var d net.Dialer
@@ -94,6 +99,13 @@ func newPublicProxy(upstreamSocket, pathPrefix string, logf *log.Logger) http.Ha
 		FlushInterval: -1,
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Before the path is even looked at: a request outside the prefix
+		// still costs something to refuse, and a scanner sends nothing else.
+		if !budget.allow() {
+			w.Header().Set("Retry-After", "1")
+			http.Error(w, "too many requests", http.StatusTooManyRequests)
+			return
+		}
 		if !strings.HasPrefix(r.URL.Path, pathPrefix) {
 			logf.Printf("public: refused %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
 			http.NotFound(w, r)
@@ -103,6 +115,70 @@ func newPublicProxy(upstreamSocket, pathPrefix string, logf *log.Logger) http.Ha
 		stripThicketHeaders(r2.Header)
 		rp.ServeHTTP(w, r2)
 	})
+}
+
+// howOftenBurstsAreSummarised bounds what a scan can write to the journal:
+// one line per interval however many requests arrive in it.
+const howOftenBurstsAreSummarised = time.Minute
+
+// publicBudget is what the Funnel listener will spend before anything is
+// proxied. The point is where the cost lands: a refusal here is a token and
+// a status code in Go, and the JavaScript upstream never learns the request
+// happened.
+//
+// One bucket for the listener, not one per caller. Tailscale relays a Funnel
+// connection in from its own fabric, so every request arrives from the same
+// address whoever sent it — there is nobody to tell apart, and a per-source
+// limit would be this same bucket wearing a disguise.
+type publicBudget struct {
+	limiter *rate.Limiter
+	logf    *log.Logger
+
+	mu       sync.Mutex
+	refused  int
+	reported time.Time
+}
+
+func newPublicBudget(limit *FunnelRateLimit, logf *log.Logger) *publicBudget {
+	if limit == nil {
+		limit = &FunnelRateLimit{RequestsPerSecond: defaultFunnelRate, Burst: defaultFunnelBurst}
+	}
+	return &publicBudget{
+		limiter: rate.NewLimiter(rate.Limit(limit.RequestsPerSecond), limit.Burst),
+		logf:    logf,
+	}
+}
+
+func (b *publicBudget) allow() bool {
+	if b.limiter.Allow() {
+		return true
+	}
+	b.noteRefusal()
+	return false
+}
+
+// noteRefusal counts every refusal and reports at most one line per
+// interval. A scan that can fill the journal has denied the operator the
+// one place they would look to find out about it.
+func (b *publicBudget) noteRefusal() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.refused++
+	now := time.Now()
+	if !b.reported.IsZero() && now.Sub(b.reported) < howOftenBurstsAreSummarised {
+		return
+	}
+	b.logf.Printf("public: rate limit refused %d request(s) since %s",
+		b.refused, b.sinceLocked(now))
+	b.refused = 0
+	b.reported = now
+}
+
+func (b *publicBudget) sinceLocked(now time.Time) string {
+	if b.reported.IsZero() {
+		return "this listener started"
+	}
+	return now.Sub(b.reported).Truncate(time.Second).String() + " ago"
 }
 
 // egressHost returns the destination hostname a request names — the

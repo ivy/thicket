@@ -319,8 +319,24 @@ missing:
 The public hostname is then `https://thicket-phone.<tailnet>.ts.net`; it is
 what the bridge's `phone.json` names as `public_base_url`, and what the
 number's voice URL points at. Scanners find it within seconds of it
-appearing; the bridge answers them with 404 and never reads a body it did
-not sign for.
+appearing — a certificate is a public announcement — and what they meet is
+netd's own budget, spent before the bridge learns the request happened:
+
+```json
+"funnel": {
+  "path_prefix": "/",
+  "rate_limit": { "requests_per_second": 5, "burst": 20 }
+}
+```
+
+Those are the defaults and need no configuration. One bucket for the whole
+listener, not one per caller: Tailscale relays a Funnel connection in from
+its own fabric, so every request arrives from the same address whoever sent
+it, and a per-source limit would be this same bucket wearing a disguise. A
+call is a handful of requests and then one long-lived websocket, so the
+default is generous for anything real. Refusals are summarised at most once
+a minute — a scan that can fill the journal has taken away the one place an
+operator would look.
 
 `provision` renders this account once any agent has `phone.enabled`:
 `rendered/phone/agents.yaml` and the `netd.json` above (the Funnel upstream

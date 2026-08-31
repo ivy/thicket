@@ -2,7 +2,10 @@ module github.com/ivy/thicket/netd
 
 go 1.27
 
-require tailscale.com v1.102.3
+require (
+	golang.org/x/time v0.15.0
+	tailscale.com v1.102.3
+)
 
 require (
 	9fans.net/go v0.0.8-0.20250307142834-96bdba94b63f // indirect
@@ -93,7 +96,6 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
-	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.47.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect

@@ -55,7 +55,31 @@ type FunnelConfig struct {
 	// UpstreamSocket is the unix socket the prefix is proxied to — the
 	// phone bridge's, never agentd's. Default: socketPath("phone").
 	UpstreamSocket string `json:"upstream_socket,omitempty"`
+	// RateLimit bounds what this listener will spend before anything is
+	// proxied. Optional: the defaults hold without configuration.
+	RateLimit *FunnelRateLimit `json:"rate_limit,omitempty"`
 }
+
+// FunnelRateLimit is the budget the public handler spends per second.
+//
+// It is one bucket for the whole listener rather than one per caller,
+// because there are no callers to tell apart: Tailscale relays a Funnel
+// connection in from its own fabric, so every request on this listener
+// arrives from the same address whoever sent it. A per-source limit would
+// be one bucket wearing a disguise.
+type FunnelRateLimit struct {
+	// RequestsPerSecond sustained. Default defaultFunnelRate.
+	RequestsPerSecond float64 `json:"requests_per_second,omitempty"`
+	// Burst absorbed above that rate. Default defaultFunnelBurst.
+	Burst int `json:"burst,omitempty"`
+}
+
+// A phone call is a handful of requests and then one long-lived websocket,
+// so these are generous for anything real and mean for anything sweeping.
+const (
+	defaultFunnelRate  = 5
+	defaultFunnelBurst = 20
+)
 
 func defaultConfigPath() string {
 	return filepath.Join(configDir(), "netd.json")
@@ -101,6 +125,18 @@ func loadConfig(path string) (*Config, error) {
 		}
 		if cfg.Funnel.UpstreamSocket == cfg.UpstreamSocket {
 			return nil, fmt.Errorf("config %s: funnel.upstream_socket must not be agentd's socket; the internet never reaches an agent", path)
+		}
+		if cfg.Funnel.RateLimit == nil {
+			cfg.Funnel.RateLimit = &FunnelRateLimit{}
+		}
+		if cfg.Funnel.RateLimit.RequestsPerSecond == 0 {
+			cfg.Funnel.RateLimit.RequestsPerSecond = defaultFunnelRate
+		}
+		if cfg.Funnel.RateLimit.Burst == 0 {
+			cfg.Funnel.RateLimit.Burst = defaultFunnelBurst
+		}
+		if cfg.Funnel.RateLimit.RequestsPerSecond < 0 || cfg.Funnel.RateLimit.Burst < 0 {
+			return nil, fmt.Errorf("config %s: funnel.rate_limit values cannot be negative", path)
 		}
 	}
 	return &cfg, nil

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,7 +58,7 @@ func upgradeEchoServer(t *testing.T, socket string) {
 func TestPublicProxyStripsThicketHeadersAndStampsNothing(t *testing.T) {
 	socket := shortSocketPath(t, "phone.sock")
 	upgradeEchoServer(t, socket)
-	front := httptest.NewServer(newPublicProxy(socket, "/", testLogger(t)))
+	front := httptest.NewServer(newPublicProxy(socket, "/", &FunnelRateLimit{RequestsPerSecond: 1000, Burst: 1000}, testLogger(t)))
 	defer front.Close()
 
 	req, _ := http.NewRequest("POST", front.URL+"/voice", nil)
@@ -88,7 +89,7 @@ func TestPublicProxyStripsThicketHeadersAndStampsNothing(t *testing.T) {
 func TestPublicProxyRefusesPathsOutsideThePrefix(t *testing.T) {
 	socket := shortSocketPath(t, "phone.sock")
 	upgradeEchoServer(t, socket)
-	front := httptest.NewServer(newPublicProxy(socket, "/phone/", testLogger(t)))
+	front := httptest.NewServer(newPublicProxy(socket, "/phone/", &FunnelRateLimit{RequestsPerSecond: 1000, Burst: 1000}, testLogger(t)))
 	defer front.Close()
 
 	for path, want := range map[string]int{"/phone/voice": 200, "/phone/relay/abc": 200, "/": 404, "/a2a/v1": 404, "/phonebook": 404} {
@@ -106,7 +107,7 @@ func TestPublicProxyRefusesPathsOutsideThePrefix(t *testing.T) {
 func TestPublicProxyKeepsAnUpgradedConnectionOpen(t *testing.T) {
 	socket := shortSocketPath(t, "phone.sock")
 	upgradeEchoServer(t, socket)
-	front := httptest.NewServer(newPublicProxy(socket, "/", testLogger(t)))
+	front := httptest.NewServer(newPublicProxy(socket, "/", &FunnelRateLimit{RequestsPerSecond: 1000, Burst: 1000}, testLogger(t)))
 	defer front.Close()
 
 	conn, err := net.Dial("tcp", strings.TrimPrefix(front.URL, "http://"))
@@ -172,5 +173,118 @@ func TestVerifyFunnelNamesTheMissingAttribute(t *testing.T) {
 	}
 	if err := verifyFunnel(funnelStatus(tailcfg.CapabilityHTTPS, tailcfg.NodeAttrFunnel), "tag:thicket-phone"); err == nil || !strings.Contains(err.Error(), "port 443") {
 		t.Errorf("without the ports attribute: %v", err)
+	}
+}
+
+// The public handler is the one surface the internet reaches, and its
+// hostname is public the moment a certificate is minted. What a burst costs
+// should be a token and a status code in Go, not a request the JavaScript
+// upstream has to read.
+func TestPublicProxyThrottlesABurstBeforeTheUpstreamSeesIt(t *testing.T) {
+	socket := shortSocketPath(t, "phone.sock")
+	var served atomic.Int64
+	ln, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		served.Add(1)
+		w.WriteHeader(http.StatusOK)
+	})}
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+
+	logf, logged := bufferLogger()
+	// A rate low enough that a hundred requests cannot refill it mid-test.
+	front := httptest.NewServer(newPublicProxy(socket, "/", &FunnelRateLimit{RequestsPerSecond: 1, Burst: 5}, logf))
+	defer front.Close()
+
+	var throttled, ok int
+	for i := 0; i < 100; i++ {
+		resp, err := front.Client().Get(front.URL + "/relay")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		switch resp.StatusCode {
+		case http.StatusTooManyRequests:
+			throttled++
+			if resp.Header.Get("Retry-After") == "" {
+				t.Error("a throttled response should say when to come back")
+			}
+		case http.StatusOK:
+			ok++
+		default:
+			t.Fatalf("unexpected status %d", resp.StatusCode)
+		}
+	}
+
+	if throttled == 0 {
+		t.Fatal("a hundred requests at once were all served; nothing was throttled")
+	}
+	if got := served.Load(); got > int64(ok) {
+		t.Errorf("upstream served %d requests but only %d were admitted", got, ok)
+	}
+	if ok > 10 {
+		t.Errorf("%d requests got through a burst of 5 at 1/s", ok)
+	}
+
+	// A scan must not be able to fill the journal: one line, whatever the
+	// size of the burst behind it.
+	if lines := strings.Count(logged(), "rate limit refused"); lines != 1 {
+		t.Errorf("burst produced %d summary lines, want exactly 1", lines)
+	}
+}
+
+// A request outside the prefix was already refused before the upstream was
+// touched; it now costs a token too, because refusing is not free and it is
+// all a scanner sends.
+func TestPublicProxyThrottlesRequestsOutsideThePrefixToo(t *testing.T) {
+	socket := shortSocketPath(t, "phone.sock")
+	logf, logged := bufferLogger()
+	front := httptest.NewServer(newPublicProxy(socket, "/relay", &FunnelRateLimit{RequestsPerSecond: 1, Burst: 3}, logf))
+	defer front.Close()
+
+	var notFound, throttled int
+	for i := 0; i < 20; i++ {
+		resp, err := front.Client().Get(front.URL + "/wp-login.php")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		switch resp.StatusCode {
+		case http.StatusNotFound:
+			notFound++
+		case http.StatusTooManyRequests:
+			throttled++
+		}
+	}
+	if throttled == 0 {
+		t.Fatal("scanning outside the prefix was never throttled")
+	}
+	if notFound > 5 {
+		t.Errorf("%d requests reached the prefix check through a burst of 3", notFound)
+	}
+	if lines := strings.Count(logged(), "rate limit refused"); lines != 1 {
+		t.Errorf("scan produced %d summary lines, want exactly 1", lines)
+	}
+}
+
+// Nothing has to be configured for the listener to have a bound.
+func TestFunnelRateLimitDefaultsWithoutConfiguration(t *testing.T) {
+	cfg, err := loadConfig(writeConfig(t, `{"hostname": "h", "tag": "tag:thicket-h", "upstream_socket": "/run/a.sock", "funnel": {"path_prefix": "/", "upstream_socket": "/run/p.sock"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Funnel.RateLimit == nil {
+		t.Fatal("an unconfigured funnel has no rate limit at all")
+	}
+	if cfg.Funnel.RateLimit.RequestsPerSecond != defaultFunnelRate || cfg.Funnel.RateLimit.Burst != defaultFunnelBurst {
+		t.Errorf("defaults = %+v, want %g/s burst %d", cfg.Funnel.RateLimit, float64(defaultFunnelRate), defaultFunnelBurst)
+	}
+
+	_, err = loadConfig(writeConfig(t, `{"hostname": "h", "tag": "tag:thicket-h", "upstream_socket": "/run/a.sock", "funnel": {"path_prefix": "/", "upstream_socket": "/run/p.sock", "rate_limit": {"requests_per_second": -1}}}`))
+	if err == nil {
+		t.Error("a negative rate was accepted")
 	}
 }
