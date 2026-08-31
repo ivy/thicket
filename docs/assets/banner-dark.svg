@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 590" role="img" aria-label="thicket — an agent on every system you operate, reached from Slack, a phone call, Claude Code, or the next bridge you write">
+  <rect width="1200" height="590" fill="#0d1210"/>
+
+  <text x="62" y="96" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="66" font-weight="700" letter-spacing="-3" fill="#e9efe9">thicket</text>
+  <text x="1136" y="90" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#8ba394">message passing is the universal interface</text>
+  <text x="66" y="134" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="19" fill="#e9efe9">An agent on every system you operate — reachable from wherever you already are.</text>
+  <path d="M64,158 H1136" stroke="#243029" stroke-width="1"/>
+
+  <rect x="64" y="182" width="253" height="210" rx="13" fill="#141b17" stroke="#243029" />
+  <text x="82" y="210" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" letter-spacing="2.4" fill="#8ba394">SLACK</text>
+  <text x="82" y="248" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#e9efe9">ivy</text>
+  <text x="82" y="268" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" fill="#e9efe9"><tspan fill="#d9a441">@atlas</tspan> patch the server</text>
+  <text x="82" y="300" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#e9efe9">atlas</text>
+  <rect x="132" y="289" width="30" height="14" rx="3" fill="#1a221d" stroke="#243029"/>
+  <text x="147" y="299" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="8" letter-spacing="0.6" fill="#8ba394">APP</text>
+  <text x="82" y="320" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" fill="#e9efe9">14 updates. libc6 needs</text>
+  <text x="82" y="338" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" fill="#e9efe9">a reboot.</text>
+  <rect x="82" y="354" width="130" height="28" rx="6" fill="none" stroke="#d9a441" stroke-width="1.4"/>
+  <text x="147" y="372" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#d9a441">Reboot at 03:00</text>
+
+  <rect x="337" y="182" width="253" height="210" rx="13" fill="#141b17" stroke="#243029" />
+  <text x="355" y="210" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" letter-spacing="2.4" fill="#8ba394">PHONE</text>
+  <text x="355" y="240" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#8ba394"><tspan fill="#67a97e">PIN ✓</tspan> · connected</text>
+  <text x="355" y="272" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#e9efe9">you</text>
+  <text x="355" y="292" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" fill="#e9efe9">how did the backup go?</text>
+  <text x="355" y="324" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#e9efe9">atlas</text>
+  <text x="355" y="344" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" fill="#e9efe9">Snapshot at 3:02 —</text>
+  <text x="355" y="362" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" fill="#e9efe9">41 GB, clean.</text>
+  <rect x="355" y="374.5" width="2.6" height="7" rx="1.3" fill="#67a97e" opacity="0.35"/><rect x="361" y="372" width="2.6" height="12" rx="1.3" fill="#67a97e" opacity="0.55"/><rect x="367" y="369" width="2.6" height="18" rx="1.3" fill="#67a97e" opacity="0.75"/><rect x="373" y="372.5" width="2.6" height="11" rx="1.3" fill="#67a97e" opacity="0.9500000000000001"/><rect x="379" y="370.5" width="2.6" height="15" rx="1.3" fill="#67a97e" opacity="0.35"/><rect x="385" y="375" width="2.6" height="6" rx="1.3" fill="#67a97e" opacity="0.55"/><rect x="391" y="371.5" width="2.6" height="13" rx="1.3" fill="#67a97e" opacity="0.75"/><rect x="397" y="369.5" width="2.6" height="17" rx="1.3" fill="#67a97e" opacity="0.9500000000000001"/><rect x="403" y="373.5" width="2.6" height="9" rx="1.3" fill="#67a97e" opacity="0.35"/><rect x="409" y="371" width="2.6" height="14" rx="1.3" fill="#67a97e" opacity="0.55"/><rect x="415" y="374" width="2.6" height="8" rx="1.3" fill="#67a97e" opacity="0.75"/><rect x="421" y="375.5" width="2.6" height="5" rx="1.3" fill="#67a97e" opacity="0.9500000000000001"/>
+  <text x="437" y="382" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#8ba394">speaking</text>
+
+  <rect x="610" y="182" width="253" height="210" rx="13" fill="#141b17" stroke="#243029" />
+  <text x="628" y="210" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" letter-spacing="2.4" fill="#8ba394">CLAUDE CODE</text>
+  <text x="628" y="246" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#e9efe9"><tspan fill="#d9a441">›</tspan> have atlas patch it</text>
+  
+    <text x="628" y="278" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#67a97e">✓</text>
+    <text x="644" y="278" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#8ba394">14 updates applied</text>
+  
+    <text x="628" y="300" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#67a97e">✓</text>
+    <text x="644" y="300" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#8ba394">services verified</text>
+  
+    <text x="628" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#d9a441">●</text>
+    <text x="644" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#8ba394">awaiting approval</text>
+  <text x="628" y="368" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#8ba394">same agent, same memory</text>
+
+  <rect x="883" y="182" width="253" height="210" rx="13" fill="none" stroke="#8ba394" stroke-dasharray="5 5" opacity="0.6"/>
+  <text x="901" y="210" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" letter-spacing="2.4" fill="#8ba394">NEXT</text>
+  <g font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13.5" fill="#8ba394">
+    <text x="901" y="254">GitHub events. A webhook.</text>
+    <text x="901" y="274">A shell script. Each one is</text>
+    <text x="901" y="294">a bridge, and a bridge only</text>
+    <text x="901" y="314">translates.</text>
+  </g>
+
+  <path d="M190.5,392 V428" fill="none" stroke="#67a97e" stroke-width="1.5" /><path d="M463.5,392 V428" fill="none" stroke="#67a97e" stroke-width="1.5" /><path d="M736.5,392 V428" fill="none" stroke="#67a97e" stroke-width="1.5" /><path d="M1009.5,392 V428" fill="none" stroke="#67a97e" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.6"/>
+  <path d="M190.5,428 H736.5" stroke="#67a97e" stroke-width="1.75" fill="none"/>
+  <path d="M736.5,428 H1009.5" stroke="#67a97e" stroke-width="1.75" fill="none" stroke-dasharray="5 5" opacity="0.6"/>
+  <text x="176.5" y="432" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" letter-spacing="1.6" fill="#8ba394">A2A</text>
+
+  
+    <path d="M270,428 V468" fill="none" stroke="#67a97e" stroke-width="1.5"/>
+    <rect x="172" y="468" width="196" height="54" rx="11" fill="#141b17" stroke="#243029"/>
+    <circle cx="192" cy="495" r="4.5" fill="#67a97e"/>
+    <text x="206" y="492" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#e9efe9">atlas</text>
+    <text x="206" y="509" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#8ba394">root@server</text>
+    <path d="M490,428 V468" fill="none" stroke="#67a97e" stroke-width="1.5"/>
+    <rect x="392" y="468" width="196" height="54" rx="11" fill="#141b17" stroke="#243029"/>
+    <circle cx="412" cy="495" r="4.5" fill="#67a97e"/>
+    <text x="426" y="492" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#e9efe9">postie</text>
+    <text x="426" y="509" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#8ba394">mail@server</text>
+    <path d="M710,428 V468" fill="none" stroke="#67a97e" stroke-width="1.5"/>
+    <rect x="612" y="468" width="196" height="54" rx="11" fill="#141b17" stroke="#243029"/>
+    <circle cx="632" cy="495" r="4.5" fill="#67a97e"/>
+    <text x="646" y="492" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#e9efe9">curator</text>
+    <text x="646" y="509" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#8ba394">media@server</text>
+    <path d="M930,428 V468" fill="none" stroke="#67a97e" stroke-width="1.5"/>
+    <rect x="832" y="468" width="196" height="54" rx="11" fill="#141b17" stroke="#243029"/>
+    <circle cx="852" cy="495" r="4.5" fill="#67a97e"/>
+    <text x="866" y="492" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13.5" fill="#e9efe9">workbench</text>
+    <text x="866" y="509" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="10.5" fill="#8ba394">dev@laptop</text>
+
+  <path d="M490,522 C490,556 930,556 930,522" fill="none" stroke="#67a97e" stroke-width="1.4" stroke-dasharray="4 5" opacity="0.8"/>
+
+  <text x="600" y="578" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5" fill="#8ba394">each agent is a Claude Code session in one unix account, on one host</text>
+</svg>

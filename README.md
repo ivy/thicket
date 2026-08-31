@@ -1,7 +1,12 @@
-# thicket
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+    <img alt="thicket — an agent on every system you operate, reached from Slack, a phone call, Claude Code, or the next bridge you write" src="docs/assets/banner-light.svg" width="900">
+  </picture>
+</p>
 
-A fleet of AI agents that live on the systems you operate, reachable from Slack or
-from Claude Code, and able to collaborate with each other.
+A fleet of AI agents that live on the systems you operate, reachable from Slack, from a
+phone call, or from Claude Code, and able to collaborate with each other.
 
 Each agent is a Claude Code session bound to one unix account on one host. It speaks
 [A2A](https://a2a-protocol.org) over your tailnet and appears in Slack as its own app
@@ -12,10 +17,10 @@ the [roadmap](docs/roadmap.md) is the operator's, and [docs/vision.md](docs/visi
 is the argument behind it.
 
 ```
-Slack ──► bridge ──┐
-                   ├──► A2A ──► agentd (per unix account) ──► Claude Code session
-Claude Code ───────┘                                          via Agent SDK
-   (MCP)
+Slack ────────► bridge ─┐
+a phone call ─► phone ──┤
+Claude Code (MCP) ──────┴──► A2A ──► agentd (per unix account) ──► Claude Code session
+                                                                   via Agent SDK
 ```
 
 ## Why it is shaped this way
@@ -35,6 +40,7 @@ See [docs/vision.md](docs/vision.md) for the full rationale.
 | `netd/` | Go | tsnet node per agent; tailnet ⇄ unix socket, injects verified peer tags |
 | `apps/agentd/` | TypeScript | A2A server + Claude Code session manager (hot/cold) |
 | `apps/bridge/` | TypeScript | Slack Socket Mode ⇄ A2A client; thread ⇄ session mapping |
+| `apps/phone/` | TypeScript | Twilio ConversationRelay ⇄ A2A; the PIN gate, the picker, the call |
 | `apps/cli/` | TypeScript | `provision`, `doctor`, `fleet`, `journal`, `mcp`, `slack-test-mcp` |
 | `packages/roster/` | TypeScript | `agents.yaml` → `AgentCard`; the shared contract |
 | `packages/executor/` | TypeScript | Agent SDK message stream → A2A task events |
@@ -46,9 +52,12 @@ See [docs/vision.md](docs/vision.md) for the full rationale.
 
 Running, for one operator: the Slack surface — DMs, mentions, threads, streamed
 answers with a step timeline, attachments, questions with buttons, reactions,
-routines and one-shot schedules — works end to end on a single host. Real
-multi-host deployment (systemd, tailnet identity) is the next arc; see the
-[roadmap](docs/roadmap.md).
+routines and one-shot schedules — works end to end on a single host. The phone
+bridge is the second surface: a call authenticates on an 8-digit PIN keyed at
+connect, picks an agent by name, and holds a session that survives a dropped
+call — running on the laptop rig behind Tailscale Funnel, not yet deployed
+([#36](https://github.com/ivy/thicket/issues/36)). Real multi-host deployment
+(systemd, tailnet identity) is the next arc; see the [roadmap](docs/roadmap.md).
 
 Real deployment is still ahead of the tooling in places: `netd` wants a tailnet you
 administer, and there is no installer yet, so an agent host needs a checkout. The
