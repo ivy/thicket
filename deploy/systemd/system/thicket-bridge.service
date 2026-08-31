@@ -15,9 +15,9 @@ Wants=thicket-bridge-netd.service
 Type=simple
 User=thicket-bridge
 Group=thicket-bridge
-# The one thing it shares with netd: the group owning the two sockets they
-# meet on, and nothing else of netd's.
-SupplementaryGroups=thicket
+# Its own group is the group the pair meet in: netd carries it as a
+# supplementary and nothing else on the host is a member. A group shared with
+# the phone bridge pair would hand each of them the other's egress allowlist.
 ExecStart=/usr/local/bin/thicket-bridge
 Restart=on-failure
 RestartSec=5
@@ -28,7 +28,10 @@ TimeoutStopSec=45
 KillMode=mixed
 
 ConfigurationDirectory=thicket
-StateDirectory=thicket
+# Its own subdirectory, not the whole of /var/lib/thicket: the phone bridge
+# keeps its state in the sibling one, and two units that each declare the
+# parent fight over who owns it.
+StateDirectory=thicket/bridge
 # netd creates and owns /run/thicket; the bridge is ordered after it and
 # writes its own socket there as a member of the group.
 ReadWritePaths=/run/thicket

@@ -22,6 +22,14 @@ const phoneConfigSchema = z
     /** Unix socket the server listens on, for netd to front; default under the runtime dir. */
     socket_path: z.string().min(1).optional(),
     /**
+     * Group that may reach that socket. Set it when netd runs as a
+     * different user from the bridge — which is what lets a firewall rule
+     * drop the bridge's egress and leave netd's alone. Absent: the socket
+     * is the bridge's own, 0600, and a netd in another account cannot dial
+     * it at all.
+     */
+    socket_group: z.string().min(1).optional(),
+    /**
      * netd's egress socket: the phone bridge's only way out, for the agents
      * it dials and the alerts it posts alike.
      */

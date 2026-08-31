@@ -17,5 +17,8 @@
 # apart from the runtime it fronts, which is what the split accounts need.
 /var/lib/thicket(-[^/]+)?(/.*)?             system_u:object_r:thicket_var_lib_t:s0
 
-# Where the two halves of a pair meet.
-/run/thicket(/.*)?                          system_u:object_r:thicket_runtime_t:s0
+# Where the two halves of a pair meet. The suffix covers a second pair on the
+# same host: two of them cannot share one directory, because the socket names
+# under it are the same. An unlabelled runtime directory is not a denial —
+# systemd bind-mounts it and the unit dies 226/NAMESPACE.
+/run/thicket(-[^/]+)?(/.*)?                 system_u:object_r:thicket_runtime_t:s0

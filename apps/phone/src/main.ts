@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node
 import { dirname, join } from "node:path";
 
 import { RemoteAgentClient, type AgentClient } from "@thicket/a2a-client";
-import { assertEgressSocket, egressFetch } from "@thicket/egress";
+import { assertEgressSocket, egressFetch, shareSocketWithGroup } from "@thicket/egress";
 import { agentUrl, configDir, parseRoster, phoneEnabledAgents, socketPath, stateDir } from "@thicket/roster";
 
 import { maskNumber, SlackAlertPoster } from "./alerts.js";
@@ -158,7 +158,15 @@ export async function run(
     mkdirSync(dirname(path), { recursive: true });
     rmSync(path, { force: true });
     await new Promise<void>((resolve) => phone.server.listen(path, () => resolve()));
-    logger.info("phone bridge up", { socket: path, agents: agents.map((a) => a.name) });
+    // Only netd may connect: as this user, or as another one in the group.
+    // Without this the socket keeps the unit's 0077 umask and a netd running
+    // as its own user — the split the firewall rule needs — cannot dial it.
+    shareSocketWithGroup(path, config.socket_group);
+    logger.info("phone bridge up", {
+      socket: path,
+      group: config.socket_group,
+      agents: agents.map((a) => a.name),
+    });
   }
 
   // A heartbeat file `thicket doctor` can read: fresh means the bridge is

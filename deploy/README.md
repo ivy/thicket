@@ -227,11 +227,62 @@ rule loads, and a restarted unit gets a new one.
 So: netd as its own user with the network, the process it fronts as another
 with none, both in a group that owns the socket between them.
 
-The two halves are one decision. `socket_group` in `bridge.json` does the
-same for the file surface — the socket agents fetch uploaded files from,
-which netd proxies to. Split the accounts with only netd's option set and
-netd can no longer reach the bridge; set neither and both stay 0600, which
-is what a single-account deployment wants.
+The two halves are one decision. `socket_group` in `bridge.json` and in
+`phone.json` does the same for the socket netd proxies *to* — the file
+surface agents fetch uploaded files from, and the phone bridge's own
+listener. Split the accounts with only netd's option set and netd can no
+longer reach the runtime; set neither and both stay 0600, which is what a
+single-account deployment wants.
+
+### Two pairs on one host
+
+A pair is a runtime and the netd beside it. Both edge components on one host
+is two pairs, and they have to stay apart:
+
+- **A group is exactly one pair.** Each runtime's own primary group is the
+  pair's, and its netd carries that group as a supplementary — so the members
+  are the two accounts and nothing else. Put both pairs in one group and
+  either runtime can open the other's egress socket, and reach everything on
+  the other's allowlist: the Slack bridge's netd may reach Slack, the phone
+  bridge's may reach a short list of agents, and sharing the group hands each
+  of them the other's permissions.
+- **A runtime directory is exactly one pair.** Every pair names its sockets
+  the same way, so two pairs in `/run/thicket` collide on
+  `netd-egress.sock`: whichever netd starts second replaces the first's, and
+  the directory's owner flips between the two netd accounts on every restart.
+  The first pair on a host can take the defaults; a second one gets its own
+  directory and names the paths, because the defaults are derived from
+  `XDG_RUNTIME_DIR` and both units pin that at `/run`.
+
+The shipped units put the phone bridge's pair in `/run/thicket-phone`, so its
+`netd.json` and `phone.json` name what lives there:
+
+```json
+// /etc/thicket/netd.json — the phone bridge's netd
+{
+  "hostname": "thicket-phone",
+  "tag": "tag:thicket-phone",
+  "auth_key_file": "tailnet-auth-key",
+  "state_dir": "/var/lib/thicket-phone-netd/tsnet",
+  "egress_socket": "/run/thicket-phone/netd-egress.sock",
+  "socket_group": "thicket-phone",
+  "egress_allow": ["thicket-hearth.tailXXXX.ts.net"],
+  "funnel": { "path_prefix": "/", "upstream_socket": "/run/thicket-phone/phone.sock" }
+}
+```
+
+```json
+// /etc/thicket/phone.json — root's alone, handed over as a credential
+{
+  "socket_path": "/run/thicket-phone/phone.sock",
+  "socket_group": "thicket-phone",
+  "egress_socket": "/run/thicket-phone/netd-egress.sock"
+}
+```
+
+`/var/lib/thicket` is the shared parent of both runtimes' state, so it has to
+be traversable by both — root-owned and `0755`. Each component's own
+subdirectory below it is systemd's, created from `StateDirectory=`.
 
 ## The edge is not an agent
 
@@ -252,8 +303,13 @@ them lines the paths up with the directories systemd creates and owns:
 | Variable | Value | systemd directive | Holds |
 |---|---|---|---|
 | `XDG_CONFIG_HOME` | `/etc` | `ConfigurationDirectory=thicket` | what the operator writes |
-| `XDG_STATE_HOME` | `/var/lib` | `StateDirectory=thicket` | what the process keeps |
-| `XDG_RUNTIME_DIR` | `/run` | `RuntimeDirectory=thicket` | the sockets the pair meet on |
+| `XDG_STATE_HOME` | `/var/lib` | `StateDirectory=thicket/<component>` | what the process keeps |
+| `XDG_RUNTIME_DIR` | `/run` | `RuntimeDirectory=thicket[-<pair>]` | the sockets the pair meet on |
+
+Config is shared — one `/etc/thicket`, one roster, one file per component —
+and everything written at run time is not. Each runtime declares only its own
+subdirectory of `/var/lib/thicket`, which is where it already writes; a unit
+that declared the parent would take ownership of the sibling's state with it.
 
 **Secrets arrive as credentials.** `LoadCredential=` hands the process a copy
 that exists only while it runs, so the file on disk can be root's alone and
@@ -494,24 +550,37 @@ pointed the number elsewhere.
 
 ## 6b. The phone bridge's account
 
-The phone bridge is deployed exactly like the Slack bridge: its own unix
-account on the always-on host, its own netd — this one with the Funnel
-listener — the same units, and secrets as 0600 files the operator writes.
-Steps 1–3 above apply verbatim with `thicket-phone` as the account and
-`tag:thicket-phone` as the tag on its auth key. Then, as that account:
+The phone bridge is deployed exactly like the Slack bridge: an edge
+component, so system units rather than an agent's user units — two accounts,
+config in `/etc/thicket`, secrets handed over as credentials, and no
+lingering to forget. Step 3 above applies verbatim with `tag:thicket-phone`
+as the tag on its credential. As root:
 
 ```sh
-# binaries: netd and the phone bridge
-install -m 0755 thicket-netd thicket-phone ~/.local/bin/
+# The pair. Neither has a shell, a home, or a password.
+for u in thicket-phone thicket-phone-netd; do
+  useradd --system --no-create-home --home-dir /nonexistent \
+    --shell /usr/sbin/nologin "$u"
+done
+# netd carries the runtime's group so it can reach the socket beside it.
+usermod --append --groups thicket-phone thicket-phone-netd
 
-# the roster-derived half, rendered by `provision` on the operator's machine
-cp rendered/phone/agents.yaml rendered/phone/netd.json ~/.config/thicket/
-install -m 0600 /dev/stdin ~/.config/thicket/tailnet-auth-key <<<'tskey-...'
+# The roster-derived half, rendered by `provision` or `thicket render`, plus
+# the deployment paths from "Two pairs on one host" above.
+install -m 0644 -o root -g root rendered/phone/agents.yaml /etc/thicket/
+install -m 0640 -o root -g thicket-phone-netd rendered/phone/netd.json /etc/thicket/
+install -m 0640 -o root -g thicket-phone-netd /dev/stdin \
+  /etc/thicket/tailnet-auth-key <<<'tskey-client-xxxx?ephemeral=false&preauthorized=true'
 
-# the secrets half: the operator writes it, provision never renders it
-install -m 0600 /dev/stdin ~/.config/thicket/phone.json <<'EOF'
+# The secrets half: the operator writes it, nothing renders it. Root's
+# alone — the account never reads this path, LoadCredential hands the
+# process a copy that exists only while it runs.
+install -m 0600 -o root -g root /dev/stdin /etc/thicket/phone.json <<'EOF'
 {
   "public_base_url": "https://thicket-phone.tailXXXX.ts.net",
+  "socket_path": "/run/thicket-phone/phone.sock",
+  "socket_group": "thicket-phone",
+  "egress_socket": "/run/thicket-phone/netd-egress.sock",
   "twilio": { "account_sid": "AC...", "auth_token": "...", "api_key_sid": "SK...", "api_key_secret": "...", "number": "+1..." },
   "operator_numbers": ["+1..."],
   "pin": "12345678",
@@ -519,16 +588,21 @@ install -m 0600 /dev/stdin ~/.config/thicket/phone.json <<'EOF'
 }
 EOF
 
-cp deploy/systemd/thicket-netd.service deploy/systemd/thicket-phone.service ~/.config/systemd/user/
-systemctl --user daemon-reload
-systemctl --user enable --now thicket-netd.service thicket-phone.service
+install -d -m 0755 -o root -g root /var/lib/thicket   # the shared parent
+install -m 0644 deploy/systemd/system/thicket-phone*.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now thicket-phone-netd.service thicket-phone.service
 ```
+
+netd logs `funnel: serving / to …`; the bridge logs `phone bridge up` with
+the socket and the group it handed it to.
 
 `phone.json` refuses to load unless it is mode 0600 and names a PIN and an
 allow-list; `twilio.auth_token` must be the account's **primary** auth
 token, the only credential that validates Twilio's signature. The bridge
-binds `$XDG_RUNTIME_DIR/thicket/phone.sock` and nothing else; netd's
-Funnel listener is the only way in.
+binds that one socket and nothing else — no port at all; netd's Funnel
+listener is the only way in, and it can dial the socket because
+`socket_group` handed it to the group the pair share.
 
 ### The ACL edge, drawn deliberately
 

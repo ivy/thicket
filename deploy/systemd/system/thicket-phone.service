@@ -15,9 +15,9 @@ Wants=thicket-phone-netd.service
 Type=simple
 User=thicket-phone
 Group=thicket-phone
-# The one thing it shares with netd: the group owning the two sockets they
-# meet on, and nothing else of netd's.
-SupplementaryGroups=thicket
+# Its own group is the group the pair meet in: netd carries it as a
+# supplementary and nothing else on the host is a member. A group shared with
+# another pair would hand each of them the other's egress allowlist.
 ExecStart=/usr/local/bin/thicket-phone
 Restart=on-failure
 RestartSec=5
@@ -28,19 +28,23 @@ TimeoutStopSec=45
 KillMode=mixed
 
 ConfigurationDirectory=thicket
-StateDirectory=thicket
-# netd creates and owns /run/thicket; the bridge is ordered after it and
-# writes its own socket there as a member of the group.
-ReadWritePaths=/run/thicket
+# Its own subdirectory, not the whole of /var/lib/thicket: the Slack bridge
+# keeps its state in the sibling one, and two units that each declare the
+# parent fight over who owns it.
+StateDirectory=thicket/phone
+# netd creates and owns /run/thicket-phone; the bridge is ordered after it and
+# writes its own socket there as a member of the group. Its own directory,
+# because the socket names under it are the same as the Slack bridge pair's.
+ReadWritePaths=/run/thicket-phone
 Environment=XDG_CONFIG_HOME=/etc
 Environment=XDG_STATE_HOME=/var/lib
 Environment=XDG_RUNTIME_DIR=/run
 
-# Every agent's Slack tokens, handed over by systemd rather than left where
-# the account could read them. The file on disk is root's alone; the process
-# sees a copy that exists only while it runs.
-LoadCredential=bridge.json:/etc/thicket/bridge.json
-Environment=THICKET_BRIDGE_CONFIG=%d/bridge.json
+# The Twilio credentials, the operator's numbers and the PIN, handed over by
+# systemd rather than left where the account could read them. The file on disk
+# is root's alone; the process sees a copy that exists only while it runs.
+LoadCredential=phone.json:/etc/thicket/phone.json
+Environment=THICKET_PHONE_CONFIG=%d/phone.json
 
 # The containment. No network namespace at all — no interface, no route, no
 # resolver — so netd's socket is not the preferred way out, it is the only

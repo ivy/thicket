@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 
 import { WebClient } from "@slack/web-api";
 import { RemoteAgentClient } from "@thicket/a2a-client";
-import { assertEgressSocket, egressAgent, egressFetch } from "@thicket/egress";
+import { assertEgressSocket, egressAgent, egressFetch, shareSocketWithGroup } from "@thicket/egress";
 import { agentUrl, configDir, parseRoster, socketPath, stateDir } from "@thicket/roster";
 
 import { BridgeEngine, type EngineLogger } from "./engine.js";
@@ -12,7 +12,6 @@ import { buildFileServer } from "./http.js";
 import { WebSlackApi } from "./slack-api.js";
 import { SlackSocketConnection } from "./socket.js";
 import { ConnectionSupervisor } from "./supervisor.js";
-import { shareSocketWithGroup } from "./socket-group.js";
 import { BridgeState } from "./state.js";
 
 const QUEUE_FLUSH_INTERVAL_MS = 30_000;

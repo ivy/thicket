@@ -15,10 +15,12 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=thicket-bridge-netd
-# The shared group is primary so the runtime directory systemd creates below
-# is owned by it: that directory is where the bridge, which is in this group
-# and nothing else of netd's, creates its own socket.
-Group=thicket
+# The bridge's own group, carried here as the primary one so the runtime
+# directory systemd creates below is owned by it: that directory is where the
+# bridge creates its socket. The pair and nothing else are members — a group
+# shared with the phone bridge pair would let either open the other's egress
+# socket, and with it the other's allowlist.
+Group=thicket-bridge
 # And netd's own group back, because its credential is readable by that and
 # not by the shared one. The bridge has no business reading netd's tailnet
 # identity.
@@ -38,7 +40,7 @@ RestartMaxDelaySec=120
 ConfigurationDirectory=thicket
 # Its own state. The bridge owns /var/lib/thicket and they are not the same
 # user; netd.json points tsnet at this one with "state_dir".
-StateDirectory=thicket-netd
+StateDirectory=thicket-bridge-netd
 # tsnet's state includes this node's key. Nobody but netd, group included.
 StateDirectoryMode=0700
 RuntimeDirectory=thicket

@@ -138,6 +138,58 @@ for unit in $system_units; do
   fi
 done
 
+# --- one pair, one group, one set of directories ---------------------------
+# A pair is a runtime with no network and the netd beside it. Each pair meets
+# on sockets in one directory owned by one group; two pairs sharing either
+# would let each open the other's egress socket, and with it the other's
+# allowlist — which is the whole reason the accounts are split. The socket
+# names are the same in every pair, so the directories cannot be.
+pairs="bridge phone"
+pair_groups=""
+for pair in $pairs; do
+  unit="$dir/systemd/system/thicket-$pair.service"
+  netd="$dir/systemd/system/thicket-$pair-netd.service"
+  upper=$(echo "$pair" | tr '[:lower:]' '[:upper:]')
+
+  # Copied units are how a runtime ends up holding another one's credential:
+  # it then reads nothing at all, and falls back to a path root owns alone.
+  grep -q "^LoadCredential=$pair\.json:" "$unit" ||
+    err "$unit: must load $pair.json as its credential"
+  grep -q "^Environment=THICKET_${upper}_CONFIG=%d/$pair\.json" "$unit" ||
+    err "$unit: THICKET_${upper}_CONFIG must point at the credential"
+  if grep -E '^(LoadCredential|Environment=THICKET_[A-Z]+_CONFIG)=' "$unit" |
+    grep -vq "$pair\.json"; then
+    err "$unit: names another component's config"
+  fi
+
+  # The group is the pair's own: the runtime's primary group, which netd
+  # carries as a supplementary so it can reach the socket.
+  runtime_group=$(sed -n 's/^Group=//p' "$unit")
+  netd_group=$(sed -n 's/^Group=//p' "$netd")
+  [ "$runtime_group" = "$netd_group" ] ||
+    err "thicket-$pair: the pair must share one group ($runtime_group vs $netd_group)"
+  pair_groups=$(printf '%s\n%s' "$pair_groups" "$runtime_group")
+  grep -q "^SupplementaryGroups=thicket-$pair-netd\$" "$netd" ||
+    err "$netd: its own group must come back as a supplementary; its credential is readable by that alone"
+
+  # netd declares the directory; the runtime is only allowed to write in it.
+  runtime_dir=$(sed -n 's/^RuntimeDirectory=//p' "$netd")
+  grep -q "^ReadWritePaths=/run/$runtime_dir\$" "$unit" ||
+    err "$unit: must be allowed to write /run/$runtime_dir, where netd creates the directory"
+done
+
+# Distinct across pairs: the group each pair meets in, and every directory
+# either half declares. A pair shares its group by design, so the groups are
+# compared one per pair; the directories are one per unit.
+duplicates=$(printf '%s\n' "$pair_groups" | sort | uniq -d)
+[ -z "$duplicates" ] ||
+  err "two pairs share a group: $(printf '%s' "$duplicates" | tr '\n' ' ')"
+for field in RuntimeDirectory StateDirectory; do
+  duplicates=$(sed -n "s/^$field=//p" $system_units | sort | uniq -d)
+  [ -z "$duplicates" ] ||
+    err "two system units share $field=$(printf '%s' "$duplicates" | tr '\n' ' ')"
+done
+
 # The two halves of a pair meet on a socket under /run. A private /tmp is one
 # namespace away from a rendezvous that silently does not happen.
 for unit in "$dir"/systemd/system/thicket-bridge.service "$dir"/systemd/system/thicket-phone.service; do

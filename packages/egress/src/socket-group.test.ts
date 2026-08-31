@@ -11,7 +11,7 @@ import { shareSocketWithGroup } from "./socket-group.js";
 async function socket(t: { after(fn: () => void): void }): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), "sockgroup-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const path = join(dir, "bridge.sock");
+  const path = join(dir, "upstream.sock");
   const server: Server = createServer();
   server.listen(path);
   await once(server, "listening");
@@ -38,7 +38,7 @@ test("with a group the socket widens one step and no further", async (t) => {
   assert.equal(stat.gid, gid);
 });
 
-test("an unknown group stops the bridge rather than leaving a socket nobody can reach", async (t) => {
+test("an unknown group stops the runtime rather than leaving a socket nobody can reach", async (t) => {
   const path = await socket(t);
   assert.throws(
     () => shareSocketWithGroup(path, "no-such-group-here"),

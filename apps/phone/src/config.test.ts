@@ -109,3 +109,12 @@ test("the file must be 0600, and is read from disk as JSON", (t) => {
     (err: unknown) => err instanceof PhoneConfigError && /is not JSON/.test(err.message),
   );
 });
+
+test("the socket may be handed to a group, and the field is either a name or absent", () => {
+  // netd running as its own user is what lets a firewall rule drop the
+  // bridge's egress and leave netd's alone; it can only dial the bridge's
+  // socket if that socket is the pair's group's.
+  assert.equal(parsePhoneConfig({ ...complete, socket_group: "thicket-phone" }, "phone.json").socket_group, "thicket-phone");
+  assert.equal(parsePhoneConfig(complete, "phone.json").socket_group, undefined);
+  refuses({ ...complete, socket_group: "" }, /socket_group/);
+});
