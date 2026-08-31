@@ -65,6 +65,12 @@ jobs:
 
   verify:
     needs: publish
+    # A called workflow can never hold more than its caller, and the top-level
+    # grant here is `contents: read`. Without repeating the attestation read
+    # at this job the whole run is rejected before any job starts.
+    permissions:
+      contents: read
+      attestations: read
     uses: ./.github/workflows/verify-release.yml
     with:
       tag: ${{ github.ref_name }}
