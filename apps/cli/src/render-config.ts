@@ -11,6 +11,18 @@ export const PHONE_HOSTNAME = "thicket-phone";
 export const BRIDGE_HOSTNAME = "thicket-bridge";
 
 /**
+ * Where the Slack Web API answers. The phone bridge posts its security
+ * alerts there — an unknown caller, a failed PIN, a lockout — and this rule
+ * is unconditional because nothing here can see whether they are configured:
+ * the channel and the token live in the operator's own `phone.json`, which
+ * holds the PIN and is never rendered. An allowance nobody uses costs
+ * nothing; the other choice costs the alert at the moment it was worth
+ * having. The API host alone — the phone redeems no files, so it needs
+ * none of the hosts Slack hands out at run time.
+ */
+export const SLACK_API_HOST = "slack.com";
+
+/**
  * The name a tailnet node is dialed by — fully qualified once the domain is
  * known, the bare MagicDNS name until then. The same two shapes `agentUrl`
  * produces, because an egress rule has to match the name that will be asked
@@ -98,11 +110,15 @@ export function renderAccountConfigs(
       hostname: PHONE_HOSTNAME,
       tag: PHONE_TAG,
       auth_key_file: "tailnet-auth-key",
-      // Only the agents that answer the phone: the account exists to put a
-      // caller in front of one of them and nothing else.
-      egress_allow: Object.entries(roster.agents)
-        .filter(([agent]) => onThePhone.has(agent))
-        .map(([, entry]) => tailnetName(nodeName(entry), options.tailnetDomain)),
+      // The agents that answer the phone — the account exists to put a caller
+      // in front of one of them — and Slack, which is where it says so when
+      // something goes wrong.
+      egress_allow: [
+        ...Object.entries(roster.agents)
+          .filter(([agent]) => onThePhone.has(agent))
+          .map(([, entry]) => tailnetName(nodeName(entry), options.tailnetDomain)),
+        SLACK_API_HOST,
+      ],
       funnel: { path_prefix: "/" },
     };
     writeFileSync(join(dir, "netd.json"), JSON.stringify(netd, null, 2) + "\n");

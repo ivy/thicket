@@ -273,7 +273,7 @@ config names what lives there:
   "state_dir": "/var/lib/thicket-phone-netd/tsnet",
   "egress_socket": "/run/thicket-phone/netd-egress.sock",
   "socket_group": "thicket-phone",
-  "egress_allow": ["thicket-hearth.tailXXXX.ts.net"],
+  "egress_allow": ["thicket-hearth.tailXXXX.ts.net", "slack.com"],
   "funnel": { "path_prefix": "/", "upstream_socket": "/run/thicket-phone/phone.sock" }
 }
 ```
@@ -485,8 +485,11 @@ side, through Funnel, reaches the bridge.
 
 Outbound is the same story as everywhere else: the phone bridge dials agents
 and posts alerts through `egress_socket`, and refuses to start without it.
-Its `egress_allow` therefore needs the agents that answer the phone, and
-`slack.com` if alerts are configured.
+Its `egress_allow` is therefore the agents that answer the phone and
+`slack.com`, which `render` writes whether or not `alerts` is configured:
+nothing that reads the roster can see whether it is, because the channel and
+the token are in the operator's own `phone.json`. A rule that waited for them
+would arrive after the alert it was needed for.
 
 The public handler forwards only `path_prefix`, strips every `X-Thicket-*`
 header, and stamps **nothing** — an internet caller has no tags, and the

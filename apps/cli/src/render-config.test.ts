@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { parseRoster } from "@thicket/roster";
 
-import { BRIDGE_HOSTNAME, PHONE_TAG, renderAccountConfigs } from "./render-config.js";
+import { BRIDGE_HOSTNAME, PHONE_TAG, SLACK_API_HOST, renderAccountConfigs } from "./render-config.js";
 
 const YAML = `
 agents:
@@ -40,7 +40,10 @@ test("a phone-enabled roster renders the phone account and lets its tag call onl
     hostname: "thicket-phone",
     tag: PHONE_TAG,
     auth_key_file: "tailnet-auth-key",
-    egress_allow: ["thicket-hearth"],
+    // Slack unconditionally: the alerts half of phone.json is the operator's
+    // and is never rendered, so a rule that waited for it would be a rule
+    // that arrives after the alert it was needed for.
+    egress_allow: ["thicket-hearth", "slack.com"],
     funnel: { path_prefix: "/" },
   });
   assert.equal(readFileSync(join(out, "phone", "agents.yaml"), "utf8"), YAML);
@@ -77,8 +80,13 @@ test("every account's netd is told what it may reach, and nothing else", (t) => 
   ];
   assert.deepEqual(netd("hearth").egress_allow, fleet);
   assert.deepEqual(netd("forge").egress_allow, fleet);
-  // The phone account reaches only the agents that answer the phone.
-  assert.deepEqual(netd("phone").egress_allow, ["thicket-hearth.tail42.ts.net"]);
+  // The phone account reaches the agents that answer the phone, and Slack,
+  // where it posts an alert when a caller fails the PIN.
+  assert.deepEqual(netd("phone").egress_allow, ["thicket-hearth.tail42.ts.net", SLACK_API_HOST]);
+  // Not the bridge, and not the agents that did not opt in: Slack is the one
+  // destination the phone account has that the roster does not name.
+  assert.ok(!netd("phone").egress_allow.includes(`${BRIDGE_HOSTNAME}.tail42.ts.net`));
+  assert.ok(!netd("phone").egress_allow.includes("thicket-forge.tail42.ts.net"));
 });
 
 test("without a tailnet domain the allowlist carries the bare MagicDNS names", (t) => {
