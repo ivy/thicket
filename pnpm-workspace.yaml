@@ -2,3 +2,12 @@ packages:
   - packages/*
   - apps/*
   - tests/*
+
+# A published package has to sit for a week before this repo will install it.
+#
+# The dependency tree is compiled into the release binaries, so the window
+# this closes is lockfile advancement: a poisoned upstream release picked up
+# by a bump. Most npm compromises are found and pulled within days of being
+# published, and waiting costs nothing that matters — a fix urgent enough to
+# need the current hour can be pinned by hand with a reason.
+minimumReleaseAge: 10080

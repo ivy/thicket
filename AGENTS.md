@@ -48,6 +48,12 @@ mise exec -- pnpm build:netd && go test ./netd/...
 mise exec -- pnpm compile    # standalone binaries; --all for every fleet platform
 ```
 
+Dependencies wait a week. `minimumReleaseAge` in `pnpm-workspace.yaml` means
+a release published in the last seven days will not be installed, because the
+tree is compiled into the release binaries and most npm compromises are found
+and pulled within days. `pnpm lint` fails if that floor is lowered, or if a
+package is allowlisted to run install scripts without a reason beside it.
+
 Before landing anything: **build, test, lint — all three, from the repo root.**
 `.github/workflows/ci.yml` runs exactly those on every push to `main` and every pull
 request, in a `gate` job; a `workflows` job re-runs the three workflow linters —

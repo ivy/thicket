@@ -9,3 +9,17 @@ updates:
     # Let a fresh release sit long enough to be withdrawn before we pin to it.
     cooldown:
       default-days: 7
+
+  # npm, on the same terms the workspace already enforces. pnpm will not
+  # install a release younger than a week (minimumReleaseAge), so a bot that
+  # opened a pull request for one would be proposing something that cannot
+  # be installed — the cooldown here is what keeps the two agreeing.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    # The dependency tree is compiled into the release binaries, so a bump is
+    # a supply-chain event. One pull request per dependency, reviewed.
+    open-pull-requests-limit: 5
