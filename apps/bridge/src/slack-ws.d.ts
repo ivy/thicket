@@ -3,7 +3,8 @@
 // (spikes/bridge-egress/); the types are the same package's, under the name
 // DefinitelyTyped publishes them.
 declare module "slack-ws" {
-  import WebSocket from "ws";
+  import WebSocket, { WebSocketServer } from "ws";
 
   export default WebSocket;
+  export { WebSocketServer };
 }

@@ -5,6 +5,7 @@ import { Agent as HttpAgent } from "node:http";
 import { connect as netConnect, createServer, type Server, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
 
+import type WebSocket from "slack-ws";
 import { WebSocketServer } from "slack-ws";
 
 import { SocketModeConnection } from "./socket-mode.js";
@@ -84,7 +85,7 @@ async function standIn(t: { after(fn: () => void): void }): Promise<StandIn> {
     send: () => {},
     drop: () => {},
   };
-  wss.on("connection", (socket) => {
+  wss.on("connection", (socket: WebSocket) => {
     state.send = (frame) => socket.send(JSON.stringify(frame));
     state.drop = () => socket.terminate();
     socket.on("message", (data: unknown) => state.acks.push(String(data)));
