@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { configDir, parseRoster, toAgentCard } from "@thicket/roster";
+import { configDir, parseRoster, toAgentCard, type Roster } from "@thicket/roster";
 import { toSlackManifest, type SlackManifest } from "@thicket/slack-manifest";
 
 import { doctorExitCode, formatResults, runDoctor } from "./doctor.js";
@@ -15,6 +15,7 @@ import { FileStore } from "./store.js";
 function usage(): never {
   process.stderr.write(
     "usage: thicket provision [--dry-run] [--agent NAME]\n" +
+      "       thicket render [--out DIR]\n" +
       "       thicket doctor\n" +
       "       thicket fleet\n" +
       "       thicket journal [--cost] [--failures] [--trigger T] [--days N] [--limit N] [--db PATH]\n" +
@@ -24,6 +25,28 @@ function usage(): never {
       "       thicket phone-test run <scenario|all> | list | redact <recording>…\n",
   );
   process.exit(2);
+}
+
+/** Where a rendered tree lands unless a caller says otherwise. */
+function defaultRenderDir(): string {
+  return join(configDir(), "rendered");
+}
+
+/**
+ * The one render path. `provision` and `render` share it so the tree cannot
+ * differ by which command produced it — the inputs are the roster, the tags
+ * every agent admits, and the tailnet domain, and nothing else.
+ */
+function renderInto(roster: Roster, rosterYaml: string, outDir: string): void {
+  const written = renderAccountConfigs(roster, rosterYaml, {
+    outDir,
+    allowedPeerTags: [
+      "tag:thicket-bridge",
+      ...Object.values(roster.agents).map((entry) => entry.tag),
+    ],
+    tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
+  });
+  process.stdout.write(`rendered ${written.length} per-account config files into ${outDir}\n`);
 }
 
 async function main(): Promise<void> {
@@ -82,16 +105,23 @@ async function main(): Promise<void> {
     }
 
     if (!dryRun) {
-      const written = renderAccountConfigs(roster, loadYaml(), {
-        outDir: join(configDir(), "rendered"),
-        allowedPeerTags: [
-          "tag:thicket-bridge",
-          ...Object.values(roster.agents).map((entry) => entry.tag),
-        ],
-        tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
-      });
-      process.stdout.write(`rendered ${written.length} per-account config files\n`);
+      renderInto(roster, loadYaml(), defaultRenderDir());
     }
+    return;
+  }
+
+  // Rendering and provisioning have opposite cadences: Slack apps are
+  // created rarely and by hand, per-account config is regenerated whenever
+  // anything it derives from moves. A deployer needs the second without
+  // ever risking the first.
+  if (command === "render") {
+    const outFlag = rest.indexOf("--out");
+    const outDir = outFlag !== -1 ? rest[outFlag + 1] : undefined;
+    if (outFlag !== -1 && outDir === undefined) {
+      process.stderr.write("render: --out needs a directory\n");
+      process.exit(2);
+    }
+    renderInto(loadRoster(), loadYaml(), outDir ?? defaultRenderDir());
     return;
   }
 

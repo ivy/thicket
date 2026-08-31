@@ -67,6 +67,19 @@ thicket provision --dry-run   # review the plan
 thicket provision             # create/update apps, render per-account config
 ```
 
+`provision` is for the Slack half: it is rate-limited, it wants a browser for
+the installs, and it should happen rarely and deliberately. The per-account
+config is not like that — it is regenerated whenever the roster, the tailnet
+domain, or anything else it derives from moves. That half has its own command,
+which reads a roster and writes files and touches nothing else:
+
+```sh
+thicket render                     # into ~/.config/thicket/rendered
+thicket render --out /tmp/staging  # somewhere a deploy can stage from
+```
+
+Deployment automation should call `render`, never `provision`.
+
 - Follow each printed `install <agent>: https://...` link to install the app.
 - Upload icons by hand for any agent listed under "manual step" (Slack has no
   API for this).
