@@ -334,6 +334,15 @@ told where to go.
 4.1 for each netd, which has the network on purpose. `deploy/check.sh` fails
 if a runtime drifts above 1.5.
 
+**A restart loop has to be able to end.** Every unit sets a start limit its
+own backoff can reach, and `check.sh` fails if one cannot: `StartLimitBurst`
+attempts at `RestartMaxDelaySec` each must fit inside `StartLimitIntervalSec`.
+systemd's defaults cannot be reached by anything that waits between attempts —
+a ten-second window against a five-second delay fits two — and a unit that
+never exhausts its limit never reaches `failed`. It reports `active` while it
+starts nothing, which is the one state no alert, dashboard or glance is
+watching for.
+
 Three things are off deliberately, each with the reason in the unit:
 
 - **`MemoryDenyWriteExecute`** — Bun compiles as it runs and dies on its

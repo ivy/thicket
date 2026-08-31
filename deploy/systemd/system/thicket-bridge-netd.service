@@ -35,6 +35,14 @@ Restart=on-failure
 RestartSec=5
 RestartSteps=5
 RestartMaxDelaySec=120
+# And a limit it can actually reach. The defaults cannot: a ten-second window
+# against a five-second delay fits two attempts, so a unit that will never
+# start reports `active` forever and nothing downstream can see it — `failed`
+# is the state every alert, dashboard and glance is watching for. With the
+# backoff above capped at 120s, ten attempts take at most twenty minutes and
+# thirty is comfortably past them.
+StartLimitIntervalSec=1800
+StartLimitBurst=10
 
 # The XDG variables both binaries read, pinned at the directories systemd
 # creates and owns: /etc for what the operator writes, /var/lib for what the

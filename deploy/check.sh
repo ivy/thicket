@@ -68,6 +68,22 @@ for unit in $user_units $system_units; do
   grep -q 'NoNewPrivileges=yes' "$unit" || err "$unit: NoNewPrivileges missing"
   grep -q 'ProtectSystem=strict' "$unit" || err "$unit: ProtectSystem missing"
   grep -q 'Restart=on-failure' "$unit" || err "$unit: Restart missing"
+
+  # A restart limit the unit's own backoff can reach. systemd's defaults
+  # cannot be reached by anything that waits between attempts — a ten-second
+  # window against a five-second delay fits two — and a unit that can never
+  # exhaust its limit never reaches `failed`. It reports `active` while it
+  # starts nothing, which is the one state no alert, dashboard or glance is
+  # watching for. That is not hypothetical: it hid a service that was off the
+  # network for twenty-three days.
+  interval=$(sed -n 's/^StartLimitIntervalSec=//p' "$unit")
+  burst=$(sed -n 's/^StartLimitBurst=//p' "$unit")
+  max_delay=$(sed -n 's/^RestartMaxDelaySec=//p' "$unit")
+  if [ -z "$interval" ] || [ -z "$burst" ]; then
+    err "$unit: no start limit, so a restart loop can never end in failure"
+  elif [ -n "$max_delay" ] && [ "$((burst * max_delay))" -gt "$interval" ]; then
+    err "$unit: $burst attempts at up to ${max_delay}s each cannot fit in ${interval}s — the limit is unreachable"
+  fi
 done
 
 # systemd-analyze exists only on systemd hosts; use it when available.
