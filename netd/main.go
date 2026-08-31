@@ -17,8 +17,10 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -131,7 +133,7 @@ func run(ctx context.Context, configPath string, logf *log.Logger) error {
 		return fmt.Errorf("tailnet listener: %w", err)
 	}
 
-	egressLn, err := listenUnix(cfg.EgressSocket)
+	egressLn, err := listenUnix(cfg.EgressSocket, cfg.SocketGroup)
 	if err != nil {
 		return err
 	}
@@ -177,10 +179,14 @@ func run(ctx context.Context, configPath string, logf *log.Logger) error {
 	return serveUntilSignaled(ctx, logf, servers)
 }
 
-// listenUnix listens on path, replacing a stale socket and restricting the
-// socket to the owning account: netd exists so that only tailnet peers, not
-// other local users, can reach agentd.
-func listenUnix(path string) (net.Listener, error) {
+// listenUnix listens on path, replacing a stale socket and keeping other
+// local users out: netd exists so that only tailnet peers reach agentd.
+//
+// With a group, the socket is 0660 and owned by it instead — one step wider,
+// and deliberately: it is what lets netd and the process it fronts be
+// different users, which is what lets a rule that works on uids tell them
+// apart. Without one, nothing is shared and the mode stays 0600.
+func listenUnix(path, group string) (net.Listener, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create runtime dir: %w", err)
 	}
@@ -191,11 +197,44 @@ func listenUnix(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, fmt.Errorf("listen on %s: %w", path, err)
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
+	mode := os.FileMode(0o600)
+	if group != "" {
+		gid, err := lookupGroup(group)
+		if err != nil {
+			ln.Close()
+			return nil, err
+		}
+		if err := os.Chown(path, -1, gid); err != nil {
+			ln.Close()
+			return nil, fmt.Errorf("chgrp %s to %s: %w", path, group, err)
+		}
+		mode = 0o660
+	}
+	if err := os.Chmod(path, mode); err != nil {
 		ln.Close()
 		return nil, fmt.Errorf("chmod %s: %w", path, err)
 	}
 	return ln, nil
+}
+
+// lookupGroup resolves a group name or numeric id. A group that does not
+// exist is a startup failure rather than a socket nobody can reach.
+func lookupGroup(group string) (int, error) {
+	g, err := user.LookupGroup(group)
+	if err != nil {
+		var unknown user.UnknownGroupError
+		if errors.As(err, &unknown) {
+			if gid, convErr := strconv.Atoi(group); convErr == nil {
+				return gid, nil
+			}
+		}
+		return 0, fmt.Errorf("socket_group %q: %w", group, err)
+	}
+	gid, err := strconv.Atoi(g.Gid)
+	if err != nil {
+		return 0, fmt.Errorf("socket_group %q: gid %q is not a number: %w", group, g.Gid, err)
+	}
+	return gid, nil
 }
 
 type serverListener struct {

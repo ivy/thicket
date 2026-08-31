@@ -102,3 +102,21 @@ func TestFunnelSectionIsValidated(t *testing.T) {
 		}
 	}
 }
+
+func TestSocketGroupIsOptional(t *testing.T) {
+	cfg, err := loadConfig(writeConfig(t, `{"hostname": "h", "tag": "tag:thicket-h"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SocketGroup != "" {
+		t.Errorf("SocketGroup = %q, want empty by default", cfg.SocketGroup)
+	}
+
+	cfg, err = loadConfig(writeConfig(t, `{"hostname": "h", "tag": "tag:thicket-h", "socket_group": "thicket"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.SocketGroup != "thicket" {
+		t.Errorf("SocketGroup = %q, want thicket", cfg.SocketGroup)
+	}
+}

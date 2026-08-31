@@ -32,6 +32,11 @@ type Config struct {
 	// exact hostname, or "*.example.com" for the names under it. Nothing
 	// is reachable until a rule names it, so an absent list is no egress.
 	EgressAllow []string `json:"egress_allow,omitempty"`
+	// SocketGroup, when set, owns netd's sockets at mode 0660 instead of
+	// the default 0600. That is what lets netd and the process it fronts
+	// run as different users — which is what lets a firewall rule tell
+	// them apart, since they are otherwise one uid.
+	SocketGroup string `json:"socket_group,omitempty"`
 	// Funnel, when set, exposes one path prefix of one upstream to the
 	// public internet on port 443 through Tailscale Funnel. The public
 	// handler stamps no tags: an internet caller has none, and whatever

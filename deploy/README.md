@@ -180,6 +180,24 @@ netd prints its allowlist at startup and one line per request either way —
 `egress: allow`, with the rule and route that carried it, or `egress: deny`
 with what was asked for and why it was refused.
 
+### One account, or two
+
+By default netd's sockets are 0600: netd and the process it fronts are the
+same unix user, and nobody else on the host can reach either. `socket_group`
+in `netd.json` widens them to 0660 and that group instead, which is what lets
+the two run as **different** users.
+
+That is worth doing where a kernel-level backstop sits behind the unit
+sandboxing. A firewall rule can drop outbound traffic by uid — but only if
+the process that must not have network and the process that must are
+different uids. Sharing one, the rule has to permit everything netd needs,
+which is everything a compromised client would want. Matching on cgroup
+instead does not survive a restart: the path is resolved to an id when the
+rule loads, and a restarted unit gets a new one.
+
+So: netd as its own user with the network, the process it fronts as another
+with none, both in a group that owns the socket between them.
+
 ### The bridge's netd faces inward too
 
 The bridge's netd was already there for egress. Attachments also need the

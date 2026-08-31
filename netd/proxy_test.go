@@ -13,7 +13,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -478,5 +480,72 @@ func TestServeUntilSignaledDrainsInFlightRequests(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("serveUntilSignaled did not return after drain")
+	}
+}
+
+// Without a group the socket is the owning user's alone. netd exists so
+// that other local users cannot reach what is behind it, and that is the
+// default a single-account deployment gets.
+func TestListenUnixKeepsTheSocketPrivateByDefault(t *testing.T) {
+	path := shortSocketPath(t, "egress.sock")
+	ln, err := listenUnix(path, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o600 {
+		t.Errorf("socket mode = %o, want 600", mode)
+	}
+}
+
+// With one, the socket widens to the group and no further: it is what lets
+// netd and the process it fronts be different users, which is what lets a
+// firewall rule that works on uids tell them apart.
+func TestListenUnixSharesWithAGroup(t *testing.T) {
+	groups, err := os.Getgroups()
+	if err != nil || len(groups) == 0 {
+		t.Skip("no supplementary groups to test against")
+	}
+	group := strconv.Itoa(groups[0])
+
+	path := shortSocketPath(t, "egress.sock")
+	ln, err := listenUnix(path, group)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode != 0o660 {
+		t.Errorf("socket mode = %o, want 660", mode)
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		t.Skip("no unix stat available")
+	}
+	if int(stat.Gid) != groups[0] {
+		t.Errorf("socket gid = %d, want %d", stat.Gid, groups[0])
+	}
+}
+
+// A group that does not exist is a startup failure naming it, rather than a
+// socket nobody can reach.
+func TestListenUnixRefusesAnUnknownGroup(t *testing.T) {
+	path := shortSocketPath(t, "egress.sock")
+	ln, err := listenUnix(path, "no-such-group-here")
+	if err == nil {
+		ln.Close()
+		t.Fatal("an unknown group was accepted, want a startup failure")
+	}
+	if !strings.Contains(err.Error(), "no-such-group-here") {
+		t.Errorf("error = %v, want it to name the group", err)
 	}
 }
