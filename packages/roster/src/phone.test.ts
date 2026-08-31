@@ -12,6 +12,7 @@ const minimalAgent = {
   user: "hearth",
   description: "An agent.",
   tag: "tag:thicket-hearth",
+  reach: { operators: "anyone" },
   harness: { type: "claude-agent-sdk", cwd: "/home/hearth", model: "claude-opus-5" },
 };
 

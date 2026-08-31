@@ -59,6 +59,13 @@ export interface EngineOptions {
    * bridge.
    */
   bindings?: Record<string, string>;
+  /**
+   * Roster reach policy: which channels the agent answers in, and whose
+   * turns count. Required, and with no fallback — an engine built without
+   * one would serve the whole workspace, which is exactly the state the
+   * roster now refuses to leave implicit.
+   */
+  reach: { channels: "any" | "listed"; operators: "anyone" | string[] };
 }
 
 /**
@@ -161,6 +168,7 @@ export class BridgeEngine {
   private readonly noteOff = new Set<string>();
   private readonly fileBaseUrl: string | undefined;
   private readonly bindings: Record<string, string>;
+  private readonly reach: { channels: "any" | "listed"; operators: "anyone" | string[] };
   /** Channel id → name, from conversations.info; asked once per channel. */
   private readonly channelNames = new Map<string, string | undefined>();
   constructor(options: EngineOptions) {
@@ -174,6 +182,7 @@ export class BridgeEngine {
     this.fileBaseUrl = options.fileBaseUrl?.replace(/\/+$/, "");
     this.streamTextBudget = options.streamTextBudget ?? STREAM_TEXT_BUDGET;
     this.bindings = options.bindings ?? {};
+    this.reach = options.reach;
   }
 
   /** Reattach to tasks recorded by a previous bridge process. */
@@ -199,6 +208,9 @@ export class BridgeEngine {
       event.kind !== "block_action" &&
       (await this.authoredByBot(event))
     ) {
+      return;
+    }
+    if (!(await this.withinReach(event))) {
       return;
     }
     switch (event.kind) {
@@ -263,6 +275,57 @@ export class BridgeEngine {
         return;
       }
     }
+  }
+
+  /**
+   * The reach fence: does the roster let this event open a turn at all?
+   * Runs after the loop guard and before anything else, so a refused
+   * message costs a log line and no Slack write. It sits behind the loop
+   * guard deliberately: an agent's own post would otherwise be refused
+   * here as "not an operator", which is true but hides why it was
+   * dropped.
+   *
+   * A refusal is silent to whoever sent it. Answering "I don't work here"
+   * is still a reply to someone the operator did not allow, and in an
+   * unlisted channel it advertises an agent to a room that should not
+   * know it exists. The operator reads refusals in the log.
+   */
+  private async withinReach(event: InboundEvent): Promise<boolean> {
+    if (this.reach.channels === "listed" && !event.channel.startsWith("D")) {
+      const bound = await this.workspaceFor(event.channel);
+      if ("error" in bound) {
+        // Fail closed: a channel we cannot name is a channel we cannot
+        // prove is listed.
+        this.logger.warn("reach: refusing a channel that will not resolve", {
+          channel: event.channel,
+          err: bound.error,
+        });
+        return false;
+      }
+      if (bound.workspace === undefined) {
+        this.logger.info("reach: channel is not listed", { channel: event.channel });
+        return false;
+      }
+    }
+    if (this.reach.operators !== "anyone") {
+      // session_stopped carries no author — Slack's stop button is scoped
+      // to a thread the fence already let through.
+      const author =
+        event.kind === "block_action"
+          ? event.userId
+          : event.kind === "session_stopped"
+            ? undefined
+            : event.authorId;
+      const operators = this.reach.operators;
+      if (author !== undefined && !operators.includes(author)) {
+        this.logger.info("reach: author is not an operator", {
+          channel: event.channel,
+          author,
+        });
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
