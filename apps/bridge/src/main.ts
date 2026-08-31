@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 
@@ -12,6 +12,7 @@ import { buildFileServer } from "./http.js";
 import { WebSlackApi } from "./slack-api.js";
 import { SlackSocketConnection } from "./socket.js";
 import { ConnectionSupervisor } from "./supervisor.js";
+import { shareSocketWithGroup } from "./socket-group.js";
 import { BridgeState } from "./state.js";
 
 const QUEUE_FLUSH_INTERVAL_MS = 30_000;
@@ -36,6 +37,13 @@ interface BridgeConfig {
   file_base_url?: string;
   /** Unix socket the file surface listens on; netd's upstream. */
   socket_path?: string;
+  /**
+   * Group that may reach that socket. Set it when netd runs as a different
+   * user from the bridge — which is what lets a firewall rule drop the
+   * bridge's egress and leave netd's alone. Absent: the socket is the
+   * bridge's own, 0600.
+   */
+  socket_group?: string;
   /**
    * Unix socket netd's egress proxy listens on: the bridge's only way out,
    * for Slack and for the agents alike. Default: socketPath("netd-egress").
@@ -90,9 +98,9 @@ async function startFileServer(
   mkdirSync(dirname(path), { recursive: true });
   rmSync(path, { force: true });
   await new Promise<void>((resolve) => server.listen(path, () => resolve()));
-  // Only netd, running as this user, may connect.
-  chmodSync(path, 0o600);
-  logger.info("file surface listening", { addr: path });
+  // Only netd may connect: as this user, or as another one in the group.
+  shareSocketWithGroup(path, config.socket_group);
+  logger.info("file surface listening", { addr: path, group: config.socket_group });
   return { close: () => server.close() };
 }
 

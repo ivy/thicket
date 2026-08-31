@@ -198,6 +198,12 @@ rule loads, and a restarted unit gets a new one.
 So: netd as its own user with the network, the process it fronts as another
 with none, both in a group that owns the socket between them.
 
+The two halves are one decision. `socket_group` in `bridge.json` does the
+same for the file surface — the socket agents fetch uploaded files from,
+which netd proxies to. Split the accounts with only netd's option set and
+netd can no longer reach the bridge; set neither and both stay 0600, which
+is what a single-account deployment wants.
+
 ### The bridge's netd faces inward too
 
 The bridge's netd was already there for egress. Attachments also need the
