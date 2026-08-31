@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -82,6 +83,37 @@ func verifyTag(status *ipnstate.Status, tag string) error {
 	return nil
 }
 
+// nodeName is the name the tailnet actually gave this node: the first label
+// of its MagicDNS name. Empty when the tailnet publishes none.
+func nodeName(status *ipnstate.Status) string {
+	if status.Self == nil {
+		return ""
+	}
+	name, _, _ := strings.Cut(status.Self.DNSName, ".")
+	return name
+}
+
+// verifyHostname confirms the node came up under the name it was configured
+// with. When one of that name already exists, the coordination server assigns
+// a suffixed one — thicket-bridge-1 — and everything that dials this node by
+// name goes to the other one instead: every account's egress_allow, the
+// bridge's base URL, the endpoint an agent is reached on, the public hostname
+// the phone bridge validates its callers against. None of that fails in a way
+// that points here; it fails as a 502 from a node with nothing behind it, or
+// as a hostname that does not resolve.
+//
+// So this refuses to start, for the same reason verifyTag does: a node
+// reachable under the wrong identity is worse than one that did not come up.
+func verifyHostname(status *ipnstate.Status, want string) error {
+	got := nodeName(status)
+	if got == "" || got == want {
+		return nil
+	}
+	return fmt.Errorf("this node registered as %q, not %q: another node already holds that name, "+
+		"so everything that dials %q — egress_allow entries, base URLs, the public hostname — reaches "+
+		"that one and not this. Remove the node holding the name and start again", got, want, want)
+}
+
 // verifyFunnel confirms the node may host Funnel before anything is exposed,
 // naming the tailnet policy that grants it: a node that cannot Funnel would
 // otherwise fail at the first public connection, long after the operator
@@ -134,7 +166,12 @@ func run(ctx context.Context, configPath string, logf *log.Logger) error {
 	if err := verifyTag(status, cfg.Tag); err != nil {
 		return err
 	}
-	logf.Printf("joined tailnet as %s (%v) with tag %s", cfg.Hostname, status.TailscaleIPs, cfg.Tag)
+	if err := verifyHostname(status, cfg.Hostname); err != nil {
+		return err
+	}
+	// The name the tailnet gave, not the one that was asked for: they differ
+	// exactly when something is wrong, and this line is where anyone looks.
+	logf.Printf("joined tailnet as %s (%v) with tag %s", nodeName(status), status.TailscaleIPs, cfg.Tag)
 
 	lc, err := ts.LocalClient()
 	if err != nil {
