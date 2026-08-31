@@ -1,4 +1,4 @@
-import { chmodSync, chownSync } from "node:fs";
+import { chmodSync, chownSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
 /**
@@ -16,7 +16,9 @@ export function shareSocketWithGroup(path: string, group: string | undefined): v
     chmodSync(path, 0o600);
     return;
   }
-  chownSync(path, -1, gidOf(group));
+  // The owner is passed back rather than -1: "leave it alone" is a Node
+  // convention that Bun answers with EINVAL.
+  chownSync(path, statSync(path).uid, gidOf(group));
   chmodSync(path, 0o660);
 }
 
