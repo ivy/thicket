@@ -1,4 +1,5 @@
 import { readFileSync, statSync } from "node:fs";
+import { resolve, sep } from "node:path";
 
 import { z } from "zod";
 
@@ -111,6 +112,19 @@ export function parsePhoneConfig(document: unknown, source: string): PhoneConfig
 }
 
 /**
+ * True when the service manager, rather than the operator, put this file
+ * there. A credential is materialised in a directory the manager owns and
+ * only this service can enter, at whatever mode the manager chose — 0440
+ * where the unit names a group — so its bits say nothing about who else can
+ * read it, and refusing them refuses the safest way there is to hand a
+ * secret to a process.
+ */
+function isServiceCredential(path: string): boolean {
+  const dir = process.env.CREDENTIALS_DIRECTORY;
+  return dir !== undefined && dir !== "" && resolve(path).startsWith(resolve(dir) + sep);
+}
+
+/**
  * Read and validate the config file. Refuses a file readable by anyone
  * but its owner: the PIN and the tokens are in it, and a bridge that
  * starts on a 0644 file has already leaked them to every local user.
@@ -126,7 +140,7 @@ export function loadPhoneConfig(path: string): PhoneConfig {
       `phone config ${path} cannot be read: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
-  if ((mode & 0o077) !== 0) {
+  if ((mode & 0o077) !== 0 && !isServiceCredential(path)) {
     throw new PhoneConfigError(
       `phone config ${path} is mode ${mode.toString(8).padStart(4, "0")}; it holds the PIN and tokens and must be 0600`,
     );

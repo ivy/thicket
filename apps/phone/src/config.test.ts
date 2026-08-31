@@ -118,3 +118,32 @@ test("the socket may be handed to a group, and the field is either a name or abs
   assert.equal(parsePhoneConfig(complete, "phone.json").socket_group, undefined);
   refuses({ ...complete, socket_group: "" }, /socket_group/);
 });
+
+test("a credential the service manager materialised is read whatever mode it carries", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "phone-creds-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "phone.json");
+  writeFileSync(path, JSON.stringify(complete));
+  // What systemd's LoadCredential produces where the unit names a group. The
+  // directory it sits in is the manager's and only this service can enter it,
+  // so the file's own bits say nothing about who else can read it.
+  chmodSync(path, 0o440);
+
+  assert.throws(() => loadPhoneConfig(path), /is mode 0440/);
+
+  const previous = process.env.CREDENTIALS_DIRECTORY;
+  process.env.CREDENTIALS_DIRECTORY = dir;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.CREDENTIALS_DIRECTORY;
+    } else {
+      process.env.CREDENTIALS_DIRECTORY = previous;
+    }
+  });
+  assert.equal(loadPhoneConfig(path).pin, "47290138");
+
+  // And only inside it: a path that merely starts with the same characters
+  // is not in the directory.
+  process.env.CREDENTIALS_DIRECTORY = dir + "-elsewhere";
+  assert.throws(() => loadPhoneConfig(path), /is mode 0440/);
+});
