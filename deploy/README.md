@@ -382,6 +382,20 @@ source would have listed. Two worth knowing:
   `NoNewPrivileges=yes` set, the transition itself needs `nnp_transition` or
   the exec fails `203/EXEC`, which reads like a missing binary.
 
+**Ask the kernel, not the source.** The module's own check refuses a JavaScript
+domain that is granted a network socket class, but that reads the file in this
+repository. What is loaded on a host is a separate question, and one command
+answers it exhaustively — every rule, not the one a probe happened to try:
+
+```sh
+sudo sesearch -A -s thicket_bridge_t -c tcp_socket -p create,connect   # expect: nothing
+sudo sesearch -A -s thicket_phone_t  -c tcp_socket -p create,connect   # expect: nothing
+sudo sesearch -A -s thicket_netd_t   -c tcp_socket -p create,connect   # expect: one rule
+```
+
+`sesearch` is in `setools-console`. The netd rule is the whole design in one
+line: it may open a TCP socket, and the two runtimes beside it may not.
+
 Agent accounts stay unconfined. Their sessions have to do real work, and
 confining them is a different problem.
 
