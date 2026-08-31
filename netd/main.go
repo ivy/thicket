@@ -33,9 +33,22 @@ import (
 
 const shutdownTimeout = 30 * time.Second
 
+// version is stamped by the release build with -ldflags. A binary from a
+// working tree keeps the default and says so, rather than claiming a release
+// it is not.
+var version = "0.0.0-dev"
+
 func main() {
 	configPath := flag.String("config", defaultConfigPath(), "path to netd config")
+	showVersion := flag.Bool("version", false, "print the release this binary was built from")
 	flag.Parse()
+	// Answered before the config is read: a binary should be identifiable
+	// even when its configuration is missing, which is when the question is
+	// usually asked.
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	logf := log.New(os.Stderr, "netd: ", log.LstdFlags|log.Lmsgprefix)
 	if err := run(context.Background(), *configPath, logf); err != nil {

@@ -28,6 +28,9 @@ function healthyProbes(): DoctorProbes {
       { hostname: "thicket-hearth", tags: ["tag:thicket-hearth"] },
       { hostname: "thicket-forge", tags: ["tag:thicket-forge"] },
     ],
+    installedVersions: async () => [
+      { name: "thicket", version: "1.2.3", path: "/usr/local/bin/thicket" },
+    ],
     slackApp: async () => ({ installed: true, socketMode: true }),
     workspaceAppUsage: async () => ({ installed: 4, cap: 10 }),
     startsAtBoot: async () => ({ enabled: true, mechanism: "loginctl lingering" }),
@@ -258,4 +261,26 @@ test("every link of the phone path is reported, and one broken link exits non-ze
   // A host without the phone bridge: nothing to check is not a failure.
   const elsewhere = await runDoctor(ROSTER, { ...healthyProbes(), phoneConfig: async () => undefined, phonePublic: async () => undefined, phoneHealth: async () => undefined, phoneNumber: async () => undefined });
   assert.ok(elsewhere.filter((r) => r.check === "phone").every((r) => r.ok));
+});
+
+// The fleet's processes speak to each other, so they have to move together.
+// Half an upgrade is the failure this catches, and a path cannot see it: a
+// symlink says where a binary came from, not what is in it.
+test("binaries from different releases are a failure, not a note", async () => {
+  const probes = healthyProbes();
+  probes.installedVersions = async () => [
+    { name: "thicket", version: "0.2.0", path: "/usr/local/bin/thicket" },
+    { name: "thicket-agentd", version: "0.1.0", path: "/usr/local/bin/thicket-agentd" },
+  ];
+  const results = await runDoctor(ROSTER, probes);
+  const failure = results.find((r) => r.check === "version" && !r.ok);
+  assert.ok(failure, "a split installation passed");
+  assert.match(failure.message, /disagree/);
+});
+
+test("no thicket executables on PATH is reported rather than passed over", async () => {
+  const probes = healthyProbes();
+  probes.installedVersions = async () => [];
+  const results = await runDoctor(ROSTER, probes);
+  assert.ok(results.some((r) => r.check === "version" && !r.ok));
 });

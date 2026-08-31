@@ -20,4 +20,5 @@ export {
   type CardOptions,
 } from "./card.js";
 export { cacheDir, configDir, stateDir, runtimeDir, socketPath } from "./paths.js";
+export { thicketVersion, DEVELOPMENT_VERSION } from "./version.js";
 export { phoneEnabledAgents, type PhoneAgent } from "./phone.js";

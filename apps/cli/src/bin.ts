@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { egressFetch } from "@thicket/egress";
-import { configDir, parseRoster, socketPath, toAgentCard, type Roster } from "@thicket/roster";
+import { configDir, parseRoster, socketPath, thicketVersion, toAgentCard, type Roster } from "@thicket/roster";
 import { toSlackManifest, type SlackManifest } from "@thicket/slack-manifest";
 
 import { doctorExitCode, formatResults, runDoctor } from "./doctor.js";
@@ -15,7 +15,8 @@ import { FileStore } from "./store.js";
 
 function usage(): never {
   process.stderr.write(
-    "usage: thicket provision [--dry-run] [--agent NAME]\n" +
+    "usage: thicket --version\n" +
+      "       thicket provision [--dry-run] [--agent NAME]\n" +
       "       thicket render [--out DIR]\n" +
       "       thicket doctor\n" +
       "       thicket fleet\n" +
@@ -73,6 +74,13 @@ function renderInto(roster: Roster, rosterYaml: string, outDir: string): void {
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
+
+  // Before the roster is read: a binary should be identifiable even when
+  // its config is missing, which is when the question is usually asked.
+  if (command === "--version" || command === "version") {
+    process.stdout.write(thicketVersion() + "\n");
+    return;
+  }
 
   // Read lazily: the Slack test harness talks only to Slack, and failing
   // for want of a fleet roster it never consults would be a poor error.

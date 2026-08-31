@@ -34,8 +34,8 @@ function archive(platform: Platform, version: string): string {
   const stage = join(OUT_ROOT, `stage-${platform.name}`);
   rmSync(stage, { recursive: true, force: true });
   const bin = join(stage, "bin");
-  compileInto(platform, bin);
-  run(["go", "build", "-o", join(bin, "thicket-netd"), "./netd"], {
+  compileInto(platform, bin, version);
+  run(["go", "build", "-ldflags", `-X main.version=${version}`, "-o", join(bin, "thicket-netd"), "./netd"], {
     // netd's dependencies are pure Go, so the release binary is static and
     // owes nothing to the builder's libc.
     CGO_ENABLED: "0",

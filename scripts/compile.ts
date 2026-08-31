@@ -49,8 +49,15 @@ export function chosenPlatforms(argv: string[]): Platform[] {
   return [host];
 }
 
-/** Compiles every executable for one platform into `outDir`. Returns their paths. */
-export function compileInto(platform: Platform, outDir: string): string[] {
+/**
+ * Compiles every executable for one platform into `outDir`. Returns their
+ * paths.
+ *
+ * `version` is stamped into the binaries: a build from a working tree gets
+ * none and says so, and only a release names one, so `--version` cannot
+ * claim something that was never tagged.
+ */
+export function compileInto(platform: Platform, outDir: string, version?: string): string[] {
   mkdirSync(outDir, { recursive: true });
   return EXECUTABLES.map(({ name, entry }) => {
     const outfile = join(outDir, name);
@@ -60,6 +67,7 @@ export function compileInto(platform: Platform, outDir: string): string[] {
         "build",
         "--compile",
         `--target=${platform.bunTarget}`,
+        `--define=THICKET_BUILD_VERSION=${JSON.stringify(version ?? "")}`,
         "--outfile",
         outfile,
         entry,

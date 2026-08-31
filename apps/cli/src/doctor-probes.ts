@@ -17,6 +17,15 @@ import type { FileStore } from "./store.js";
 
 const execFileAsync = promisify(execFile);
 
+/** Everything the release archive installs, in the order it is listed. */
+const THICKET_EXECUTABLES = [
+  "thicket",
+  "thicket-agentd",
+  "thicket-bridge",
+  "thicket-netd",
+  "thicket-phone",
+];
+
 /**
  * The state directories a heartbeat could be in, most specific first.
  *
@@ -69,6 +78,27 @@ export function realProbes(options: {
   const entryFor = (agent: string): AgentEntry | undefined => options.roster?.agents[agent];
 
   return {
+    async installedVersions() {
+      const found: { name: string; version: string; path: string }[] = [];
+      for (const name of THICKET_EXECUTABLES) {
+        try {
+          const { stdout: which } = await execFileAsync("command", ["-v", name], {
+            shell: "/bin/sh",
+          });
+          const path = which.trim();
+          if (path === "") {
+            continue;
+          }
+          const { stdout } = await execFileAsync(path, ["--version"]);
+          found.push({ name, version: stdout.trim(), path });
+        } catch {
+          // Absent from PATH, or too old to answer: either way there is
+          // nothing to report for this one, and the count below says so.
+        }
+      }
+      return found;
+    },
+
     async fetchCard(agent) {
       const entry = entryFor(agent);
       if (entry === undefined) {

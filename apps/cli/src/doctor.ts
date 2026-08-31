@@ -3,6 +3,8 @@ import { nodeName } from "@thicket/roster";
 
 /** External probes the doctor runs. All read-only; faked in tests. */
 export interface DoctorProbes {
+  /** Every thicket executable on PATH, and the release each reports. */
+  installedVersions(): Promise<{ name: string; version: string; path: string }[]>;
   /** Fetch and parse an agent's card; throws when unreachable/invalid. */
   fetchCard(agent: string): Promise<{ name: string }>;
   /** Tailnet nodes visible to this operator, with their ACL tags. */
@@ -174,6 +176,24 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
         `${entry.user} starts at boot (${lingeringProbe.value.mechanism})`,
         agent,
       );
+    }
+  }
+
+  // What is actually installed, which a path cannot answer: a symlink says
+  // where a binary came from, not what is in it.
+  const versionsProbe = await attempt(() => probes.installedVersions());
+  if (!versionsProbe.ok) {
+    push("version", false, versionsProbe.error);
+  } else if (versionsProbe.value.length === 0) {
+    push("version", false, "no thicket executables on PATH");
+  } else {
+    const versions = new Set(versionsProbe.value.map((v) => v.version));
+    const summary = versionsProbe.value.map((v) => `${v.name} ${v.version}`).join(", ");
+    if (versions.size > 1) {
+      // The fleet's processes speak to each other and must move together.
+      push("version", false, `installed binaries disagree: ${summary}`);
+    } else {
+      push("version", true, `installed: ${summary}`);
     }
   }
 
