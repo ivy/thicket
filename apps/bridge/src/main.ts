@@ -215,10 +215,15 @@ export async function run(
   const writeHealth = () => {
     try {
       const doc = { ts: new Date().toISOString(), agents: supervisor.health() };
-      // 0640, not the unit's 0077 umask: the heartbeat exists to be read by
-      // an operator running `thicket doctor` from their own account, and a
-      // file only this service can read answers no question.
-      writeFileSync(healthPath + ".tmp", JSON.stringify(doc) + "\n", { mode: 0o640 });
+      // 0644, not the unit's 0077 umask. The heartbeat exists to be read by
+      // an operator running `thicket doctor` from their own account, and the
+      // directory above decides who can get to it: private under a user
+      // deployment, the service manager's 0755 under a system one. A mode
+      // that admits only the service's own group admits nobody at all — that
+      // group has one member, and putting the operator in it would hand them
+      // the account that holds every token to read a timestamp. Nothing here
+      // is a secret: a time, and how many connections or calls are up.
+      writeFileSync(healthPath + ".tmp", JSON.stringify(doc) + "\n", { mode: 0o644 });
       renameSync(healthPath + ".tmp", healthPath);
     } catch (err) {
       logger.warn("health file write failed", { path: healthPath, err: String(err) });

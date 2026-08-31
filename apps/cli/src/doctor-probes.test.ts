@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -101,4 +101,34 @@ test("the health probe reads the system layout before this account's", async (t)
 test("startsAtBoot names the mechanism it asked about", async () => {
   const result = await realProbes().startsAtBoot("hearth", process.env.USER ?? "root");
   assert.match(result.mechanism, process.platform === "darwin" ? /launchd/ : /loginctl/);
+});
+
+test("a heartbeat that cannot be read is reported, not mistaken for no deployment", async (t) => {
+  if (process.getuid?.() === 0) {
+    t.skip("root reads everything; this distinction only exists for an ordinary account");
+    return;
+  }
+  const home = mkdtempSync(join(tmpdir(), "doctor-state-"));
+  t.after(() => {
+    chmodSync(join(home, "thicket", "bridge"), 0o700);
+    rmSync(home, { recursive: true, force: true });
+  });
+  const dir = join(home, "thicket", "bridge");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "health.json"), JSON.stringify({ ts: new Date().toISOString(), agents: [] }));
+  // What a system-unit deployment looked like before the heartbeat was
+  // written for the operator: the file is there and the account is shut out.
+  chmodSync(dir, 0o000);
+
+  const previous = process.env.XDG_STATE_HOME;
+  process.env.XDG_STATE_HOME = home;
+  t.after(() => {
+    if (previous === undefined) {
+      delete process.env.XDG_STATE_HOME;
+    } else {
+      process.env.XDG_STATE_HOME = previous;
+    }
+  });
+
+  await assert.rejects(() => realProbes().bridgeHealth(), /cannot read it/);
 });

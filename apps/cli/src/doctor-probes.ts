@@ -43,13 +43,30 @@ async function readHealth<T>(component: string): Promise<(T & { source?: string 
     { dir: SYSTEM_STATE_DIR, source: `${SYSTEM_STATE_DIR} (system unit)` },
     { dir: stateDir(), source: `${stateDir()} (this account)` },
   ];
+  let shutOutOf: string | undefined;
   for (const { dir, source } of candidates) {
+    const path = join(dir, component, "health.json");
     try {
-      const raw = await readFile(join(dir, component, "health.json"), "utf8");
+      const raw = await readFile(path, "utf8");
       return { ...(JSON.parse(raw) as T), source };
-    } catch {
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "EACCES" || code === "EPERM") {
+        // A heartbeat that is there and cannot be read is not the same thing
+        // as no deployment on this host: the component may be serving
+        // perfectly and this account simply cannot see it. Held rather than
+        // raised, because a readable one further down still answers the
+        // question — this only matters when nothing does.
+        shutOutOf ??= path;
+      }
       // Absent or unparsable both mean "not here"; try the next shape.
     }
+  }
+  if (shutOutOf !== undefined) {
+    throw new Error(
+      `${shutOutOf} exists but this account cannot read it — the heartbeat is written for the operator, ` +
+        `so a mode or a directory above it is wrong`,
+    );
   }
   return undefined;
 }

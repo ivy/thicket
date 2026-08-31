@@ -32,6 +32,10 @@ ConfigurationDirectory=thicket
 # keeps its state in the sibling one, and two units that each declare the
 # parent fight over who owns it.
 StateDirectory=thicket/phone
+# Explicit, because the heartbeat below it is written for an operator
+# running `thicket doctor` from their own account: a directory only
+# this service can enter makes that file unreadable whatever its mode.
+StateDirectoryMode=0755
 # netd creates and owns /run/thicket-phone; the bridge is ordered after it and
 # writes its own socket there as a member of the group. Its own directory,
 # because the socket names under it are the same as the Slack bridge pair's.
