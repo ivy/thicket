@@ -27,7 +27,11 @@ export interface DoctorProbes {
    */
   phoneNumber(): Promise<{ number: string; drift: string[] } | undefined>;
   /** The phone bridge's config on this host: loadable, 0600, PIN and allow-list present (undefined: none here). */
-  phoneConfig(): Promise<{ ok: true } | { ok: false; error: string } | undefined>;
+  phoneConfig(): Promise<
+    | { ok: true; source: string; unreadable?: true }
+    | { ok: false; error: string; source: string }
+    | undefined
+  >;
   /** The public hostname answering, as Twilio would see it (undefined: no twilio.json to name it). */
   phonePublic(): Promise<{ url: string; status: number } | undefined>;
   /** The phone bridge's heartbeat file, if a phone bridge runs on this host. */
@@ -254,9 +258,21 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
   } else if (phoneConfigProbe.value === undefined) {
     push("phone", true, "no phone.json on this host — the phone bridge does not run here");
   } else if (!phoneConfigProbe.value.ok) {
-    push("phone", false, `phone.json will not load: ${phoneConfigProbe.value.error}`);
+    push("phone", false, `phone.json will not load: ${phoneConfigProbe.value.error} (${phoneConfigProbe.value.source})`);
+  } else if (phoneConfigProbe.value.unreadable === true) {
+    // Not a failure: a system unit is handed this file as a credential, so
+    // the copy on disk is root's and nobody else's business to read.
+    push(
+      "phone",
+      true,
+      `phone.json is present and readable only by root, as a system-unit deployment wants (${phoneConfigProbe.value.source})`,
+    );
   } else {
-    push("phone", true, "phone.json loads: PIN, allow-list, and the Twilio auth token are present");
+    push(
+      "phone",
+      true,
+      `phone.json loads: PIN, allow-list, and the Twilio auth token are present (${phoneConfigProbe.value.source})`,
+    );
   }
 
   const publicProbe = await attempt(() => probes.phonePublic());

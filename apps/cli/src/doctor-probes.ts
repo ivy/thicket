@@ -37,6 +37,7 @@ const THICKET_EXECUTABLES = [
  * visible rather than silent.
  */
 const SYSTEM_STATE_DIR = "/var/lib/thicket";
+const SYSTEM_CONFIG_DIR = "/etc/thicket";
 
 async function readHealth<T>(component: string): Promise<(T & { source?: string }) | undefined> {
   const candidates = [
@@ -193,20 +194,35 @@ export function realProbes(options: {
     },
 
     async phoneConfig() {
-      const path = join(configDir(), "phone.json");
-      try {
-        await readFile(path);
-      } catch {
-        return undefined;
+      // Two layouts, as with the heartbeat. A system-unit deployment keeps
+      // this file in /etc, root's alone, and hands the bridge a copy — so an
+      // operator running doctor as themselves *cannot* read it, and that is
+      // the file being right rather than absent. Reporting it as missing told
+      // them the bridge does not run on a host where it was serving.
+      const candidates = [
+        { path: join(SYSTEM_CONFIG_DIR, "phone.json"), source: `${SYSTEM_CONFIG_DIR} (system unit)` },
+        { path: join(configDir(), "phone.json"), source: `${configDir()} (this account)` },
+      ];
+      for (const { path, source } of candidates) {
+        try {
+          await readFile(path);
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          if (code === "EACCES" || code === "EPERM") {
+            return { ok: true as const, source, unreadable: true as const };
+          }
+          continue;
+        }
+        // The bridge's own loader, so doctor and the bridge disagree about nothing.
+        const { loadPhoneConfig } = await import("@thicket/phone");
+        try {
+          loadPhoneConfig(path);
+          return { ok: true as const, source };
+        } catch (err) {
+          return { ok: false as const, error: err instanceof Error ? err.message : String(err), source };
+        }
       }
-      // The bridge's own loader, so doctor and the bridge disagree about nothing.
-      const { loadPhoneConfig } = await import("@thicket/phone");
-      try {
-        loadPhoneConfig(path);
-        return { ok: true };
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : String(err) };
-      }
+      return undefined;
     },
 
     async phonePublic() {

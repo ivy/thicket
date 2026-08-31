@@ -35,7 +35,7 @@ function healthyProbes(): DoctorProbes {
     workspaceAppUsage: async () => ({ installed: 4, cap: 10 }),
     startsAtBoot: async () => ({ enabled: true, mechanism: "loginctl lingering" }),
     phoneNumber: async () => ({ number: "+15550100002", drift: [] }),
-    phoneConfig: async () => ({ ok: true }),
+    phoneConfig: async () => ({ ok: true, source: "/etc/thicket (system unit)" }),
     phonePublic: async () => ({ url: "https://thicket-phone.tail0000.ts.net/", status: 404 }),
     phoneHealth: async () => ({ ts: new Date().toISOString(), openCalls: 0 }),
     bridgeHealth: async () => ({
@@ -244,7 +244,7 @@ test("every link of the phone path is reported, and one broken link exits non-ze
   assert.equal(doctorExitCode(healthy), 0);
 
   const cases: Array<[Partial<DoctorProbes>, RegExp]> = [
-    [{ phoneConfig: async () => ({ ok: false, error: "phone config /x/phone.json is invalid:\n  pin: the PIN is exactly eight digits" }) }, /phone\.json will not load: [\s\S]*pin: the PIN is exactly eight digits/],
+    [{ phoneConfig: async () => ({ ok: false, source: "/x (this account)", error: "phone config /x/phone.json is invalid:\n  pin: the PIN is exactly eight digits" }) }, /phone\.json will not load: [\s\S]*pin: the PIN is exactly eight digits/],
     [{ phonePublic: async () => { throw new Error("fetch failed"); } }, /public hostname not answering: .*fetch failed — is the phone account's netd up/],
     [{ phonePublic: async () => ({ url: "https://x/", status: 502 }) }, /answered HTTP 502, not the bridge's 404 — netd is up but nothing is listening behind it: the phone bridge is down/],
     [{ phonePublic: async () => ({ url: "https://x/", status: 200 }) }, /answered HTTP 200, not the bridge's 404 — something else is in front/],
@@ -283,4 +283,23 @@ test("no thicket executables on PATH is reported rather than passed over", async
   probes.installedVersions = async () => [];
   const results = await runDoctor(ROSTER, probes);
   assert.ok(results.some((r) => r.check === "version" && !r.ok));
+});
+
+test("a phone config only root can read is the file being right, not missing", async () => {
+  // A system-unit deployment keeps phone.json in /etc, root's alone, and hands
+  // the bridge a copy. An operator running doctor as themselves cannot read
+  // it — and reporting that as "the phone bridge does not run here" told them
+  // the opposite of the truth on a host where it was serving.
+  const probes = healthyProbes();
+  probes.phoneConfig = async () => ({
+    ok: true as const,
+    source: "/etc/thicket (system unit)",
+    unreadable: true as const,
+  });
+  const results = await runDoctor(ROSTER, probes);
+  const line = results.find((r) => /phone\.json/.test(r.message));
+  assert.ok(line, "no phone.json line");
+  assert.equal(line.ok, true);
+  assert.match(line.message, /readable only by root.*system unit/);
+  assert.doesNotMatch(line.message, /does not run here/);
 });
