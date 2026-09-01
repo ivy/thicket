@@ -97,7 +97,12 @@ class FakeSlack implements SlackApi {
     this.calls.push({ type: "startStream", channel, threadTs, ts });
     return ts;
   }
+  /** When set, appendStream rejects with it (a message Slack has ended). */
+  appendError: Error | undefined;
   async appendStream(channel: string, ts: string, text: string) {
+    if (this.appendError !== undefined) {
+      throw this.appendError;
+    }
     this.calls.push({ type: "append", channel, ts, text });
   }
   async appendActivity(channel: string, ts: string, activity: AgentActivity) {
@@ -106,7 +111,12 @@ class FakeSlack implements SlackApi {
     }
     this.calls.push({ type: "activity", channel, ts, activity });
   }
+  /** When set, stopStream rejects with it (nothing left to stop). */
+  stopError: Error | undefined;
   async stopStream(channel: string, ts: string) {
+    if (this.stopError !== undefined) {
+      throw this.stopError;
+    }
     this.calls.push({ type: "stop", channel, ts });
   }
   /** Reactions the bridge added; when reactionError is set, adds reject. */
@@ -1118,6 +1128,81 @@ test("a long answer rolls over to fresh streamed messages at word boundaries", a
   const [first, second] = [...appendsByStream.values()];
   assert.equal(first, "aaaa bbbb cccc dddd eeee ffff gggg hhhh");
   assert.equal(second, "iiii jjjj");
+  assert.equal(r.slack.lastStatus(), "active");
+  r.state.close();
+});
+
+test("a stream Slack ends mid-answer costs the cards, not the turn", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      activityEvent("t1", { id: "a1", title: "Reading", status: "running" }),
+      artifactEvent("t1", "the answer ", false, false),
+      artifactEvent("t1", "in two chunks", true, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  // Slack ended the streamed message when it refused the first append, so
+  // stopping it is refused too — the shape of a real msg_too_long turn.
+  r.slack.appendError = new Error("An API error occurred: msg_too_long");
+  r.slack.stopError = new Error("An API error occurred: message_not_in_streaming_state");
+  await r.engine.handleEvent(dm("write me something long"));
+
+  assert.deepEqual(r.slack.posts(), ["the answer in two chunks"], "the answer still arrives");
+  assert.equal(r.slack.lastStatus(), "active", "the turn settles normally");
+  assert.ok(
+    !r.slack.posts().some((p) => /went wrong/i.test(p)),
+    "a delivered answer is not reported as a failure",
+  );
+  assert.ok(r.warnings.some((w) => w.includes("stream refused")));
+  r.state.close();
+});
+
+test("nothing is appended to a stream Slack has already refused", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "one ", false, false),
+      artifactEvent("t1", "two ", true, false),
+      artifactEvent("t1", "three", true, true),
+      activityEvent("t1", { id: "a1", title: "Still working", status: "running" }),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  r.slack.appendError = new Error("An API error occurred: msg_too_long");
+  await r.engine.handleEvent(dm("hello"));
+
+  const appends = r.slack.calls.filter((c) => c.type === "append" || c.type === "activity");
+  assert.equal(appends.length, 0, "the refused append is the last one attempted");
+  assert.equal(r.slack.calls.filter((c) => c.type === "stop").length, 0, "and it is not stopped");
+  assert.deepEqual(r.slack.posts(), ["one two three"]);
+  r.state.close();
+});
+
+test("a turn of many small steps rolls over before Slack refuses it", async () => {
+  const cards: AgentActivity[] = Array.from({ length: 6 }, (_, i) => ({
+    id: `a${i}`,
+    title: `Step number ${i}`,
+    status: "running" as const,
+  }));
+  const r = rig(
+    {
+      script: () => [
+        taskEvent("t1", "ctx"),
+        activityEvent("t1", ...cards),
+        // The same cards again, settling: an update in place, not more message.
+        activityEvent("t1", ...cards.map((c) => ({ ...c, status: "done" as const }))),
+        artifactEvent("t1", "done", true, true),
+        statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+      ],
+    },
+    { streamTextBudget: 160 },
+  );
+  await r.engine.handleEvent(dm("do a lot of small things"));
+
+  const starts = r.slack.calls.filter((c) => c.type === "startStream").length;
+  assert.ok(starts > 1, `the timeline spans several messages (got ${starts})`);
+  assert.equal(r.slack.posts().length, 0, "nothing had to fall back to a plain message");
   assert.equal(r.slack.lastStatus(), "active");
   r.state.close();
 });
