@@ -19,6 +19,7 @@ import {
   META_SLACK_THREAD,
   META_WORKSPACE,
   type A2AEvent,
+  type AgentActivity,
   type AgentClient,
   type InboundEvent,
   type SlackApi,
@@ -68,13 +69,27 @@ export interface EngineOptions {
 const REPLAY_LIMIT = 50;
 
 /**
- * Appended text per streamed message before rolling over to a fresh one.
- * A streamed message was observed to hit msg_too_long around 3k chars of
- * text plus its task cards, and Slack starts making its own arbitrary
+ * Appended content per streamed message before rolling over to a fresh
+ * one. A streamed message was observed to hit msg_too_long around 3k chars
+ * of text plus its task cards, and Slack starts making its own arbitrary
  * splits past 4k; staying under both keeps every break at a boundary we
  * chose.
  */
 const STREAM_TEXT_BUDGET = 2_800;
+
+/**
+ * What a task card costs the message beyond the text it shows. Slack draws
+ * each card as its own block, so a timeline of short steps weighs far more
+ * than the characters in it: one refusal was measured at 29 cards against
+ * 54 characters of answer. Charging cards keeps a tool-heavy turn rolling
+ * over on a boundary of ours rather than being refused on one of Slack's.
+ */
+const CARD_OVERHEAD = 40;
+
+/** What one card costs against a streamed message's budget. */
+function cardCost(activity: AgentActivity): number {
+  return activity.title.length + (activity.details?.length ?? 0) + CARD_OVERHEAD;
+}
 
 const TERMINAL = new Set([
   TaskState.TASK_STATE_COMPLETED,
@@ -154,8 +169,12 @@ export class BridgeEngine {
   private readonly activityOff = new Set<string>();
   /** Answer text buffered for tasks whose stream Slack refused. */
   private readonly streamlessText = new Map<string, string>();
-  /** Text appended to each task's current stream, against the budget. */
+  /** Tasks whose streamed message Slack has ended; nothing more may go in. */
+  private readonly streamOff = new Set<string>();
+  /** Content appended to each task's current stream, against the budget. */
   private readonly streamedChars = new Map<string, number>();
+  /** Card ids already charged to the current stream, per task. */
+  private readonly chargedCards = new Map<string, Set<string>>();
   private readonly streamTextBudget: number;
   /** Threads whose prose status line was abandoned after a rejection. */
   private readonly noteOff = new Set<string>();
@@ -724,19 +743,19 @@ export class BridgeEngine {
         // Streaming is presentation, never worth losing the answer: if
         // Slack refuses the stream, buffer the text and deliver it as a
         // plain message when the turn settles.
+        if (this.streamOff.has(event.taskId)) {
+          this.buffer(event.taskId, event.text);
+          return;
+        }
         try {
           await this.appendWithRollover(event, channel, threadTs);
         } catch (err) {
-          if (!this.streamlessText.has(event.taskId)) {
-            this.logger.warn("stream refused; will deliver as a message", {
-              taskId: event.taskId,
-              err: String(err),
-            });
-          }
-          this.streamlessText.set(
-            event.taskId,
-            (this.streamlessText.get(event.taskId) ?? "") + event.text,
-          );
+          this.logger.warn("stream refused; will deliver as a message", {
+            taskId: event.taskId,
+            err: String(err),
+          });
+          this.abandonStream(event.taskId);
+          this.buffer(event.taskId, event.text);
         }
         return;
       }
@@ -747,8 +766,9 @@ export class BridgeEngine {
           return;
         }
         try {
-          const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
           for (const activity of event.activities) {
+            await this.chargeCard(event.taskId, channel, activity);
+            const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
             await this.slack.appendActivity(channel, streamTs, activity);
             if (activity.status === "running") {
               // The card timeline is the record; the status line is the
@@ -858,6 +878,49 @@ export class BridgeEngine {
     return streamTs;
   }
 
+  /** Answer text held back for a task whose stream cannot carry it. */
+  private buffer(taskId: string, text: string): void {
+    this.streamlessText.set(taskId, (this.streamlessText.get(taskId) ?? "") + text);
+  }
+
+  /**
+   * Slack ended this task's streamed message — refusing an append is how it
+   * says so. Nothing more can go into it, and closing it would be refused
+   * too, so the stream is dropped rather than stopped and the rest of the
+   * turn is delivered as plain messages.
+   */
+  private abandonStream(taskId: string): void {
+    this.streamOff.add(taskId);
+    this.activityOff.add(taskId);
+    this.streamedChars.delete(taskId);
+    this.chargedCards.delete(taskId);
+    this.state.setStreamTs(taskId, null);
+  }
+
+  /**
+   * Charges a card against the current message, rolling over first when it
+   * would not fit. Charged once per card id: the same id arriving again is
+   * Slack redrawing that card in place, not more message.
+   */
+  private async chargeCard(taskId: string, channel: string, activity: AgentActivity): Promise<void> {
+    let charged = this.chargedCards.get(taskId);
+    if (charged?.has(activity.id) === true) {
+      return;
+    }
+    const cost = cardCost(activity);
+    const used = this.streamedChars.get(taskId) ?? 0;
+    if (used > 0 && used + cost > this.streamTextBudget) {
+      await this.closeStream(taskId, channel);
+      charged = undefined;
+    }
+    if (charged === undefined) {
+      charged = new Set<string>();
+      this.chargedCards.set(taskId, charged);
+    }
+    charged.add(activity.id);
+    this.streamedChars.set(taskId, (this.streamedChars.get(taskId) ?? 0) + cost);
+  }
+
   /**
    * A turn whose last act is a tool call never emits a final text chunk, so
    * the terminal state — not lastChunk — is what guarantees the stream is
@@ -865,12 +928,20 @@ export class BridgeEngine {
    */
   private async closeStream(taskId: string, channel: string): Promise<void> {
     this.streamedChars.delete(taskId);
+    this.chargedCards.delete(taskId);
     const streamTs = this.state.taskById(taskId)?.streamTs;
     if (streamTs == null) {
       return;
     }
     this.state.setStreamTs(taskId, null);
-    await this.slack.stopStream(channel, streamTs);
+    try {
+      await this.slack.stopStream(channel, streamTs);
+    } catch (err) {
+      // Closing is presentation, like the cards and the status line. Slack
+      // may have ended the message on its own, and by here the answer has
+      // already reached the thread one way or the other.
+      this.logger.warn("stream close refused", { taskId, err: String(err) });
+    }
   }
 
   private async applyStatus(
@@ -921,6 +992,7 @@ export class BridgeEngine {
       // otherwise leave its last step on screen until Slack's timeout.
       await this.note(channel, threadTs, "");
       this.activityOff.delete(taskId);
+      this.streamOff.delete(taskId);
       this.state.removeTask(taskId);
       const queuedTurns = Number(metadata?.[META_QUEUED_TURN_COUNT] ?? 0);
       if (queuedTurns > 0) {
