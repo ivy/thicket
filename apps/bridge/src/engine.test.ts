@@ -1158,6 +1158,24 @@ test("a stream Slack ends mid-answer costs the cards, not the turn", async () =>
   r.state.close();
 });
 
+test("a stream that cannot be closed is still a finished turn", async () => {
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      artifactEvent("t1", "the whole answer", true, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  // Slack ended the message on its own; the answer had already streamed in.
+  r.slack.stopError = new Error("An API error occurred: message_not_in_streaming_state");
+  await r.engine.handleEvent(dm("hello"));
+
+  assert.deepEqual(r.slack.posts(), [], "the answer streamed, and is not repeated");
+  assert.equal(r.slack.lastStatus(), "active", "the turn settles normally");
+  assert.ok(r.warnings.some((w) => w.includes("stream close refused")));
+  r.state.close();
+});
+
 test("nothing is appended to a stream Slack has already refused", async () => {
   const r = rig({
     script: () => [
