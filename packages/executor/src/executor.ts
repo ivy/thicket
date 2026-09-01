@@ -66,10 +66,11 @@ export function messageText(message: Message): string {
 }
 
 /**
- * One line saying where the conversation is, when it is in Slack: the
- * ids the toolbelt's thread-taking tools want, so "read this thread back"
- * is answerable. A message from anywhere else — local Claude Code over
- * MCP, a schedule — carries no coordinates and gets no line.
+ * One line saying where the conversation is, when it is in Slack. The reply
+ * reaches the thread by itself, so the ids are not an invitation to post or
+ * read there — they are for the tools that have to name a place, upload_file
+ * above all. A message from anywhere else — local Claude Code over MCP, a
+ * schedule — carries no coordinates and gets no line.
  */
 export function threadPreamble(inbound: Message): string {
   const channel = inbound.metadata?.[META_SLACK_CHANNEL];
@@ -78,9 +79,10 @@ export function threadPreamble(inbound: Message): string {
     return "";
   }
   return (
-    `You are in Slack channel ${channel}, thread ${thread}. For your thicket ` +
-    `tools, "this thread" is channel=${channel} with thread_ts=${thread} ` +
-    `(read_thread takes it as ts).\n\n`
+    `You are in Slack channel ${channel}, thread ${thread}. Your reply reaches ` +
+    `that thread on its own — no tool sends it. The ids are for the thicket ` +
+    `tools that must name a place: uploading a file here, or reaching a ` +
+    `conversation you are not answering in.\n\n`
   );
 }
 

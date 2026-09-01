@@ -14,6 +14,8 @@ import {
   uploadFile,
   type ToolbeltOptions,
 } from "./toolbelt.js";
+import { REDUNDANT_CALL } from "@thicket/executor";
+
 import { RoutineStore } from "./store/routines.js";
 
 function options(
@@ -50,6 +52,24 @@ test("a 403 from the bridge is a refusal the model is told not to retry", async 
   assert.equal(result.isError, true);
   assert.match(result.content[0]!.text, /not_in_channel/);
   assert.match(result.content[0]!.text, /Do not retry/);
+});
+
+test("a call the bridge calls redundant is marked for the timeline to drop", async () => {
+  const { opts } = options(() =>
+    Response.json(
+      { error: "you are answering in that thread right now", redundant: true },
+      { status: 403 },
+    ),
+  );
+  const outcome = await postMessage(opts, { channel: "D1", thread_ts: "1.1", text: "hi" });
+  assert.equal(outcome.outcome, "redundant");
+  const result = toToolResult(outcome);
+  assert.equal(result.isError, true);
+  assert.match(result.content[0]!.text, /answering in that thread/);
+  assert.ok(
+    result.content[0]!.text.includes(REDUNDANT_CALL),
+    "the marker the translator drops the card on",
+  );
 });
 
 test("an unreachable bridge is a failure, not a thrown turn", async () => {

@@ -20,6 +20,7 @@ export {
   describeToolUse,
   parseAgentActivity,
   ACTIVITY_ICONS,
+  REDUNDANT_CALL,
   type AgentActivity,
   type AgentActivityIcon,
   type AgentActivityStatus,

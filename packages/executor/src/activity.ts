@@ -9,6 +9,14 @@
  * is the only consumer that draws them and it accepts nothing else.
  */
 
+/**
+ * Token a tool result carries when the call was refused because what it
+ * asked for is already happening — posting into the thread the turn is
+ * already answering, reading a thread the turn already carries. The step
+ * leaves no card behind: nothing went wrong, and nobody was waiting on it.
+ */
+export const REDUNDANT_CALL = "[thicket:redundant]";
+
 /** Artifact id carrying the activity stream of a task. */
 export const ACTIVITY_ARTIFACT_ID = "agent-activity";
 

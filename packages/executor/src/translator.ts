@@ -13,6 +13,7 @@ import {
   ACTIVITY_ARTIFACT_ID,
   ACTIVITY_MEDIA_TYPE,
   activity,
+  REDUNDANT_CALL,
   describeToolUse,
   type AgentActivity,
   type AgentActivityStatus,
@@ -86,7 +87,33 @@ export interface TurnAccounting {
 }
 
 /** The fields a card keeps when its status changes. */
-type OpenCard = Pick<ToolDescription, "title" | "icon">;
+type OpenCard = Pick<ToolDescription, "title" | "details" | "icon"> & {
+  /**
+   * Held back until the result: a toolbelt call refused as redundant
+   * should leave no trace, and a card cannot be taken off the timeline
+   * once it is drawn.
+   */
+  deferred?: true;
+};
+
+/** The agent's own Slack toolbelt, whose steps are held until they settle. */
+const TOOLBELT_PREFIX = "mcp__thicket__";
+
+/** Whether a tool_result says the call was refused as already happening. */
+function refusedAsRedundant(content: unknown): boolean {
+  const text =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content
+            .map((block) => {
+              const record = asRecord(block);
+              return record !== undefined && typeof record.text === "string" ? record.text : "";
+            })
+            .join("")
+        : "";
+  return text.includes(REDUNDANT_CALL);
+}
 
 interface OpenTurn {
   send: PendingSend;
@@ -349,6 +376,9 @@ export class TurnTranslator {
       }
       turn.openTools.delete(id);
       this.flushText(turn, false);
+      if (open.deferred === true && refusedAsRedundant(record.content)) {
+        continue;
+      }
       this.emitActivity(turn, activity(id, record.is_error === true ? "failed" : "done", open));
     }
   }
@@ -360,11 +390,23 @@ export class TurnTranslator {
     }
     const described = describeToolUse(name, block.input);
     const card = activity(id, "running", described);
+    const deferred = name.startsWith(TOOLBELT_PREFIX);
     // The closing update redraws the card, so it carries the icon again.
-    turn.openTools.set(id, { title: card.title, ...(card.icon === undefined ? {} : { icon: card.icon }) });
+    turn.openTools.set(id, {
+      title: card.title,
+      ...(card.icon === undefined ? {} : { icon: card.icon }),
+      // A card drawn once carries its detail line; a redrawn one does not,
+      // because the card it replaces already showed it.
+      ...(deferred ? { deferred: true as const, ...(card.details === undefined ? {} : { details: card.details }) } : {}),
+    });
     turn.toolNames.add(name);
     // Text already buffered belongs ahead of the card it precedes.
     this.flushText(turn, false);
+    if (deferred) {
+      // Nothing to show yet: these calls settle in well under a second,
+      // and one refused as redundant must leave nothing behind at all.
+      return;
+    }
     this.emitActivity(turn, card);
   }
 
