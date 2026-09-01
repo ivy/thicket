@@ -175,6 +175,159 @@ test("an agent posts a message through the bridge; the token stays on the bridge
   assert.equal(r.upstream.calls[0]!.auth, "Bearer xoxb-hearth", "hearth's own token, held by the bridge");
 });
 
+test("the thread an agent is answering in refuses a second delivery of the same reply", async (t) => {
+  const r = await rig(() => slackOk({ channel: "D1", ts: "9.9" }));
+  t.after(() => r.close());
+  r.state.recordTask({
+    taskId: "t1",
+    agent: "hearth",
+    channel: "D1",
+    threadTs: "1.1",
+    streamTs: "2.2",
+    messageTs: "1.5",
+    opening: false,
+  });
+
+  const res = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+    body: JSON.stringify({ channel: "D1", thread_ts: "1.1", text: "here is my answer" }),
+  });
+  assert.equal(res.status, 403);
+  assert.equal(
+    ((await res.json()) as { redundant?: boolean }).redundant,
+    true,
+    "not a permission problem: the reply is already going there",
+  );
+  assert.equal(r.upstream.calls.length, 0, "Slack is never asked");
+});
+
+test("a scheduled run reports into its own thread, because nothing else can", async (t) => {
+  const r = await rig(() => slackOk({ channel: "D1", ts: "9.9" }));
+  t.after(() => r.close());
+  // No task: a routine turn is not one the bridge started, and its reply
+  // text goes nowhere.
+  const res = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+    body: JSON.stringify({ channel: "D1", thread_ts: "1.1", text: "the thing you asked about" }),
+  });
+  assert.equal(res.status, 200);
+  assert.equal(r.upstream.calls.length, 1);
+});
+
+test("answering in one thread does not close the others off", async (t) => {
+  const r = await rig(() => slackOk({ channel: "C42", ts: "9.9" }));
+  t.after(() => r.close());
+  r.state.recordTask({
+    taskId: "t1",
+    agent: "hearth",
+    channel: "D1",
+    threadTs: "1.1",
+    streamTs: "2.2",
+    messageTs: "1.5",
+    opening: false,
+  });
+
+  for (const body of [
+    { channel: "C42", thread_ts: "7.7", text: "elsewhere" },
+    { channel: "D1", thread_ts: "8.8", text: "another thread here" },
+    { channel: "D1", text: "the channel, not the thread" },
+  ]) {
+    const res = await fetch(`${r.url}/api/messages`, {
+      method: "POST",
+      headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    assert.equal(res.status, 200, JSON.stringify(body));
+  }
+  assert.equal(r.upstream.calls.length, 3);
+});
+
+test("a thread the turn already carries is not read back", async (t) => {
+  const r = await rig(() => slackOk({ messages: [] }));
+  t.after(() => r.close());
+  // Engaged before this turn: everything since was delivered as it arrived.
+  r.state.recordTask({
+    taskId: "t1",
+    agent: "hearth",
+    channel: "D1",
+    threadTs: "1.1",
+    streamTs: null,
+    messageTs: "1.5",
+    opening: false,
+  });
+
+  const res = await fetch(`${r.url}/api/replies?channel=D1&ts=1.1`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  assert.equal(res.status, 403);
+  assert.equal(((await res.json()) as { redundant?: boolean }).redundant, true);
+  assert.equal(r.upstream.calls.length, 0, "no conversations.replies for a thread it has");
+});
+
+test("a thread whose own message opened it has nothing above to read", async (t) => {
+  const r = await rig(() => slackOk({ messages: [] }));
+  t.after(() => r.close());
+  r.state.recordTask({
+    taskId: "t1",
+    agent: "hearth",
+    channel: "D1",
+    threadTs: "1.1",
+    streamTs: null,
+    messageTs: "1.1",
+    opening: true,
+  });
+
+  const res = await fetch(`${r.url}/api/replies?channel=D1&ts=1.1`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  assert.equal(res.status, 403);
+  assert.equal(r.upstream.calls.length, 0);
+});
+
+test("a thread the agent has just been mentioned into is read back", async (t) => {
+  const r = await rig(() => slackOk({ messages: [] }));
+  t.after(() => r.close());
+  // First engagement, and the mention is not the thread's first message:
+  // what was said above it was never delivered.
+  r.state.recordTask({
+    taskId: "t1",
+    agent: "hearth",
+    channel: "C42",
+    threadTs: "1.1",
+    streamTs: null,
+    messageTs: "5.5",
+    opening: true,
+  });
+
+  const res = await fetch(`${r.url}/api/replies?channel=C42&ts=1.1`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  assert.equal(res.status, 200);
+  assert.equal(r.upstream.calls.length, 1);
+  assert.match(r.upstream.calls[0]!.url, /conversations\.replies/);
+});
+
+test("another agent's open turn does not decide what this one may read", async (t) => {
+  const r = await rig(() => slackOk({ messages: [] }));
+  t.after(() => r.close());
+  r.state.recordTask({
+    taskId: "t1",
+    agent: "forge",
+    channel: "D1",
+    threadTs: "1.1",
+    streamTs: "2.2",
+    messageTs: "1.5",
+    opening: false,
+  });
+
+  const res = await fetch(`${r.url}/api/replies?channel=D1&ts=1.1`, {
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG },
+  });
+  assert.equal(res.status, 200);
+});
+
 test("a channel the app is not in is refused as an authorization decision", async (t) => {
   const r = await rig(() => slackError("not_in_channel"));
   t.after(() => r.close());

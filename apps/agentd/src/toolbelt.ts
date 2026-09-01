@@ -2,6 +2,7 @@ import { readFile, stat } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
 
 import { createSdkMcpServer, tool, type McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
+import { REDUNDANT_CALL } from "@thicket/executor";
 import { z } from "zod";
 
 import { parseCron } from "./cron.js";
@@ -35,12 +36,14 @@ export interface ToolbeltOptions {
 /**
  * Outcome of a bridge call, in words the model can act on. `refused` is
  * the bridge answering an authorization question — retrying will not
- * help, but a different channel might. `failed` is transport or Slack
- * trouble that may be transient.
+ * help, but a different channel might. `redundant` is the bridge saying
+ * the call had nothing to do: what it asked for is already happening.
+ * `failed` is transport or Slack trouble that may be transient.
  */
 export type ToolOutcome =
   | { outcome: "ok"; detail: Record<string, unknown> }
   | { outcome: "refused"; error: string }
+  | { outcome: "redundant"; error: string }
   | { outcome: "failed"; error: string };
 
 async function callBridge(
@@ -64,7 +67,8 @@ async function callBridge(
     return { outcome: "failed", error: `bridge returned ${response.status} with no body` };
   }
   if (response.status === 403) {
-    return { outcome: "refused", error: String(body.error ?? "refused") };
+    const error = String(body.error ?? "refused");
+    return body.redundant === true ? { outcome: "redundant", error } : { outcome: "refused", error };
   }
   if (!response.ok) {
     return { outcome: "failed", error: String(body.error ?? `bridge returned ${response.status}`) };
@@ -166,7 +170,9 @@ export function toToolResult(outcome: ToolOutcome): {
       ? `Refused by the bridge: ${outcome.error}. This is an authorization decision — ` +
         `the app is not in that conversation (or it does not exist). Do not retry the ` +
         `same channel; tell the user what you needed.`
-      : `Failed: ${outcome.error}. This may be transient.`;
+      : outcome.outcome === "redundant"
+        ? `Nothing to do: ${outcome.error} ${REDUNDANT_CALL}`
+        : `Failed: ${outcome.error}. This may be transient.`;
   return { isError: true, content: [{ type: "text", text }] };
 }
 
@@ -360,11 +366,13 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
     tools: [
       tool(
         "post_message",
-        "Post a message to Slack as this agent. Works only where the agent's app " +
+        "Post a message to Slack as this agent, somewhere other than the thread " +
+          "you are answering: another channel, a DM with someone, or the thread a " +
+          "scheduled run was asked to report into. The thread you are answering " +
+          "needs no tool — your reply is delivered there when the turn ends, and " +
+          "posting into it as well is refused. Works only where the agent's app " +
           "already is: a channel it has been added to, or a DM it has with someone. " +
-          "channel takes a channel ID (C…/D…); thread_ts replies in a thread. To " +
-          "post in the conversation you are answering, use the channel and " +
-          "thread_ts named at the top of the turn.",
+          "channel takes a channel ID (C…/D…); thread_ts replies in a thread.",
         {
           channel: z.string().min(1).describe("channel ID, e.g. C0123456789"),
           text: z.string().min(1).describe("message text (Slack markdown)"),
@@ -375,9 +383,10 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
       tool(
         "upload_file",
         "Upload a local file to a Slack conversation as this agent. Same reach as " +
-          "post_message: the agent's app must already be in the channel or DM. The " +
-          "conversation you are answering is the channel and thread_ts named at the " +
-          "top of the turn.",
+          "post_message: the agent's app must already be in the channel or DM. A " +
+          "file has no other way into a conversation, so the thread you are " +
+          "answering is an ordinary destination here — the channel and thread_ts " +
+          "named at the top of the turn.",
         {
           path: z.string().min(1).describe("file path; relative paths resolve against the session cwd"),
           channel: z.string().min(1).describe("channel ID to share the file into"),
@@ -426,9 +435,11 @@ export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithI
       tool(
         "read_thread",
         "Read a Slack thread's messages, oldest first, given its channel and the " +
-          "parent message's ts. \"This thread\" — the one you are answering in — is " +
-          "the channel and thread_ts named at the top of the turn; pass that " +
-          "thread_ts as ts.",
+          "parent message's ts. Use it for a thread other than the one you are " +
+          "answering, or when you have just been brought into a running thread and " +
+          "what was said before you arrived is new to you. The thread you are " +
+          "answering already reached you as it was written; reading that one back " +
+          "is refused.",
         {
           channel: z.string().min(1).describe("channel ID the thread lives in"),
           ts: z.string().min(1).describe("the thread parent's ts"),

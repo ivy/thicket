@@ -437,6 +437,7 @@ export class BridgeEngine {
           contextId,
           messageTs,
           authorId,
+          opening,
         );
       } else {
         const task = await this.client.send(message);
@@ -645,11 +646,12 @@ export class BridgeEngine {
     sentContextId: string | undefined,
     messageTs?: string,
     authorId?: string,
+    opening?: boolean,
   ): Promise<void> {
     const key = `${channel}:${threadTs}`;
     this.turnsOpen.set(key, (this.turnsOpen.get(key) ?? 0) + 1);
     try {
-      await this.pump(events, channel, threadTs, sentContextId, messageTs, authorId);
+      await this.pump(events, channel, threadTs, sentContextId, messageTs, authorId, opening);
     } finally {
       const left = (this.turnsOpen.get(key) ?? 1) - 1;
       this.turnsOpen.set(key, left);
@@ -671,9 +673,10 @@ export class BridgeEngine {
     sentContextId: string | undefined,
     messageTs?: string,
     authorId?: string,
+    opening?: boolean,
   ): Promise<void> {
     for await (const event of events) {
-      await this.handleA2AEvent(event, channel, threadTs, sentContextId, messageTs, authorId);
+      await this.handleA2AEvent(event, channel, threadTs, sentContextId, messageTs, authorId, opening);
     }
   }
 
@@ -684,6 +687,7 @@ export class BridgeEngine {
     sentContextId: string | undefined,
     messageTs?: string,
     authorId?: string,
+    opening?: boolean,
   ): Promise<void> {
     switch (event.kind) {
       case "task": {
@@ -697,6 +701,9 @@ export class BridgeEngine {
           // and its author: who a channel stream is addressed to.
           messageTs: messageTs ?? null,
           authorId: authorId ?? null,
+          // Whether the thread's earlier messages were ever delivered:
+          // what says if reading it back can tell the agent anything.
+          opening: opening ?? null,
         });
         if (sentContextId !== undefined && event.task.contextId !== sentContextId) {
           // The agent minted its own contextId; persist and use it from

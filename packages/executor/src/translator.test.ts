@@ -10,6 +10,7 @@ import { TurnTranslator, ASSISTANT_TEXT_ARTIFACT_ID } from "./translator.js";
 import {
   ACTIVITY_ARTIFACT_ID,
   parseAgentActivity,
+  REDUNDANT_CALL,
   type AgentActivity,
 } from "./activity.js";
 import { META_QUESTIONS } from "./questions.js";
@@ -154,6 +155,34 @@ test("tool-use turn: the tool_use opens a card and its tool_result closes it", (
     cardEvents.every((e) => e.data.lastChunk === false),
     "the activity stream is never closed by a chunk flag",
   );
+});
+
+/** The same turn, with its one tool call made through the agent's toolbelt. */
+function toolbeltTurn(result: string): SDKMessage[] {
+  const raw = JSON.stringify(loadFixture("tool-use-turn"))
+    .replace('"name":"Bash"', '"name":"mcp__thicket__post_message"')
+    .replace('"content":"Tue Aug 26 2026"', `"content":${JSON.stringify(result)}`);
+  return JSON.parse(raw) as SDKMessage[];
+}
+
+test("a toolbelt call refused as already happening leaves no card behind", () => {
+  const h = harness();
+  h.translator.registerSend(send("send-tool", 1));
+  run(h, toolbeltTurn(`Nothing to do: you are answering in that thread. ${REDUNDANT_CALL}`));
+
+  assert.deepEqual(activities(h.events), [], "the step was never worth showing");
+  assert.equal(artifactText(h.events), "Checking the date. Today is Tuesday, August 26th.");
+  assert.equal(terminalStatus(h.events).status?.state, TaskState.TASK_STATE_COMPLETED);
+});
+
+test("a toolbelt call that does something draws one card, settled", () => {
+  const h = harness();
+  h.translator.registerSend(send("send-tool", 1));
+  run(h, toolbeltTurn('{"ok":true,"ts":"9.9"}'));
+
+  const cards = activities(h.events);
+  assert.equal(cards.length, 1, "held until it settled, so it is drawn once");
+  assert.equal(cards[0]?.status, "done");
 });
 
 test("the card appears after the text it follows, not before", () => {

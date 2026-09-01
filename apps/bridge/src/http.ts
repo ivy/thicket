@@ -5,7 +5,7 @@ import { pipeline } from "node:stream/promises";
 
 import { deriveSessionId } from "@thicket/executor";
 
-import type { BridgeState } from "./state.js";
+import type { BridgeState, InFlightTask } from "./state.js";
 
 /** Header netd stamps with the caller's WhoIs-verified ACL tags. */
 export const PEER_TAGS_HEADER = "x-thicket-peer-tags";
@@ -184,6 +184,34 @@ export function buildFileServer(options: FileServerOptions): express.Express {
     return { ok: true, body: body as Record<string, unknown> };
   };
 
+  /**
+   * The open turn this agent is answering in that thread, if any. Only
+   * turns the bridge itself started from a Slack message are here, which
+   * is exactly the distinction that matters: a routine or a one-shot has
+   * no turn, no stream, and no other way to reach the thread it reports
+   * into.
+   */
+  const turnIn = (agent: string, channel: string, threadTs: string): InFlightTask | undefined =>
+    state
+      .allTasks()
+      .find((task) => task.agent === agent && task.channel === channel && task.threadTs === threadTs);
+
+  /**
+   * A refusal the agent can act on. `redundant` marks the kind that is not
+   * a permission problem at all: the thing asked for is already happening,
+   * so the step is dropped from the timeline rather than shown as a failure.
+   */
+  const refuse = (
+    res: Response,
+    agent: string,
+    action: string,
+    error: string,
+    redundant = false,
+  ): void => {
+    logger.warn("refused agent slack action", { agent, action, error });
+    res.status(403).json({ error, ...(redundant ? { redundant: true } : {}) });
+  };
+
   const refuseOrFail = (res: Response, agent: string, action: string, error: string): void => {
     if (SLACK_REFUSALS.has(error)) {
       logger.warn("refused agent slack action", { agent, action, error });
@@ -206,6 +234,19 @@ export function buildFileServer(options: FileServerOptions): express.Express {
       return;
     }
     const threadTs = typeof body.thread_ts === "string" ? body.thread_ts : undefined;
+    if (threadTs !== undefined && turnIn(agent, body.channel, threadTs) !== undefined) {
+      refuse(
+        res,
+        agent,
+        "post",
+        "you are answering in that thread right now, and your reply is delivered " +
+          "there when the turn ends. Say it in the reply instead of posting it. " +
+          "post_message is for a conversation you are not answering in, and for " +
+          "scheduled runs, whose reply text goes nowhere.",
+        true,
+      );
+      return;
+    }
     void (async () => {
       const result = await slackCall(agent, "chat.postMessage", {
         channel: body.channel as string,
@@ -455,13 +496,23 @@ export function buildFileServer(options: FileServerOptions): express.Express {
   const readRoute = (
     path: string,
     action: string,
-    handle: (req: Request) => { error: string } | { method: string; params: Record<string, string>; render: (body: Record<string, unknown>) => Record<string, unknown> },
+    handle: (
+      req: Request,
+      agent: string,
+    ) =>
+      | { error: string }
+      | { refused: string }
+      | { method: string; params: Record<string, string>; render: (body: Record<string, unknown>) => Record<string, unknown> },
   ): void => {
     app.get(path, identify, (req, res) => {
       const agent = res.locals.agent as string;
-      const plan = handle(req);
+      const plan = handle(req, agent);
       if ("error" in plan) {
         res.status(400).json({ error: plan.error });
+        return;
+      }
+      if ("refused" in plan) {
+        refuse(res, agent, action, plan.refused, true);
         return;
       }
       void (async () => {
@@ -502,11 +553,25 @@ export function buildFileServer(options: FileServerOptions): express.Express {
     };
   });
 
-  readRoute("/api/replies", "replies", (req) => {
+  readRoute("/api/replies", "replies", (req, agent) => {
     const channel = String(req.query.channel ?? "");
     const ts = String(req.query.ts ?? "");
     if (channel === "" || ts === "") {
       return { error: "channel and ts are required" };
+    }
+    // A turn that did not open its thread was given every message since it
+    // did; a turn whose own message is the thread's root has nothing above
+    // it. Either way the agent already holds what a read would return. What
+    // is left — being mentioned into a thread that was already running — is
+    // the one case where the messages above were never delivered.
+    const turn = turnIn(agent, channel, ts);
+    if (turn !== undefined && (turn.opening !== true || turn.messageTs === ts)) {
+      return {
+        refused:
+          "you already have this thread: its messages reached you as they were " +
+          "sent. read_thread is for another thread, or for one you have just " +
+          "been brought into, where what was said before you arrived is new to you.",
+      };
     }
     return {
       method: "conversations.replies",

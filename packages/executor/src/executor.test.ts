@@ -416,7 +416,11 @@ test("a message from Slack tells the model where it is; one from anywhere else d
 
   const prompt = String(session.sent[0]?.message.content);
   assert.match(prompt, /channel D0123, thread 1724650000\.000100/);
-  assert.match(prompt, /channel=D0123 with thread_ts=1724650000\.000100/);
+  assert.match(
+    prompt,
+    /reply reaches that thread on its own/,
+    "the coordinates locate the conversation; they are not a way to answer it",
+  );
   assert.ok(
     prompt.indexOf("D0123") < prompt.indexOf("read this thread back"),
     "where you are is context; the user's words stay the instruction",

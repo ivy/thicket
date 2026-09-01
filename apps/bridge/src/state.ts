@@ -12,6 +12,12 @@ export interface InFlightTask {
   messageTs?: string | null;
   /** Slack user id of the turn's author; the stream's recipient. */
   authorId?: string | null;
+  /**
+   * Whether this turn engaged the thread for the first time. A turn that
+   * did not was given everything said since; a turn that did was given
+   * only its own message, and anything above it the agent has never seen.
+   */
+  opening?: boolean | null;
 }
 
 function parseIds(raw: string): string[] {
@@ -125,6 +131,7 @@ export class BridgeState {
     this.addColumn("queued", "author", "TEXT");
     this.addColumn("tasks", "message_ts", "TEXT");
     this.addColumn("tasks", "author", "TEXT");
+    this.addColumn("tasks", "opening", "INTEGER");
   }
 
   /**
@@ -146,8 +153,8 @@ export class BridgeState {
   recordTask(task: InFlightTask): void {
     this.db
       .prepare(
-        `INSERT OR REPLACE INTO tasks (task_id, agent, channel, thread_ts, stream_ts, message_ts, author, created_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO tasks (task_id, agent, channel, thread_ts, stream_ts, message_ts, author, opening, created_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         task.taskId,
@@ -157,6 +164,7 @@ export class BridgeState {
         task.streamTs,
         task.messageTs ?? null,
         task.authorId ?? null,
+        task.opening === undefined || task.opening === null ? null : Number(task.opening),
         Date.now(),
       );
   }
@@ -168,9 +176,18 @@ export class BridgeState {
 
   taskById(taskId: string): InFlightTask | undefined {
     const row = this.db
-      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author FROM tasks WHERE task_id = ?")
+      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author, opening FROM tasks WHERE task_id = ?")
       .get(taskId) as
-      | { task_id: string; agent: string; channel: string; thread_ts: string; stream_ts: string | null; message_ts: string | null; author: string | null }
+      | {
+          task_id: string;
+          agent: string;
+          channel: string;
+          thread_ts: string;
+          stream_ts: string | null;
+          message_ts: string | null;
+          author: string | null;
+          opening: number | null;
+        }
       | undefined;
     return row === undefined
       ? undefined
@@ -182,13 +199,14 @@ export class BridgeState {
           streamTs: row.stream_ts,
           messageTs: row.message_ts,
           authorId: row.author,
+          opening: row.opening === null ? null : row.opening === 1,
         };
   }
 
   tasksForThread(channel: string, threadTs: string): InFlightTask[] {
     const rows = this.db
       .prepare(
-        "SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author FROM tasks WHERE channel = ? AND thread_ts = ? ORDER BY created_ms",
+        "SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author, opening FROM tasks WHERE channel = ? AND thread_ts = ? ORDER BY created_ms",
       )
       .all(channel, threadTs) as {
       task_id: string;
@@ -198,6 +216,7 @@ export class BridgeState {
       stream_ts: string | null;
       message_ts: string | null;
       author: string | null;
+      opening: number | null;
     }[];
     return rows.map((row) => ({
       taskId: row.task_id,
@@ -207,12 +226,13 @@ export class BridgeState {
       streamTs: row.stream_ts,
       messageTs: row.message_ts,
       authorId: row.author,
+      opening: row.opening === null ? null : row.opening === 1,
     }));
   }
 
   allTasks(): InFlightTask[] {
     const rows = this.db
-      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author FROM tasks ORDER BY created_ms")
+      .prepare("SELECT task_id, agent, channel, thread_ts, stream_ts, message_ts, author, opening FROM tasks ORDER BY created_ms")
       .all() as {
       task_id: string;
       agent: string;
@@ -221,6 +241,7 @@ export class BridgeState {
       stream_ts: string | null;
       message_ts: string | null;
       author: string | null;
+      opening: number | null;
     }[];
     return rows.map((row) => ({
       taskId: row.task_id,
@@ -230,6 +251,7 @@ export class BridgeState {
       streamTs: row.stream_ts,
       messageTs: row.message_ts,
       authorId: row.author,
+      opening: row.opening === null ? null : row.opening === 1,
     }));
   }
 
