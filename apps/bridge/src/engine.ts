@@ -2,6 +2,7 @@ import { TaskState } from "@a2a-js/sdk";
 import type { Message, Task } from "@a2a-js/sdk";
 import { deriveSessionId, parseAgentQuestions, type AgentQuestion } from "@thicket/executor";
 
+import { reopen, START, takeChunk, type Cursor } from "./markdown.js";
 import {
   answerText,
   decodeAnswers,
@@ -89,6 +90,11 @@ const CARD_OVERHEAD = 40;
 /** What one card costs against a streamed message's budget. */
 function cardCost(activity: AgentActivity): number {
   return activity.title.length + (activity.details?.length ?? 0) + CARD_OVERHEAD;
+}
+
+/** What closing the cursor's open fence costs the message carrying it. */
+function closeCost(cursor: Cursor): number {
+  return cursor.fence === undefined ? 0 : cursor.fence.marker.length + 1;
 }
 
 /**
@@ -180,6 +186,14 @@ export class BridgeEngine {
   private readonly streamOff = new Set<string>();
   /** Content appended to each task's current stream, against the budget. */
   private readonly streamedChars = new Map<string, number>();
+  /**
+   * Where the Markdown scan of each task's answer has reached. It outlives
+   * the message it was written into: a fence open when one message rolls
+   * over is what the next one reopens with.
+   */
+  private readonly streamCursor = new Map<string, Cursor>();
+  /** Tasks whose current message still owes the reopening of a fence. */
+  private readonly streamReopen = new Set<string>();
   /** Card ids already charged to the current stream, per task. */
   private readonly chargedCards = new Map<string, Set<string>>();
   /** Steps still running per task, oldest first: card id → title. */
@@ -849,11 +863,11 @@ export class BridgeEngine {
 
   /**
    * Appends a text chunk to the task's stream, rolling over to a fresh
-   * streamed message when the budget would be exceeded — split inside
-   * the chunk at a whitespace boundary, because SDK deltas break
-   * mid-word and Slack's own overflow behaviour is worse (observed: a
-   * word amputated across two messages). Each rolled-over message is
-   * closed cleanly before the next begins.
+   * streamed message when the budget would be exceeded — split by
+   * ./markdown.js, because SDK deltas break mid-word and Slack's own
+   * overflow behaviour is worse (observed: a word amputated across two
+   * messages). Each rolled-over message is closed cleanly before the next
+   * begins, and a code block spanning the break is closed and reopened.
    */
   private async appendWithRollover(
     event: { taskId: string; text: string; lastChunk: boolean },
@@ -863,27 +877,31 @@ export class BridgeEngine {
     let text = event.text;
     while (text !== "") {
       const used = this.streamedChars.get(event.taskId) ?? 0;
-      const left = this.streamTextBudget - used;
-      if (text.length <= left) {
+      const cursor = this.streamCursor.get(event.taskId) ?? START;
+      // A message opened after a rollover owes the fence its predecessor
+      // left open, whatever else it has carried since — a card may have
+      // been charged to it first.
+      const prefix = this.streamReopen.has(event.taskId) ? reopen(cursor) : "";
+      const left = this.streamTextBudget - used - prefix.length;
+      // Cards are charged against the same budget, so a message can have
+      // no room left for content once the fence bookkeeping is paid. Roll
+      // over rather than spend a message on a character and a half.
+      if (used > 0 && left < 1 + closeCost(cursor)) {
+        await this.closeStream(event.taskId, channel);
+        continue;
+      }
+      const chunk = takeChunk(text, Math.max(left, 1), cursor);
+      if (chunk.head !== "") {
         const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
-        await this.slack.appendStream(channel, streamTs, text);
-        this.streamedChars.set(event.taskId, used + text.length);
-        break;
+        await this.slack.appendStream(channel, streamTs, prefix + chunk.head);
+        this.streamedChars.set(event.taskId, used + prefix.length + chunk.head.length);
+        this.streamReopen.delete(event.taskId);
       }
-      // Head that fits, ending at whitespace; nothing fits cleanly on a
-      // fresh stream only when one unbroken run exceeds the whole
-      // budget, and then a hard cut beats an infinite loop.
-      const window = text.slice(0, Math.max(left, 0));
-      let head = Math.max(window.lastIndexOf("\n"), window.lastIndexOf(" "));
-      if (head <= 0) {
-        head = used === 0 ? Math.max(left, 1) : 0;
+      this.streamCursor.set(event.taskId, chunk.cursor);
+      text = chunk.rest;
+      if (text !== "") {
+        await this.closeStream(event.taskId, channel);
       }
-      if (head > 0) {
-        const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
-        await this.slack.appendStream(channel, streamTs, text.slice(0, head));
-      }
-      await this.closeStream(event.taskId, channel);
-      text = text.slice(head).replace(/^[ \n]+/, "");
     }
     if (event.lastChunk) {
       await this.closeStream(event.taskId, channel);
@@ -925,6 +943,8 @@ export class BridgeEngine {
     this.activityOff.add(taskId);
     this.streamedChars.delete(taskId);
     this.chargedCards.delete(taskId);
+    this.streamCursor.delete(taskId);
+    this.streamReopen.delete(taskId);
     this.state.setStreamTs(taskId, null);
   }
 
@@ -941,6 +961,7 @@ export class BridgeEngine {
     const cost = cardCost(activity);
     const used = this.streamedChars.get(taskId) ?? 0;
     if (used > 0 && used + cost > this.streamTextBudget) {
+      await this.sealFence(taskId, channel);
       await this.closeStream(taskId, channel);
       charged = undefined;
     }
@@ -953,6 +974,29 @@ export class BridgeEngine {
   }
 
   /**
+   * Closes an open fence on the message about to be rolled over. The
+   * splitter closes the fences on breaks it chose; this is for the break a
+   * card forces, where the text was never offered a cut point.
+   */
+  private async sealFence(taskId: string, channel: string): Promise<void> {
+    const cursor = this.streamCursor.get(taskId);
+    const streamTs = this.state.taskById(taskId)?.streamTs;
+    if (cursor?.fence === undefined || streamTs == null) {
+      return;
+    }
+    try {
+      // The closer is a line of its own; the text needs one only if it did
+      // not already end with a newline.
+      const eol = cursor.partial === "" ? "" : "\n";
+      await this.slack.appendStream(channel, streamTs, `${eol}${cursor.fence.marker}`);
+    } catch (err) {
+      // Presentation, like the close itself: the message renders as code
+      // to its end either way, and the next one reopens the block.
+      this.logger.warn("fence close refused", { taskId, err: String(err) });
+    }
+  }
+
+  /**
    * A turn whose last act is a tool call never emits a final text chunk, so
    * the terminal state — not lastChunk — is what guarantees the stream is
    * closed.
@@ -960,6 +1004,13 @@ export class BridgeEngine {
   private async closeStream(taskId: string, channel: string): Promise<void> {
     this.streamedChars.delete(taskId);
     this.chargedCards.delete(taskId);
+    const cursor = this.streamCursor.get(taskId);
+    if (cursor?.fence !== undefined) {
+      // A fresh message starts a fresh line, and starts it inside the
+      // block this one was still writing.
+      this.streamCursor.set(taskId, { fence: cursor.fence, partial: "" });
+      this.streamReopen.add(taskId);
+    }
     const streamTs = this.state.taskById(taskId)?.streamTs;
     if (streamTs == null) {
       return;
@@ -1025,6 +1076,8 @@ export class BridgeEngine {
       this.activityOff.delete(taskId);
       this.streamOff.delete(taskId);
       this.openCards.delete(taskId);
+      this.streamCursor.delete(taskId);
+      this.streamReopen.delete(taskId);
       this.state.removeTask(taskId);
       const queuedTurns = Number(metadata?.[META_QUEUED_TURN_COUNT] ?? 0);
       if (queuedTurns > 0) {
