@@ -91,6 +91,13 @@ function cardCost(activity: AgentActivity): number {
   return activity.title.length + (activity.details?.length ?? 0) + CARD_OVERHEAD;
 }
 
+/**
+ * What the status line reads when no step is open: the agent is between
+ * tool calls, which is a real state and a long one — the model is
+ * thinking, and the thread would otherwise show nothing at all.
+ */
+const THINKING = "is thinking…";
+
 const TERMINAL = new Set([
   TaskState.TASK_STATE_COMPLETED,
   TaskState.TASK_STATE_FAILED,
@@ -175,6 +182,8 @@ export class BridgeEngine {
   private readonly streamedChars = new Map<string, number>();
   /** Card ids already charged to the current stream, per task. */
   private readonly chargedCards = new Map<string, Set<string>>();
+  /** Steps still running per task, oldest first: card id → title. */
+  private readonly openCards = new Map<string, Map<string, string>>();
   private readonly streamTextBudget: number;
   /** Threads whose prose status line was abandoned after a rejection. */
   private readonly noteOff = new Set<string>();
@@ -410,7 +419,7 @@ export class BridgeEngine {
       opening ? { title: sessionTitle(text) } : undefined,
     );
     // Something to read during the seconds before the first tool call.
-    await this.note(channel, threadTs, "is thinking…");
+    await this.note(channel, threadTs, THINKING);
 
     const bound = await this.workspaceFor(channel);
     if ("error" in bound) {
@@ -770,11 +779,11 @@ export class BridgeEngine {
             await this.chargeCard(event.taskId, channel, activity);
             const streamTs = await this.ensureStream(event.taskId, channel, threadTs);
             await this.slack.appendActivity(channel, streamTs, activity);
-            if (activity.status === "running") {
-              // The card timeline is the record; the status line is the
-              // glance. Only the opening of a step is worth announcing.
-              await this.note(channel, threadTs, `${activity.title}…`);
-            }
+            // Appending the card is itself a send, and a send clears the
+            // prose line, so every transition has to write back what the
+            // thread should be showing — including a close, which returns
+            // the thread to thinking.
+            await this.note(channel, threadTs, this.stepLine(event.taskId, activity));
           }
         } catch (err) {
           this.activityOff.add(event.taskId);
@@ -797,6 +806,28 @@ export class BridgeEngine {
         return;
       }
     }
+  }
+
+  /**
+   * What the status line should read once a card has moved. The card
+   * timeline is the record and the status line is the glance, so the
+   * glance follows the newest step still running — and when the last one
+   * closes it falls back to thinking rather than to nothing, because the
+   * agent is still working and the next step may be a minute away.
+   */
+  private stepLine(taskId: string, activity: AgentActivity): string {
+    let open = this.openCards.get(taskId);
+    if (open === undefined) {
+      open = new Map<string, string>();
+      this.openCards.set(taskId, open);
+    }
+    if (activity.status === "running") {
+      open.set(activity.id, activity.title);
+    } else {
+      open.delete(activity.id);
+    }
+    const newest = [...open.values()].at(-1);
+    return newest === undefined ? THINKING : `${newest}…`;
   }
 
   /**
@@ -993,6 +1024,7 @@ export class BridgeEngine {
       await this.note(channel, threadTs, "");
       this.activityOff.delete(taskId);
       this.streamOff.delete(taskId);
+      this.openCards.delete(taskId);
       this.state.removeTask(taskId);
       const queuedTurns = Number(metadata?.[META_QUEUED_TURN_COUNT] ?? 0);
       if (queuedTurns > 0) {

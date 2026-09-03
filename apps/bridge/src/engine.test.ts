@@ -498,7 +498,8 @@ test("activity opens the stream before any text and updates the card in place", 
     "startStream",
     "activity", // card opens
     "note", // and the prose line follows it
-    "activity", // card closes; no second note
+    "activity", // card closes
+    "note", // back to thinking: the card's send cleared the line
     "append",
     "stop",
     "note", // cleared
@@ -506,7 +507,7 @@ test("activity opens the stream before any text and updates the card in place", 
   ]);
   assert.deepEqual(
     r.slack.calls.filter((c) => c.type === "note").map((c) => c.status),
-    ["is thinking…", "Checking memory pressure…", ""],
+    ["is thinking…", "Checking memory pressure…", "is thinking…", ""],
   );
   const cards = r.slack.calls.filter((c) => c.type === "activity");
   assert.deepEqual(
@@ -520,6 +521,37 @@ test("activity opens the stream before any text and updates the card in place", 
   assert.ok(
     cards.every((c) => c.ts === started.ts),
     "cards land on the thread's stream",
+  );
+  r.state.close();
+});
+
+test("the status line survives a gap between tool calls, and parallel steps", async () => {
+  const one: AgentActivity = { id: "toolu_1", title: "Reading a file", status: "running" };
+  const two: AgentActivity = { id: "toolu_2", title: "Running a command", status: "running" };
+  const r = rig({
+    script: () => [
+      taskEvent("t1", "ctx"),
+      activityEvent("t1", one, two),
+      // The first of the pair closes while the second is still running:
+      // the glance belongs to what is still open, not to thinking.
+      activityEvent("t1", { ...one, status: "done" }),
+      activityEvent("t1", { ...two, status: "done" }),
+      artifactEvent("t1", "Done.", false, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  await r.engine.handleEvent(dm("look at both"));
+
+  assert.deepEqual(
+    r.slack.calls.filter((c) => c.type === "note").map((c) => c.status),
+    [
+      "is thinking…",
+      "Reading a file…",
+      "Running a command…",
+      "Running a command…", // one closed, two still open
+      "is thinking…", // both closed: the gap the model spends thinking
+      "", // the turn ends
+    ],
   );
   r.state.close();
 });

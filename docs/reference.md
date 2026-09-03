@@ -51,6 +51,7 @@ Verified against upstream; re-check before assuming any of it drifted.
 | `@a2a-js/sdk` v1.0.1 provides server, client, `TaskStore`, `AgentExecutor`, push notifications | npm |
 | Slack agent sessions are app-scoped and keyed by `channel_id` + `thread_ts` | https://docs.slack.dev/ai/agent-sessions |
 | `agents.sessions.setStatus` and `assistant.threads.setStatus` are complementary, not successive: the first drives the session lifecycle (`active`/`processing`/`suspended`/`closed`, the loading indicator and stop button), the second writes the prose line under the app's name. Only the latter's accepted *scope* is narrowing. | https://docs.slack.dev/reference/methods/agents.sessions.setStatus, https://docs.slack.dev/reference/methods/assistant.threads.setStatus |
+| Slack clears the prose status line on its own: the app sending anything into the thread clears it (a `chat.appendStream` chunk counts), and a two-minute timeout clears it otherwise. It is a line to re-assert, not a line to set once. | https://docs.slack.dev/reference/methods/assistant.threads.setStatus |
 | A message carrying an upload arrives subtyped `file_share`; `url_private_download` needs `files:read` and the bot token | https://docs.slack.dev/reference/methods/files.info |
 | `chat.appendStream` takes either `markdown_text` or `chunks`, never both, and a stream that has carried a chunk rejects the top-level form | https://docs.slack.dev/reference/methods/chat.appendStream |
 | Socket Mode removes the need for a public request URL | https://docs.slack.dev/apis/events-api/using-socket-mode |
