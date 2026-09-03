@@ -49,6 +49,7 @@ test("a complete config parses, and the roster beside it names no number", () =>
           user: "hearth",
           description: "An agent.",
           tag: "tag:thicket-hearth",
+          reach: { operators: "anyone" },
           harness: { type: "claude-agent-sdk", cwd: "/home/hearth", model: "claude-opus-5" },
           phone: { enabled: true, spokenName: "Hearth" },
         },

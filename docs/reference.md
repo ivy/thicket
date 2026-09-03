@@ -28,6 +28,18 @@ Claude Agent SDK `sessionId`, so thread identity is computed rather than stored.
 renders it into Slack app manifests, per-account XDG config, and tailnet identities. At
 run time there is no shared config: each agent serves its own `AgentCard`.
 
+**Reach.** Who may open a turn, and where, is a required roster field the bridge
+enforces before anything else touches the event. `reach.operators` is either `anyone` —
+every member of the Slack workspace — or a list of Slack user ids, in which case only
+those people open turns, on every surface. `reach.channels: listed` additionally
+restricts channel mentions to the channels `channels:` names; a DM is not a channel and
+is unaffected. There is no default: an agent whose entry declares no `reach` fails
+validation and the bridge will not start it, because talking to an agent means running
+as its unix account and an open door should be a thing someone wrote down. `operators: []`
+is refused for the same reason — an empty list reads as unfinished, not as everyone. A
+refused event is silent to whoever sent it and logged for the operator; `thicket doctor`
+reports each agent's reach as a fact.
+
 ## Conventions
 
 - Paths follow XDG. Config `~/.config/thicket/`, state `~/.local/state/thicket/`,

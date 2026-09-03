@@ -6,6 +6,8 @@ agents:
     description: >-
       Personal data: calendar, todo list, Obsidian vault, email triage.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     icon: ":herb:"
     skills:
       - id: email-triage
@@ -33,6 +35,8 @@ agents:
     user: forge
     description: Builds and maintains the CI fleet.
     tag: tag:thicket-forge
+    reach:
+      operators: anyone
     icon: ":hammer:"
     skills:
       - id: ci-triage
@@ -56,6 +60,8 @@ agents:
     user: scribe
     description: Writes and edits documentation on request.
     tag: tag:thicket-scribe
+    reach:
+      operators: anyone
     harness:
       type: claude-agent-sdk
       cwd: /home/scribe
@@ -67,6 +73,8 @@ agents:
     user: lookout
     description: Watches feeds and dashboards; raises alerts.
     tag: tag:thicket-lookout
+    reach:
+      operators: anyone
     icon: ":eyes:"
     skills: []
     harness:

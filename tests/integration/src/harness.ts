@@ -43,6 +43,7 @@ export function agentEntry(name: string): AgentEntry {
     queueing: "harness",
     workspaces: {},
     channels: {},
+    reach: { channels: "any", operators: "anyone" },
     phone: { enabled: false, aliases: [], resumeWindowSeconds: 86_400 },
   };
 }
@@ -376,6 +377,7 @@ export function startBridge(agent: RunningAgent, dbPath = ":memory:"): RunningBr
     client: new RemoteAgentClient(agent.url, netdFetch()),
     slack,
     state,
+    reach: agentEntry(agent.name).reach,
   });
   return { engine, slack, state };
 }

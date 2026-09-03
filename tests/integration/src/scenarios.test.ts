@@ -190,12 +190,16 @@ agents:
     user: hearth
     description: hearth integration agent.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /tmp, model: claude-opus-5 }
   grove:
     host: home
     user: grove
     description: grove integration agent.
     tag: tag:thicket-grove
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /tmp, model: claude-opus-5 }
 `);
 
@@ -238,12 +242,16 @@ agents:
     user: hearth
     description: Personal assistant for calendar, todo list, Obsidian vault, and email triage across the household. Reads the inbox, sorts what matters, drafts replies for review, and keeps the week's plan honest without ever sending mail on its own.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
   grove:
     host: workshop
     user: grove
     description: Keeps the CI fleet green by watching builds, investigating red pipelines, bisecting regressions to the breaking change, and proposing fixes as reviewable patches rather than pushing anything itself to any branch.
     tag: tag:thicket-grove
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/grove, model: claude-sonnet-5 }
 `);
   // The same generators that provisioned agent one accept agent two.
