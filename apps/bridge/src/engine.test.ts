@@ -20,6 +20,7 @@ import {
   type A2AEvent,
   type AgentActivity,
   type AgentClient,
+  type InboundEvent,
   type SlackApi,
   type SlackSessionStatus,
 } from "./types.js";
@@ -99,11 +100,14 @@ class FakeSlack implements SlackApi {
   }
   /** When set, appendStream rejects with it (a message Slack has ended). */
   appendError: Error | undefined;
+  /** Runs after each recorded append: where a test puts a mid-turn event. */
+  onAppend: (() => Promise<void>) | undefined;
   async appendStream(channel: string, ts: string, text: string) {
     if (this.appendError !== undefined) {
       throw this.appendError;
     }
     this.calls.push({ type: "append", channel, ts, text });
+    await this.onAppend?.();
   }
   async appendActivity(channel: string, ts: string, activity: AgentActivity) {
     if (this.activityError !== undefined) {
@@ -1122,6 +1126,171 @@ test("a refused stream degrades to one plain message carrying the whole answer",
   assert.deepEqual(r.slack.posts(), ["the answer in two chunks"]);
   assert.equal(r.slack.lastStatus(), "active", "the turn settled normally");
   assert.ok(r.warnings.some((w) => w.includes("stream refused")));
+  r.state.close();
+});
+
+// --------------------------------------------------- a person speaks mid-turn
+
+/** The follow-up typed while the agent is still answering. */
+const FOLLOW_UP = dm("actually, wait", "1724650002.000002");
+
+/**
+ * Delivers `event` once, from inside the first append of a turn: a
+ * follow-up typed while the agent is still streaming its answer.
+ */
+function speakDuringStream(r: Rig, event: InboundEvent): void {
+  let spoken = false;
+  r.slack.onAppend = async () => {
+    if (spoken) {
+      return;
+    }
+    spoken = true;
+    await r.engine.handleEvent(event);
+  };
+}
+
+/**
+ * A harness that folds: a message sent mid-turn is answered inside the turn
+ * already running, so the follow-up's own send yields no events at all and
+ * its answer arrives on the task that was already streaming.
+ */
+function folding(build: (message: Message) => A2AEvent[]): StubBehavior["script"] {
+  return (message, turn) => (turn === 0 ? build(message) : []);
+}
+
+test("a follow-up mid-turn ends the stream it would otherwise render above", async () => {
+  const r = rig({
+    script: folding((m) => [
+      taskEvent("t1", m.contextId),
+      artifactEvent("t1", "Before you spoke. ", false, false),
+      artifactEvent("t1", "Answering what you just asked.", true, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ]),
+  });
+  speakDuringStream(r, FOLLOW_UP);
+  await r.engine.handleEvent(dm("go"));
+
+  const byStream = new Map<string, string>();
+  const order: string[] = [];
+  for (const call of r.slack.calls) {
+    if (call.type === "startStream") {
+      order.push(`start:${call.ts}`);
+    }
+    if (call.type === "stop") {
+      order.push(`stop:${call.ts}`);
+    }
+    if (call.type === "append") {
+      byStream.set(call.ts, (byStream.get(call.ts) ?? "") + call.text);
+    }
+  }
+  assert.equal(byStream.size, 2, "what follows the follow-up gets a message of its own");
+  const [first, second] = [...byStream.values()];
+  assert.equal(first, "Before you spoke. ");
+  assert.equal(second, "Answering what you just asked.");
+  assert.deepEqual(
+    order.slice(0, 3),
+    ["start:stream-1", "stop:stream-1", "start:stream-2"],
+    "the stale message is closed before the fresh one opens",
+  );
+  assert.equal(r.slack.lastStatus(), "active");
+  r.state.close();
+});
+
+test("a turn nobody interrupts still streams into one message", async () => {
+  const r = rig({
+    script: (m) => [
+      taskEvent("t1", m.contextId),
+      artifactEvent("t1", "one ", false, false),
+      artifactEvent("t1", "message", true, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ],
+  });
+  await r.engine.handleEvent(dm("go"));
+
+  assert.equal(
+    r.slack.calls.filter((c) => c.type === "startStream").length,
+    1,
+    "nothing cuts a stream on its own",
+  );
+  r.state.close();
+});
+
+test("a follow-up cuts the stream for cards as well as text", async () => {
+  const r = rig({
+    script: folding((m) => [
+      taskEvent("t1", m.contextId),
+      artifactEvent("t1", "looking", false, false),
+      activityEvent("t1", { id: "a1", title: "Reading", status: "running" }),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ]),
+  });
+  speakDuringStream(r, FOLLOW_UP);
+  await r.engine.handleEvent(dm("go"));
+
+  const card = r.slack.calls.find((c) => c.type === "activity")!;
+  const append = r.slack.calls.find((c) => c.type === "append")!;
+  assert.notEqual(
+    card.ts,
+    append.ts,
+    "the step drawn after the follow-up is not drawn above it",
+  );
+  r.state.close();
+});
+
+test("the message opened by a cut gets the whole budget, not the last one's", async () => {
+  const r = rig(
+    {
+      script: folding((m) => [
+        taskEvent("t1", m.contextId),
+        artifactEvent("t1", "aaaa bbbb cccc dddd eeee ffff", false, false),
+        artifactEvent("t1", "ii jjjj kkkk llll", true, true),
+        statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+      ]),
+    },
+    { streamTextBudget: 40 },
+  );
+  speakDuringStream(r, FOLLOW_UP);
+  await r.engine.handleEvent(dm("write me something long"));
+
+  // What the cut message already held is not the fresh one's debt: still
+  // charged for it, the second chunk would not fit and would be split
+  // across two more messages at a word boundary.
+  const appends = r.slack.calls.filter((c) => c.type === "append");
+  assert.equal(
+    r.slack.calls.filter((c) => c.type === "startStream").length,
+    2,
+    "the cut resets the budget with the message",
+  );
+  assert.deepEqual(
+    appends.map((a) => a.text),
+    ["aaaa bbbb cccc dddd eeee ffff", "ii jjjj kkkk llll"],
+    "neither chunk is split by a budget the cut should have cleared",
+  );
+  r.state.close();
+});
+
+test("a cut Slack refuses costs the message, not the answer", async () => {
+  const r = rig({
+    script: folding((m) => [
+      taskEvent("t1", m.contextId),
+      artifactEvent("t1", "one ", false, false),
+      artifactEvent("t1", "two", true, true),
+      statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+    ]),
+  });
+  // Slack had already ended the streamed message on its own, so the cut
+  // is refused — the answer still has to arrive.
+  r.slack.stopError = new Error("An API error occurred: message_not_in_streaming_state");
+  speakDuringStream(r, FOLLOW_UP);
+  await r.engine.handleEvent(dm("go"));
+
+  const appended = r.slack.calls
+    .filter((c) => c.type === "append")
+    .map((c) => c.text)
+    .join("");
+  assert.equal(appended, "one two", "the whole answer still reaches the thread");
+  assert.equal(r.slack.lastStatus(), "active", "the turn settles normally");
+  assert.ok(r.warnings.some((w) => w.includes("stream close refused")));
   r.state.close();
 });
 

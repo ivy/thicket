@@ -184,6 +184,8 @@ export class BridgeEngine {
   private readonly chargedCards = new Map<string, Set<string>>();
   /** Steps still running per task, oldest first: card id → title. */
   private readonly openCards = new Map<string, Map<string, string>>();
+  /** Tasks whose streamed message a person has since spoken beneath. */
+  private readonly staleStreams = new Set<string>();
   private readonly streamTextBudget: number;
   /** Threads whose prose status line was abandoned after a rejection. */
   private readonly noteOff = new Set<string>();
@@ -267,6 +269,9 @@ export class BridgeEngine {
         }
         // Context for the agent, no turn: delivered with shouldQuery:false
         // semantics via metadata; no status change, no reply expected.
+        // No reply is expected, but a running turn can still take it up
+        // mid-answer, and that answer belongs below it like any other.
+        this.markStreamsStale(event.channel, event.threadTs);
         const bound = await this.workspaceFor(event.channel);
         if ("error" in bound) {
           // Nobody is waiting on this message; the next mention will
@@ -365,6 +370,42 @@ export class BridgeEngine {
     return event.files.map((file) => file.id);
   }
 
+  /**
+   * A streamed message keeps the ts it was opened with, so anything
+   * appended to it after a person has spoken renders *above* them: with
+   * the harness folding a mid-turn message into the turn already running,
+   * the answer to a follow-up lands in a message older than the follow-up
+   * and the thread reads back out of order (#96). Whatever the agent says
+   * from here belongs below, so the thread's open streams are marked for
+   * the cut before its message reaches the harness.
+   *
+   * The mark is deliberately pessimistic: whether the harness folds the
+   * message or queues it as a turn of its own is not knowable until that
+   * turn ends, long after the appends it would govern. A message the
+   * harness queues instead costs a split answer, which reads correctly;
+   * the other way round costs the ordering.
+   */
+  private markStreamsStale(channel: string, threadTs: string): void {
+    for (const task of this.state.tasksForThread(channel, threadTs)) {
+      if (task.agent === this.agent && task.streamTs !== null) {
+        this.staleStreams.add(task.taskId);
+      }
+    }
+  }
+
+  /**
+   * Ends a marked stream, so the append that follows opens a message
+   * newer than the person who spoke. A stream already gone — abandoned,
+   * or closed by a rollover in between — leaves nothing to do but drop
+   * the mark.
+   */
+  private async closeIfStale(taskId: string, channel: string): Promise<void> {
+    if (!this.staleStreams.delete(taskId)) {
+      return;
+    }
+    await this.closeStream(taskId, channel);
+  }
+
   /** Queue-or-run per the roster's queueing policy. */
   private trigger(
     channel: string,
@@ -374,6 +415,7 @@ export class BridgeEngine {
     fileIds: string[],
     authorId?: string,
   ): Promise<void> {
+    this.markStreamsStale(channel, threadTs);
     if (this.queueing === "harness") {
       // The harness queues concurrent turns itself; send without waiting.
       return this.runTurn(channel, threadTs, text, messageTs, fileIds, authorId);
@@ -756,6 +798,7 @@ export class BridgeEngine {
           this.buffer(event.taskId, event.text);
           return;
         }
+        await this.closeIfStale(event.taskId, channel);
         try {
           await this.appendWithRollover(event, channel, threadTs);
         } catch (err) {
@@ -774,6 +817,7 @@ export class BridgeEngine {
         if (this.activityOff.has(event.taskId)) {
           return;
         }
+        await this.closeIfStale(event.taskId, channel);
         try {
           for (const activity of event.activities) {
             await this.chargeCard(event.taskId, channel, activity);
@@ -892,6 +936,12 @@ export class BridgeEngine {
 
   /** The task's Slack stream, opened on first use. */
   private async ensureStream(taskId: string, channel: string, threadTs: string): Promise<string> {
+    // Every append path cuts a stale stream before charging what it is
+    // about to draw, so a mark still standing here belongs to a path that
+    // does not. Cut it anyway: a card charged to the wrong message is a
+    // rollover a little early, while an answer above the person who asked
+    // for it is the bug this exists to prevent.
+    await this.closeIfStale(taskId, channel);
     const record = this.state.taskById(taskId);
     if (record?.streamTs != null) {
       return record.streamTs;
@@ -925,6 +975,7 @@ export class BridgeEngine {
     this.activityOff.add(taskId);
     this.streamedChars.delete(taskId);
     this.chargedCards.delete(taskId);
+    this.staleStreams.delete(taskId);
     this.state.setStreamTs(taskId, null);
   }
 
@@ -1025,6 +1076,7 @@ export class BridgeEngine {
       this.activityOff.delete(taskId);
       this.streamOff.delete(taskId);
       this.openCards.delete(taskId);
+      this.staleStreams.delete(taskId);
       this.state.removeTask(taskId);
       const queuedTurns = Number(metadata?.[META_QUEUED_TURN_COUNT] ?? 0);
       if (queuedTurns > 0) {
