@@ -1164,6 +1164,72 @@ test("a long answer rolls over to fresh streamed messages at word boundaries", a
   r.state.close();
 });
 
+test("a code block spanning a rollover is closed and reopened", async () => {
+  const block = "```ts\nconst a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\n```\n";
+  const r = rig(
+    {
+      script: () => [
+        taskEvent("t1", "ctx"),
+        artifactEvent("t1", "Here it is:\n\n", false, false),
+        artifactEvent("t1", block, true, true),
+        statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+      ],
+    },
+    { streamTextBudget: 40 },
+  );
+  await r.engine.handleEvent(dm("show me the code"));
+
+  const byStream = new Map<string, string>();
+  for (const call of r.slack.calls) {
+    if (call.type === "append") {
+      byStream.set(call.ts, (byStream.get(call.ts) ?? "") + call.text);
+    }
+  }
+  const messages = [...byStream.values()];
+  assert.ok(messages.length > 1, `the block spans several messages (got ${messages.length})`);
+  for (const message of messages) {
+    const fences = (message.match(/^```/gm) ?? []).length;
+    assert.equal(fences % 2, 0, `each message closes what it opens: ${JSON.stringify(message)}`);
+  }
+  const code = messages.flatMap((m) => m.split("\n")).filter((l) => l.startsWith("const "));
+  assert.deepEqual(code, ["const a = 1;", "const b = 2;", "const c = 3;", "const d = 4;"]);
+  assert.ok(
+    messages.slice(1).every((m) => m.startsWith("```ts\n")),
+    "every continuation reopens the block with its info string",
+  );
+  r.state.close();
+});
+
+test("a card that forces a rollover mid-block closes the block first", async () => {
+  const r = rig(
+    {
+      script: () => [
+        taskEvent("t1", "ctx"),
+        artifactEvent("t1", "```ts\nconst a = 1;\n", false, false),
+        // Charged against the same budget, and over it: the rollover here
+        // is one no split point asked for.
+        activityEvent("t1", { id: "a1", title: "Reading the file", status: "running" }),
+        artifactEvent("t1", "const b = 2;\n```\n", true, true),
+        statusEvent("t1", TaskState.TASK_STATE_COMPLETED),
+      ],
+    },
+    { streamTextBudget: 60 },
+  );
+  await r.engine.handleEvent(dm("show me the code"));
+
+  const byStream = new Map<string, string>();
+  for (const call of r.slack.calls) {
+    if (call.type === "append") {
+      byStream.set(call.ts, (byStream.get(call.ts) ?? "") + call.text);
+    }
+  }
+  const messages = [...byStream.values()];
+  assert.equal(messages.length, 2, `two messages: ${JSON.stringify(messages)}`);
+  assert.equal(messages[0], "```ts\nconst a = 1;\n```");
+  assert.ok(messages[1]!.startsWith("```ts\nconst b = 2;"));
+  r.state.close();
+});
+
 test("a stream Slack ends mid-answer costs the cards, not the turn", async () => {
   const r = rig({
     script: () => [

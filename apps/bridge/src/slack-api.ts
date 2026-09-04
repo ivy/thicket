@@ -1,5 +1,6 @@
 import { WebClient } from "@slack/web-api";
 
+import { splitMarkdown } from "./markdown.js";
 import type { AgentActivity, SlackApi, SlackSessionStatus, ThreadMessage } from "./types.js";
 
 export interface SlackApiLogger {
@@ -13,32 +14,6 @@ export interface SlackApiLogger {
  * of break ours.
  */
 export const POST_TEXT_MAX = 3_500;
-
-/**
- * Splits text into pieces of at most `max` characters, preferring
- * paragraph breaks, then line breaks, then spaces; a single unbroken run
- * longer than `max` is hard-cut rather than looping forever.
- */
-export function splitText(text: string, max: number = POST_TEXT_MAX): string[] {
-  const pieces: string[] = [];
-  let rest = text;
-  while (rest.length > max) {
-    const window = rest.slice(0, max + 1);
-    const cut =
-      lastBoundary(window, "\n\n") ?? lastBoundary(window, "\n") ?? lastBoundary(window, " ") ?? max;
-    pieces.push(rest.slice(0, cut));
-    rest = rest.slice(cut).replace(/^[ \n]+/, "");
-  }
-  if (rest !== "") {
-    pieces.push(rest);
-  }
-  return pieces;
-}
-
-function lastBoundary(window: string, separator: string): number | undefined {
-  const at = window.lastIndexOf(separator);
-  return at > 0 ? at : undefined;
-}
 
 /** Activity status names, in the vocabulary Slack's task cards use. */
 const CARD_STATUS = {
@@ -106,7 +81,7 @@ export class WebSlackApi implements SlackApi {
     // parsed as mrkdwn — a different dialect that renders `##` and `**`
     // literally (observed live on a fallback post). Sequential, so the
     // pieces read in order.
-    for (const piece of splitText(text)) {
+    for (const piece of splitMarkdown(text, POST_TEXT_MAX)) {
       await this.call("chat.postMessage", {
         channel,
         thread_ts: threadTs,
