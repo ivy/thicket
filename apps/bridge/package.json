@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "^1.1.0",
-    "@slack/web-api": "^7.19.0",
+    "@slack/web-api": "^8.1.1",
     "@thicket/a2a-client": "workspace:*",
     "@thicket/egress": "workspace:*",
     "@thicket/executor": "workspace:*",
