@@ -80,10 +80,17 @@ export async function postMessage(
   options: ToolbeltOptions,
   args: { channel: string; text: string; thread_ts?: string },
 ): Promise<ToolOutcome> {
+  // The session's own contextId rides along so the bridge can make the
+  // thread this opens continue this conversation: a person who replies
+  // under the post reaches the session that wrote it, not a fresh one.
+  // Baked in, never the model's to name (see ToolbeltOptions.contextId).
   return callBridge(options, "/api/messages", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(args),
+    body: JSON.stringify({
+      ...args,
+      ...(options.contextId === undefined ? {} : { context_id: options.contextId }),
+    }),
   });
 }
 
