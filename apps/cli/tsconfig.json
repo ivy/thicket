@@ -19,6 +19,12 @@
     },
     {
       "path": "../../packages/egress"
+    },
+    {
+      "path": "../agentd"
+    },
+    {
+      "path": "../../packages/executor"
     }
   ]
 }

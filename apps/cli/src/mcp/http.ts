@@ -114,3 +114,31 @@ export function egressHttp(socketPath: string): HttpDoer {
       proxied.on("data", onData);
     });
 }
+
+/**
+ * HttpDoer straight into a unix socket — agentd's own door, which netd
+ * proxies to and which only the account itself can open. `headers` ride
+ * on every request; `thicket send` puts the caller's user name there.
+ */
+export function unixSocketHttp(socketPath: string, headers: Record<string, string> = {}): HttpDoer {
+  return (spec) =>
+    new Promise((resolve, reject) => {
+      const timeoutMs = spec.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+      const url = new URL(spec.url);
+      collect(resolve, reject, timeoutMs, (onResponse) => {
+        const req = httpRequest(
+          {
+            socketPath,
+            path: url.pathname + url.search,
+            method: spec.method,
+            headers: { host: url.host, ...headers, ...spec.headers },
+          },
+          onResponse,
+        );
+        if (spec.body !== undefined) {
+          req.write(spec.body);
+        }
+        return req;
+      });
+    });
+}

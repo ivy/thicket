@@ -22,6 +22,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@thicket/agentd": "workspace:*",
     "@thicket/egress": "workspace:*",
+    "@thicket/executor": "workspace:*",
     "@thicket/phone": "workspace:*",
     "@thicket/roster": "workspace:*",
     "@thicket/slack-manifest": "workspace:*",

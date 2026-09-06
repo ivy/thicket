@@ -9,6 +9,18 @@ export interface AskResult {
   text: string;
 }
 
+export interface SendOptions {
+  text: string;
+  /** Absent starts a fresh conversation. */
+  contextId?: string;
+  /** What the message id starts with; says which caller minted it. */
+  messageIdPrefix?: string;
+  metadata?: Record<string, unknown>;
+  /** Return once the task exists rather than when the turn ends. */
+  returnImmediately?: boolean;
+  timeoutMs?: number;
+}
+
 interface JsonRpcEnvelope {
   result?: Record<string, unknown>;
   error?: { code: number; message: string };
@@ -48,7 +60,11 @@ export class A2aJsonRpcClient {
     private readonly rpcUrl: string,
   ) {}
 
-  private async call(method: string, params: unknown): Promise<Record<string, unknown>> {
+  private async call(
+    method: string,
+    params: unknown,
+    timeoutMs?: number,
+  ): Promise<Record<string, unknown>> {
     let response;
     try {
       response = await this.http({
@@ -59,6 +75,7 @@ export class A2aJsonRpcClient {
           "a2a-version": "1.0",
         },
         body: JSON.stringify({ jsonrpc: "2.0", id: randomUUID(), method, params }),
+        ...(timeoutMs === undefined ? {} : { timeoutMs }),
       });
     } catch (err) {
       throw new Error(
@@ -84,20 +101,36 @@ export class A2aJsonRpcClient {
   }
 
   async ask(message: string, contextId?: string): Promise<AskResult> {
-    const effectiveContext = contextId ?? randomUUID();
-    const result = await this.call("SendMessage", {
-      tenant: "",
-      message: {
-        messageId: `mcp-${randomUUID()}`,
-        contextId: effectiveContext,
-        taskId: "",
-        role: "ROLE_USER",
-        parts: [{ text: message, mediaType: "text/plain", filename: "" }],
-        metadata: {},
-        extensions: [],
-        referenceTaskIds: [],
+    return this.send({ text: message, ...(contextId === undefined ? {} : { contextId }) });
+  }
+
+  /**
+   * One SendMessage. `returnImmediately` is the protocol's own flag for a
+   * caller that wants the task's coordinates rather than its outcome; the
+   * result then describes a task still running. `metadata` rides on the
+   * message for the executor to read.
+   */
+  async send(options: SendOptions): Promise<AskResult> {
+    const effectiveContext = options.contextId ?? randomUUID();
+    const prefix = options.messageIdPrefix ?? "mcp";
+    const result = await this.call(
+      "SendMessage",
+      {
+        tenant: "",
+        message: {
+          messageId: `${prefix}-${randomUUID()}`,
+          contextId: effectiveContext,
+          taskId: "",
+          role: "ROLE_USER",
+          parts: [{ text: options.text, mediaType: "text/plain", filename: "" }],
+          metadata: options.metadata ?? {},
+          extensions: [],
+          referenceTaskIds: [],
+        },
+        ...(options.returnImmediately === true ? { configuration: { returnImmediately: true } } : {}),
       },
-    });
+      options.timeoutMs,
+    );
     const task = (result.task ?? result) as Record<string, unknown>;
     const status = (task.status ?? {}) as { state?: string };
     return {

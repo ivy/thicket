@@ -41,7 +41,7 @@ See [docs/vision.md](docs/vision.md) for the full rationale.
 | `apps/agentd/` | TypeScript | A2A server + Claude Code session manager (hot/cold) |
 | `apps/bridge/` | TypeScript | Slack Socket Mode ⇄ A2A client; thread ⇄ session mapping |
 | `apps/phone/` | TypeScript | Twilio ConversationRelay ⇄ A2A; the PIN gate, the picker, the call |
-| `apps/cli/` | TypeScript | `provision`, `doctor`, `fleet`, `journal`, `mcp`, `slack-test-mcp` |
+| `apps/cli/` | TypeScript | `provision`, `doctor`, `fleet`, `journal`, `send`, `mcp`, `slack-test-mcp` |
 | `packages/roster/` | TypeScript | `agents.yaml` → `AgentCard`; the shared contract |
 | `packages/executor/` | TypeScript | Agent SDK message stream → A2A task events |
 | `packages/slack-manifest/` | TypeScript | `AgentCard` → Slack app manifest |

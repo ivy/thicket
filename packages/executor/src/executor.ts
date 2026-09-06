@@ -28,10 +28,14 @@ import {
   META_PHONE_CALL,
   META_PHONE_KIND,
   META_PHONE_SESSION_STARTED,
+  META_SENDER,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
   META_STILL_QUEUED,
+  META_TRIGGER,
+  META_UNATTENDED,
   META_WORKSPACE,
+  TRIGGER_SEND,
   type SessionHandle,
   type SessionProvider,
 } from "./types.js";
@@ -122,6 +126,29 @@ export function phonePreamble(inbound: Message, now: () => string = () => new Da
     `Your reply will be read aloud by text-to-speech: keep it short and speakable — ` +
     `no markdown, code, tables, or lists — and spell out anything that must be exact.${what}\n\n`
   );
+}
+
+/**
+ * The line that says a script, not a person, is on the other end. What
+ * matters to the model is whether anyone will read the reply: a script
+ * that exited already will not, so anything worth saying has to go
+ * through the Slack tools or nowhere. The sender's name is context for
+ * the model, the same way a Slack user's is — it was not verified here.
+ */
+export function sendPreamble(inbound: Message): string {
+  if (inbound.metadata?.[META_TRIGGER] !== TRIGGER_SEND) {
+    return "";
+  }
+  const sender = inbound.metadata?.[META_SENDER];
+  const by = typeof sender === "string" && sender !== "" ? ` by the unix user ${sender}` : "";
+  const unattended = inbound.metadata?.[META_UNATTENDED] === true;
+  return unattended
+    ? `This message was sent with \`thicket send\`${by} — a script or a hook, not a person, ` +
+        `and it did not wait for a reply. Nobody will read what you say here. If the operator ` +
+        `needs to know something, tell them through your thicket Slack tools; otherwise do what ` +
+        `the message asks and finish.\n\n`
+    : `This message was sent with \`thicket send\`${by}, which is waiting: your reply is ` +
+        `printed to their terminal or captured by their script, as plain text.\n\n`;
 }
 
 /**
@@ -238,6 +265,7 @@ export class ClaudeAgentExecutor implements AgentExecutor {
     return (
       threadPreamble(inbound) +
       phonePreamble(inbound, this.now) +
+      sendPreamble(inbound) +
       (await this.attachmentsPreamble(contextId, inbound))
     );
   }

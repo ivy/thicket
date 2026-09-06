@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { userInfo } from "node:os";
 import { dirname, join } from "node:path";
 
 import { Role, TaskState } from "@a2a-js/sdk";
@@ -201,6 +202,8 @@ export async function run(
   const app = buildServer({
     handler,
     allowedPeerTags: config.allowedPeerTags,
+    // The one local caller: this account itself, over its own 0600 socket.
+    localUser: userInfo().username,
     logger,
   });
   const server = createServer(app);

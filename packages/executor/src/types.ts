@@ -103,6 +103,21 @@ export const PHONE_MESSAGE_KINDS = ["speech", "dtmf", "event", "interrupted"] as
 export type PhoneMessageKind = (typeof PHONE_MESSAGE_KINDS)[number];
 /** {@link META_TRIGGER} value for a turn a phone call caused. */
 export const TRIGGER_PHONE = "phone";
+/** {@link META_TRIGGER} value for a turn `thicket send` caused. */
+export const TRIGGER_SEND = "send";
+/**
+ * Who ran `thicket send`: the unix user of the sending process, as that
+ * process reports it. Context for the model, not an identity — the caller
+ * was authorized by its route (the local socket's owner, or a peer tag),
+ * never by this value.
+ */
+export const META_SENDER = "thicket.sender";
+/**
+ * true when the sender exited without waiting for the reply. The preamble
+ * says so, because an answer written into a void is an answer lost: the
+ * model should report through its Slack tools, or just do the work.
+ */
+export const META_UNATTENDED = "thicket.unattended";
 /**
  * The workspace name a bound channel maps to. The bridge knows the name;
  * only the agent's own config knows the path.
