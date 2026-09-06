@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { existsSync, readFileSync } from "node:fs";
+import { userInfo } from "node:os";
 import { join } from "node:path";
 
 import { egressFetch } from "@thicket/egress";
@@ -21,6 +22,7 @@ function usage(): never {
       "       thicket doctor\n" +
       "       thicket fleet\n" +
       "       thicket journal [--cost] [--failures] [--trigger T] [--days N] [--limit N] [--db PATH]\n" +
+      "       thicket send [--wait] [--context ID] AGENT [MESSAGE|-]   (no MESSAGE: stdin)\n" +
       "       thicket mcp\n" +
       "       thicket slack-test-mcp   (development: drives Slack as you)\n" +
       "       thicket phone-test-mcp   (development: drives the phone bridge as the operator)\n" +
@@ -301,6 +303,47 @@ async function main(): Promise<void> {
         },
       }),
     );
+  }
+
+  if (command === "send") {
+    const { parseSendArgs, runSend, SEND_EXIT } = await import("./send.js");
+    const parsed = parseSendArgs(rest);
+    if (parsed === undefined) {
+      usage();
+    }
+    // The message, from the line or from stdin; the newline a pipe adds is
+    // not part of it. An empty message is a mistake, not a request.
+    const message = (parsed.message ?? readFileSync(0, "utf8")).replace(/\n$/, "");
+    if (message.trim() === "") {
+      process.stderr.write("send: message is empty\n");
+      process.exit(SEND_EXIT.usage);
+    }
+    // This account's own agent, if it runs one: agentd.json says which and
+    // where it listens. Absent config means no local route, not an error.
+    const { loadConfig, defaultConfigPath } = await import("@thicket/agentd");
+    const agentdConfigPath = process.env.THICKET_AGENTD_CONFIG ?? defaultConfigPath();
+    let local: { agent: string; socketPath: string } | undefined;
+    if (existsSync(agentdConfigPath)) {
+      const agentd = loadConfig(agentdConfigPath);
+      local = { agent: agentd.agent, socketPath: agentd.socketPath };
+    }
+    // Every other agent: this account's netd egress, when it has one.
+    const egressSocket = egressSocketPath();
+    const { egressHttp } = await import("./mcp/http.js");
+    const code = await runSend(parsed, message, {
+      roster: loadRoster(),
+      ...(local === undefined ? {} : { local }),
+      localUser: userInfo().username,
+      ...(existsSync(egressSocket) ? { peerHttp: egressHttp(egressSocket) } : {}),
+      tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
+      endpointOverrides:
+        process.env.THICKET_MCP_ENDPOINTS !== undefined
+          ? (JSON.parse(process.env.THICKET_MCP_ENDPOINTS) as Record<string, string>)
+          : undefined,
+      out: (line) => process.stdout.write(line + "\n"),
+      err: (line) => process.stderr.write(line + "\n"),
+    });
+    process.exit(code);
   }
 
   if (command === "journal") {
