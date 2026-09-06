@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { configDir, runtimeDir, socketPath, stateDir } from "./paths.js";
+import {
+  configDir,
+  resolveRuntimeDir,
+  runtimeDir,
+  socketPath,
+  stateDir,
+} from "./paths.js";
 
 function withEnv(vars: Record<string, string | undefined>, fn: () => void) {
   const saved = new Map<string, string | undefined>();
@@ -54,11 +60,6 @@ test("helpers fall back when XDG_* unset", () => {
     () => {
       assert.equal(configDir(), join(homedir(), ".config", "thicket"));
       assert.equal(stateDir(), join(homedir(), ".local", "state", "thicket"));
-      const uid = process.getuid?.();
-      assert.equal(
-        runtimeDir(),
-        join(tmpdir(), uid === undefined ? "thicket" : `thicket-${uid}`),
-      );
     },
   );
 });
@@ -68,4 +69,41 @@ test("empty or relative XDG values are ignored per the spec", () => {
     assert.equal(configDir(), join(homedir(), ".config", "thicket"));
     assert.equal(stateDir(), join(homedir(), ".local", "state", "thicket"));
   });
+});
+
+const noDirs = () => false;
+const allDirs = () => true;
+
+test("runtimeDir prefers XDG_RUNTIME_DIR", () => {
+  assert.equal(resolveRuntimeDir("/xdg/run", 1000, noDirs), "/xdg/run/thicket");
+});
+
+test("an empty or relative XDG_RUNTIME_DIR is ignored per the spec", () => {
+  assert.equal(resolveRuntimeDir("", 1000, allDirs), "/run/user/1000/thicket");
+  assert.equal(resolveRuntimeDir("run/user/1000", 1000, allDirs), "/run/user/1000/thicket");
+});
+
+// The daemons run under `systemd --user` and always have XDG_RUNTIME_DIR; a
+// client spawned outside a login session does not. Both must land on the same
+// socket path or the client connects to a path nothing ever bound.
+test("without XDG_RUNTIME_DIR, an existing systemd runtime dir wins over the temp dir", () => {
+  const probed: string[] = [];
+  const dir = resolveRuntimeDir(undefined, 1000, (path) => {
+    probed.push(path);
+    return true;
+  });
+  assert.equal(dir, "/run/user/1000/thicket");
+  assert.deepEqual(probed, ["/run/user/1000"]);
+});
+
+test("falls back to a uid-scoped temp dir where no systemd runtime dir exists", () => {
+  assert.equal(resolveRuntimeDir(undefined, 1000, noDirs), join(tmpdir(), "thicket-1000"));
+});
+
+test("falls back to an unscoped temp dir where there is no uid", () => {
+  assert.equal(resolveRuntimeDir(undefined, undefined, allDirs), join(tmpdir(), "thicket"));
+});
+
+test("runtimeDir and socketPath agree on the resolved directory", () => {
+  assert.equal(socketPath("agentd"), join(runtimeDir(), "agentd.sock"));
 });
