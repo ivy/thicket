@@ -24,7 +24,12 @@ with one extra route for the agent of the account it runs in (see
 **Session model.** A Slack thread maps to an A2A `contextId`, not to a task. A2A tasks
 are immutable and terminal, so each turn creates a new `Task` within the same context.
 `contextId` is derived as `uuidv5(channel_id + ":" + thread_ts)` and doubles as the
-Claude Agent SDK `sessionId`, so thread identity is computed rather than stored.
+Claude Agent SDK `sessionId`, so thread identity is computed rather than stored — except
+for a thread the agent opened itself. A message posted with `post_message` from a
+session (a `thicket send` turn, a scheduled run) anchors the thread it starts to that
+session's `contextId`, so a person who replies under it continues the conversation that
+wrote it rather than opening one that has never heard of it. A thread already in
+conversation keeps its own context; a post into it is just a message there.
 
 **Configuration.** `agents.yaml` in git is the source of truth. The provisioning CLI
 renders it into Slack app manifests, per-account XDG config, and tailnet identities. At

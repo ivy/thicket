@@ -44,6 +44,16 @@ test("post_message calls the bridge and reports the posted ts", async () => {
   assert.deepEqual(JSON.parse(String(calls[0]!.init?.body)), { channel: "C1", text: "hello" });
 });
 
+test("a post from a session names the session, so the bridge can anchor the thread to it", async () => {
+  const { opts, calls } = options(() => Response.json({ ok: true, channel: "C1", ts: "5.5" }));
+  await postMessage({ ...opts, contextId: "ctx-send-1" }, { channel: "C1", text: "review this" });
+  assert.deepEqual(JSON.parse(String(calls[0]!.init?.body)), {
+    channel: "C1",
+    text: "review this",
+    context_id: "ctx-send-1",
+  });
+});
+
 test("a 403 from the bridge is a refusal the model is told not to retry", async () => {
   const { opts } = options(() => Response.json({ error: "not_in_channel" }, { status: 403 }));
   const outcome = await postMessage(opts, { channel: "C9", text: "hi" });
