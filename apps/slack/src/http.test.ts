@@ -175,6 +175,50 @@ test("an agent posts a message through the bridge; the token stays on the bridge
   assert.equal(r.upstream.calls[0]!.auth, "Bearer xoxb-hearth", "hearth's own token, held by the bridge");
 });
 
+test("a post that opens a thread anchors it to the session that wrote it", async (t) => {
+  const r = await rig(() => slackOk({ channel: "D1", ts: "7.7" }));
+  t.after(() => r.close());
+  const res = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+    body: JSON.stringify({ channel: "D1", text: "a proposal was pushed; review it", context_id: "ctx-send-1" }),
+  });
+  assert.equal(res.status, 200);
+  // A reply under the post now reaches the session that posted, not a
+  // fresh one derived from the thread.
+  assert.equal(r.state.contextFor("D1", "7.7"), "ctx-send-1");
+  assert.ok(r.state.isEngaged("D1", "7.7"), "and the thread counts as a conversation");
+});
+
+test("a post into a thread nobody has engaged anchors that thread; an engaged one keeps its own", async (t) => {
+  const r = await rig(() => slackOk({ channel: "D1", ts: "9.9" }));
+  t.after(() => r.close());
+  const post = (thread_ts: string, context_id: string) =>
+    fetch(`${r.url}/api/messages`, {
+      method: "POST",
+      headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+      body: JSON.stringify({ channel: "D1", thread_ts, text: "report", context_id }),
+    });
+  assert.equal((await post("1.1", "ctx-routine")).status, 200);
+  assert.equal(r.state.contextFor("D1", "1.1"), "ctx-routine");
+
+  r.state.saveContext("D1", "2.2", "ctx-theirs");
+  assert.equal((await post("2.2", "ctx-mine")).status, 200);
+  assert.equal(r.state.contextFor("D1", "2.2"), "ctx-theirs", "a conversation is not hijacked by a post into it");
+});
+
+test("a post without a session anchors nothing", async (t) => {
+  const r = await rig(() => slackOk({ channel: "C42", ts: "3.3" }));
+  t.after(() => r.close());
+  const res = await fetch(`${r.url}/api/messages`, {
+    method: "POST",
+    headers: { [PEER_TAGS_HEADER]: HEARTH_TAG, "content-type": "application/json" },
+    body: JSON.stringify({ channel: "C42", text: "hello" }),
+  });
+  assert.equal(res.status, 200);
+  assert.equal(r.state.contextFor("C42", "3.3"), undefined);
+});
+
 test("the thread an agent is answering in refuses a second delivery of the same reply", async (t) => {
   const r = await rig(() => slackOk({ channel: "D1", ts: "9.9" }));
   t.after(() => r.close());
