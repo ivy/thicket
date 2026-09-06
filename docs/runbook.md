@@ -171,5 +171,6 @@ thicket fleet                                   # fleet truth in one line per ag
 thicket doctor                                  # config-level truth, non-zero on failure
 curl --unix-socket "$XDG_RUNTIME_DIR/thicket/agentd.sock" \
      http://x/.well-known/agent-card.json       # is agentd itself alive (bypasses netd)
+thicket send --wait example "say hi"            # a whole turn, end to end; $? says how it ended
 systemctl --user list-units 'thicket-*'         # what systemd thinks
 ```

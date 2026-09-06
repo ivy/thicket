@@ -25,7 +25,7 @@ binaries an agent account installs.
 | `apps/agentd/` | A2A server + session manager; binds a unix socket, never a port |
 | `apps/bridge/` | Slack Socket Mode ⇄ A2A, plus the file surface agents fetch from |
 | `apps/phone/` | Twilio ConversationRelay ⇄ A2A: the codec, the call engine, the signed edge; see [docs/phone-bridge.md](docs/phone-bridge.md) |
-| `apps/cli/` | `provision`, `doctor`, `fleet`, `mcp`, `slack-test-mcp` |
+| `apps/cli/` | `provision`, `doctor`, `fleet`, `send`, `mcp`, `slack-test-mcp` |
 | `netd/` | Go; tsnet node per agent, tailnet ⇄ unix socket with verified peer tags |
 | `tests/integration/` | Real agentd + real bridge over HTTP; only Slack is faked |
 | `deploy/` | systemd units, launchd plists, and `deploy/dev/` stand-ins |

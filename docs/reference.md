@@ -13,7 +13,9 @@ holding that agent's tailnet identity. `netd` terminates TLS on the tailnet and 
 to `agentd` over a unix socket; `agentd` has no network listener. A single `bridge`
 process holds one Slack Socket Mode connection per agent and acts as an A2A client.
 Local Claude Code reaches the same agents through an MCP server that wraps the same A2A
-client.
+client, and a shell script reaches them with `thicket send` — the same client again,
+with one extra route for the agent of the account it runs in (see
+[Reaching an agent from a script](#reaching-an-agent-from-a-script)).
 
 **Identity.** An agent is a `(host, unix user)` pair. Each gets a tailnet node tagged
 `tag:thicket-<name>`, so ACLs express which agents may call which. Tags arrive at
@@ -39,6 +41,61 @@ run time there is no shared config: each agent serves its own `AgentCard`.
 - Outbound traffic leaves an account through its own `netd`, which admits only the
   destinations `egress_allow` names — by name, never by address. Nothing configured
   means no egress.
+
+## Reaching an agent from a script
+
+`thicket send AGENT [MESSAGE|-]` hands one message to one agent from anything that
+can run a command — a git hook, a systemd path unit, a cron job. It is the third
+caller of the A2A front door after the bridge and `thicket mcp`, and it adds no
+protocol: a `SendMessage`, stamped `thicket.trigger: send`, in a fresh `contextId`
+unless `--context ID` names one to continue.
+
+```sh
+thicket send ops "media pushed proposal/media/base-change; review it"
+thicket send --wait media "main changed under your zone; pull and apply"
+sed -n 's/^ref=//p' "$event" | thicket send ops         # the message from stdin
+```
+
+**Two modes, one flag.** Without `--wait` the command returns as soon as agentd has
+the task (`returnImmediately` on the wire), prints the task and context ids, and
+exits `0` — the turn runs on. With `--wait` it blocks until the turn ends, prints the
+reply on stdout and the coordinates and final state on stderr, so a script capturing
+stdout gets the reply alone. Exit codes are the contract: `0` accepted or completed,
+`1` the agent took the message and the turn ended in any other state, `2` usage, `3`
+the message never reached the agent — unknown, unreachable, or refused, with the
+reason on stderr.
+
+**A reply is never written into a void.** A fire-and-forget send tells the model so
+in its preamble — that nobody is reading, and that anything the operator needs to
+know goes through its Slack tools — and the turn's reply is kept in the agent's task
+store and journal either way, retrievable by task id (`agent_task_status` over MCP,
+`thicket journal`). Anything that goes wrong on the agent's side is a `failed` task
+there, not a lost line on a hook's stderr.
+
+**Two routes, and the trust model of each.** Which one a send takes is decided by
+the account it runs in, never by a flag:
+
+- *This account's own agent* — `agentd.json` beside the roster names it — is reached
+  over agentd's own unix socket, the one netd proxies to. That socket is mode 0600
+  inside a 0700 runtime directory, so the kernel admits only the account itself (and
+  root): opening it *is* the identification. The caller stamps its unix user name in
+  `X-Thicket-Local-User`, and agentd admits the request only if that name is the
+  account agentd runs as. The header is needed because netd proxies to the very same
+  socket — without it, a request that arrived tagless would be indistinguishable from
+  a proxy that forgot to stamp, which agentd rightly refuses. netd discards every
+  inbound `X-Thicket-*` header, so the local name can never arrive from the tailnet,
+  and a peer tag that is not allowed does not become allowed by adding one.
+- *Every other agent* is reached the way `thicket mcp` reaches it: through this
+  account's netd egress socket and the tailnet, arriving with whatever tag this
+  account's netd advertises and admitted by the far agent's `allowed_peer_tags` — the
+  same ACL, the same allow-list, no new path across a trust boundary. An account with
+  no netd and no agent of its own has no route, and the command says so (`3`).
+
+On a host where the operator's account runs an agent of its own, a hook running as
+the operator reaches that agent over its socket, and every other account's agent as
+the operator's tag over the tailnet. There is deliberately no host-local shortcut
+between accounts: the network layer is where privilege boundaries are enforced, and
+a local path that skipped it would have to reimplement the ACL to be safe.
 
 ## External references
 
