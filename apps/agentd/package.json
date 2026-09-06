@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@a2a-js/sdk": "^1.1.0",
-    "@anthropic-ai/claude-agent-sdk": "^0.3.247",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.251",
     "@thicket/egress": "workspace:*",
     "@thicket/executor": "workspace:*",
     "@thicket/roster": "workspace:*",
