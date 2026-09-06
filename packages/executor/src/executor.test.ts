@@ -14,7 +14,7 @@ import type { AgentExecutionEvent, ExecutionEventBus, RequestContext } from "@a2
 import { ServerCallContext } from "@a2a-js/sdk/server";
 
 import { AttachmentStore, META_FILE_SIZE } from "./attachments.js";
-import { ClaudeAgentExecutor, phonePreamble, threadPreamble } from "./executor.js";
+import { ClaudeAgentExecutor, phonePreamble, sendPreamble, threadPreamble } from "./executor.js";
 import { UnknownWorkspaceError } from "./session-manager.js";
 import {
   META_CANCELLED,
@@ -27,11 +27,15 @@ import {
   META_PHONE_TO,
   META_PRIORITY,
   META_QUEUE_STATE,
+  META_SENDER,
   META_SHOULD_QUERY,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
   META_STILL_QUEUED,
+  META_TRIGGER,
+  META_UNATTENDED,
   META_WORKSPACE,
+  TRIGGER_SEND,
   type SessionHandle,
 } from "./types.js";
 
@@ -486,6 +490,51 @@ test("a message from a phone call tells the model it is a voice session; one wit
   assert.match(kind("interrupted"), /spoke over your previous reply/);
   assert.doesNotMatch(kind("speech"), /keyed|event from|spoke over/);
   assert.match(kind("speech"), /began under a minute ago/);
+});
+
+test("a message from thicket send says whether anyone is waiting for the reply", async () => {
+  const session = fakeSession(undefined);
+  const executor = new ClaudeAgentExecutor({
+    sessions: { sessionFor: () => session },
+    uuid: () => "uuid-1",
+  });
+  const events: AgentExecutionEvent[] = [];
+  const ctx = requestContext("task-1", "ctx-1", "media pushed proposal/media/base-change; review it", {
+    [META_TRIGGER]: TRIGGER_SEND,
+    [META_SENDER]: "thicket-ops",
+    [META_UNATTENDED]: true,
+  });
+  const running = executor.execute(ctx, stubBus(events));
+  await untilSent(session);
+  session.queue.push(...withUuid(loadFixture("plain-turn"), "uuid-1"));
+  await running;
+
+  const prompt = String(session.sent[0]?.message.content);
+  assert.match(prompt, /sent with `thicket send` by the unix user thicket-ops/);
+  assert.match(prompt, /did not wait for a reply/);
+  assert.match(prompt, /Slack tools/);
+  assert.ok(
+    prompt.indexOf("thicket send") < prompt.indexOf("media pushed"),
+    "the delivery is context; the message stays the instruction",
+  );
+
+  // A sender that waits gets its reply as text, and the model is told so.
+  const attended = sendPreamble(
+    requestContext("t", "c", "hi", { [META_TRIGGER]: TRIGGER_SEND, [META_SENDER]: "thicket-ops" }).userMessage,
+  );
+  assert.match(attended, /which is waiting/);
+  assert.doesNotMatch(attended, /Nobody will read/);
+  // No sender named: still a send, just anonymous.
+  assert.match(
+    sendPreamble(requestContext("t", "c", "hi", { [META_TRIGGER]: TRIGGER_SEND }).userMessage),
+    /sent with `thicket send`, which is waiting/,
+  );
+  // Any other trigger — a person, a routine, a delegate — gets no line.
+  assert.equal(sendPreamble(requestContext("t", "c", "hi").userMessage), "");
+  assert.equal(
+    sendPreamble(requestContext("t", "c", "hi", { [META_TRIGGER]: "routine", [META_UNATTENDED]: true }).userMessage),
+    "",
+  );
 });
 
 test("an attached file is fetched and its path leads the prompt", async (t) => {
