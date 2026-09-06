@@ -23,6 +23,7 @@ import type { Logger } from "./logger.js";
 import { SqliteTaskStore } from "./store/sqlite-task-store.js";
 
 const ALLOWED_TAG = "tag:thicket-bridge";
+const LOCAL_USER = "hearth";
 
 const entry: AgentEntry = {
   host: "home",
@@ -178,6 +179,7 @@ async function startHarness(): Promise<Harness> {
   const app = buildServer({
     handler,
     allowedPeerTags: [ALLOWED_TAG],
+    localUser: LOCAL_USER,
     logger: quietLogger(),
   });
   const server = createServer(app);
@@ -311,6 +313,48 @@ test("SendMessage round trip reaches terminal state and GetTask retrieves it", a
   }
 });
 
+// What `thicket send` without --wait asks for: the task as soon as it
+// exists, the turn carrying on behind the closed connection.
+test("SendMessage with returnImmediately answers before the turn ends; the turn still finishes", async () => {
+  const h = await startHarness();
+  try {
+    h.cli.hold = true;
+    const message = userMessage("go, I am not waiting");
+    const { status, json } = await rpc(
+      h,
+      "SendMessage",
+      SendMessageRequest.toJSON({
+        tenant: "",
+        message,
+        configuration: {
+          acceptedOutputModes: [],
+          taskPushNotificationConfig: undefined,
+          historyLength: undefined,
+          returnImmediately: true,
+        },
+        metadata: undefined,
+      }),
+    );
+    assert.equal(status, 200);
+    assert.equal(json.error, undefined, JSON.stringify(json.error));
+    const task = json.result.task;
+    assert.ok(task.id);
+    assert.notEqual(task.status.state, "TASK_STATE_COMPLETED", "answered while the turn was held");
+
+    // Released on every poll: the turn may not have reached its hold yet.
+    let state = "";
+    for (let i = 0; i < 100 && state !== "TASK_STATE_COMPLETED"; i += 1) {
+      h.cli.release();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const got = await rpc(h, "GetTask", GetTaskRequest.toJSON({ tenant: "", id: task.id, historyLength: undefined }));
+      state = got.json.result.status.state;
+    }
+    assert.equal(state, "TASK_STATE_COMPLETED", "the reply is kept in the store, not discarded");
+  } finally {
+    await stopHarness(h);
+  }
+});
+
 test("client-supplied contextId is honored on the resulting task", async () => {
   const h = await startHarness();
   try {
@@ -370,6 +414,71 @@ test("absent or unknown peer tags are rejected with an A2A error, not a 500", as
     assert.match(unknown.json.error.message, /not authorized/);
   } finally {
     await stopHarness(h);
+  }
+});
+
+// `thicket send` from the account's own shell: no netd in the path, so no
+// peer tags — the caller names itself, and the name has to be this account.
+test("a local caller is admitted by the account's own name and by nothing else", async () => {
+  const h = await startHarness();
+  try {
+    const own = await rpc(h, "SendMessage", sendParams(userMessage("from a hook")), {
+      "x-thicket-local-user": LOCAL_USER,
+    });
+    assert.equal(own.status, 200, JSON.stringify(own.json));
+    assert.equal(own.json.result.task.status.state, "TASK_STATE_COMPLETED");
+
+    const neighbour = await rpc(h, "SendMessage", sendParams(userMessage("x")), {
+      "x-thicket-local-user": "mallory",
+    });
+    assert.equal(neighbour.status, 403);
+    assert.match(neighbour.json.error.message, /local caller not authorized: mallory/);
+
+    // A tag that is not allowed does not become allowed by adding the local name.
+    const both = await rpc(h, "SendMessage", sendParams(userMessage("x")), {
+      "x-thicket-peer-tags": "tag:thicket-stranger",
+      "x-thicket-local-user": "mallory",
+    });
+    assert.equal(both.status, 403);
+  } finally {
+    await stopHarness(h);
+  }
+});
+
+test("without a local user configured, the header admits nobody", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "agentd-"));
+  const socket = join(dir, "agentd.sock");
+  const store = new SqliteTaskStore(join(dir, "tasks.db"));
+  const sessions = new SessionManager({
+    harness: entry.harness,
+    queryFn: makeFakeCli().queryFn,
+    sessionExists: async () => false,
+  });
+  const handler = new DefaultRequestHandler(
+    toAgentCard("hearth", entry),
+    store,
+    new ClaudeAgentExecutor({ sessions }),
+  );
+  const server = createServer(
+    buildServer({ handler, allowedPeerTags: [ALLOWED_TAG], logger: quietLogger() }),
+  );
+  await listen(server, { kind: "path", path: socket });
+  try {
+    const res = await requestOverSocket(socket, "/a2a/v1", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "a2a-version": "1.0",
+        "x-thicket-local-user": LOCAL_USER,
+      },
+      body: rpcBody("SendMessage", sendParams(userMessage("x"))),
+    });
+    assert.equal(res.status, 403);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await sessions.shutdown();
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
