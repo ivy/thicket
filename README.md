@@ -41,27 +41,38 @@ See [docs/vision.md](docs/vision.md) for the full rationale.
 | `apps/agentd/` | TypeScript | A2A server + Claude Code session manager (hot/cold) |
 | `apps/bridge/` | TypeScript | Slack Socket Mode ⇄ A2A client; thread ⇄ session mapping |
 | `apps/phone/` | TypeScript | Twilio ConversationRelay ⇄ A2A; the PIN gate, the picker, the call |
-| `apps/cli/` | TypeScript | `provision`, `doctor`, `fleet`, `journal`, `send`, `mcp`, `slack-test-mcp` |
+| `apps/cli/` | TypeScript | `provision`, `render`, `doctor`, `fleet`, `journal`, `send`, `mcp`, `phone-test`, `slack-test-mcp` |
 | `packages/roster/` | TypeScript | `agents.yaml` → `AgentCard`; the shared contract |
 | `packages/executor/` | TypeScript | Agent SDK message stream → A2A task events |
 | `packages/slack-manifest/` | TypeScript | `AgentCard` → Slack app manifest |
-| `deploy/` | — | systemd user units, launchd plists, and a local dev rig |
+| `deploy/` | — | systemd units (user units for agents, system units for the edge), the SELinux module, launchd plists, and a local dev rig |
 | `tests/integration/` | TypeScript | real agentd + real bridge over HTTP; only Slack is faked |
 
 ## Status
 
-Running, for one operator: the Slack surface — DMs, mentions, threads, streamed
-answers with a step timeline, attachments, questions with buttons, reactions,
-routines and one-shot schedules — works end to end on a single host. The phone
-bridge is the second surface: a call authenticates on an 8-digit PIN keyed at
-connect, picks an agent by name, and holds a session that survives a dropped
-call — running on the laptop rig behind Tailscale Funnel, not yet deployed
-([#36](https://github.com/ivy/thicket/issues/36)). Real multi-host deployment
-(systemd, tailnet identity) is the next arc; see the [roadmap](docs/roadmap.md).
+Running, for one operator, on a home server: four agents, each its own unix
+account with `agentd` and `netd`, plus the Slack and phone bridges as system
+units under dedicated accounts. The Slack surface — DMs, mentions, threads,
+streamed answers with a step timeline, attachments, questions with buttons,
+reactions, routines and one-shot schedules — works end to end. The phone bridge
+is the second surface: a call authenticates on an 8-digit PIN keyed at connect,
+picks an agent by name, and holds a session that survives a dropped call. Both
+run on the server and are reached with the laptop closed.
 
-Real deployment is still ahead of the tooling in places: `netd` wants a tailnet you
-administer, and there is no installer yet, so an agent host needs a checkout. The
-laptop rig in [deploy/dev/](deploy/dev/) stands in for netd where there is no tailnet.
+Deployment is by attested release: a tag push publishes per-platform archives,
+and a host installs one by verifying its provenance and unpacking it — the
+operator's own deployment does this from Ansible. There is no `thicket install`
+yet ([#16](https://github.com/ivy/thicket/issues/16)), so a host still needs its
+own unit files; [deploy/](deploy/) has the reference set. `provision` runs from
+a workstation, not from a deployed account
+([#85](https://github.com/ivy/thicket/issues/85)). The laptop rig in
+[deploy/dev/](deploy/dev/) stands in for netd where there is no tailnet.
+
+What is ahead is trust, not reach: approvals for the acts an agent may not take
+alone ([#10](https://github.com/ivy/thicket/issues/10)), privilege where a
+deployed agent's job needs it ([#91](https://github.com/ivy/thicket/issues/91)),
+and the surface bugs that still produce a moment of "what is it doing?" — see
+the [roadmap](docs/roadmap.md).
 
 Work is tracked in [GitHub issues](https://github.com/ivy/thicket/issues).
 [docs/reference.md](docs/reference.md) has the runtime topology and the hard-won facts

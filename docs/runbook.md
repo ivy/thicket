@@ -20,7 +20,7 @@ journalctl --user -u thicket-agentd -n 100     # structured JSON lines on stderr
 
 - `fleet` says DOWN, netd unit dead → netd problem (next entries).
 - `fleet` says up but Slack is silent → the bridge: check its account's
-  `journalctl --user -u thicket-bridge`, look for `socket mode connection down`,
+  `journalctl -u thicket-bridge` (a system unit), look for `socket mode connection down`,
   `abandoning socket mode connection`, or `event handling failed`. On the
   bridge's host, `thicket doctor` reads the bridge's heartbeat file and says
   per agent whether the Socket Mode connection is up. A quietly dead socket
@@ -31,8 +31,8 @@ journalctl --user -u thicket-agentd -n 100     # structured JSON lines on stderr
   wedged session (see below).
 
 **Fix.** For a dead unit: `systemctl --user restart thicket-agentd` (netd needs
-no restart, and vice versa). For a silent bridge: restart
-`thicket-bridge.service`; queued messages are delivered from its SQLite queue
+no restart, and vice versa). For a silent bridge: `systemctl restart
+thicket-bridge` as root; queued messages are delivered from its SQLite queue
 when agents become reachable.
 
 ## Socket Mode will not reconnect
@@ -43,7 +43,7 @@ when agents become reachable.
 **Diagnose.**
 
 ```sh
-journalctl --user -u thicket-bridge -n 50      # which agent's connection, what error
+journalctl -u thicket-bridge -n 50             # system unit: which agent's connection, what error
 thicket doctor                                 # app installed? workspace at app cap?
 ```
 
@@ -53,7 +53,7 @@ thicket doctor                                 # app installed? workspace at app
 - App uninstalled → doctor says so; reinstall via the printed authorize URL.
 
 **Fix.** Rotate the app-level token in the app's settings, update the bridge
-config (`~/.config/thicket/bridge.json`), restart the bridge. Connections are
+config (`bridge.json` under the bridge account's `XDG_CONFIG_HOME`), restart the bridge. Connections are
 per-agent: one bad token never takes other agents down.
 
 ## Tailnet credential expired or wrong

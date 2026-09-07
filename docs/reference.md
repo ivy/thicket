@@ -32,10 +32,16 @@ run time there is no shared config: each agent serves its own `AgentCard`.
 
 ## Conventions
 
-- Paths follow XDG. Config `~/.config/thicket/`, state `~/.local/state/thicket/`,
-  runtime sockets `$XDG_RUNTIME_DIR/thicket/`. Nothing lives in `/etc`.
-- systemd **user** units, named `thicket-<component>.service`. No `%i` templates —
-  the unix user is the instance.
+- Paths follow XDG. For an agent account: config `~/.config/thicket/`, state
+  `~/.local/state/thicket/`, runtime sockets `$XDG_RUNTIME_DIR/thicket/`.
+- Agents run as systemd **user** units in their own accounts, named
+  `thicket-<component>.service`. No `%i` templates — the unix user is the
+  instance.
+- The edge — the bridge and the phone, and their `netd`s — runs as **system**
+  units under dedicated system accounts, with `XDG_CONFIG_HOME` pointed under
+  `/etc`, secrets supplied by `LoadCredential`, and `PrivateNetwork` so only
+  `netd` sees the network. [deploy/README.md](../deploy/README.md) has the
+  shape; the operator's Ansible carries the units.
 - Every generated artifact is reproducible from `agents.yaml`. If something must be
   hand-edited after generation, that is a bug in the generator.
 - Outbound traffic leaves an account through its own `netd`, which admits only the

@@ -17,23 +17,37 @@ what must be true before the next one starts.
   working; operator time spent on it is the signal to stop generalizing and ship the
   next automation instead.
 
-## Arc 1 — a surface I can trust (now)
+## Arc 1 — a surface I can trust
 
-Status fidelity, message splitting and dialects, the
-question UI, reactions, routines. Not polish for its own sake — the Slack surface is
-the oversight channel every later arc depends on: the place autonomous work is watched,
-questioned, and stopped.
+Built, not finished. Status fidelity, message splitting and dialects, the
+question UI, reactions, routines all exist; what remains is the tail of bugs that
+each produce a moment of doubt — a status line that goes blank on a long step
+([#93](https://github.com/ivy/thicket/issues/93)), a reconnect whose orphaned
+watchdog kills the healthy connection ([#94](https://github.com/ivy/thicket/issues/94)),
+an answered question re-asked on session recycle
+([#105](https://github.com/ivy/thicket/issues/105)), background work that is reaped,
+invisible, or un-stoppable from the surface
+([#106](https://github.com/ivy/thicket/issues/106)–[#108](https://github.com/ivy/thicket/issues/108)).
+Not polish for its own sake — the Slack surface is the oversight channel every later
+arc depends on: the place autonomous work is watched, questioned, and stopped.
 
 Done when: driving the fleet from a phone for a full day produces no moment of "what is
 it doing?" — status, questions, and long answers all render correctly, and a routine
 fires on schedule into a live socket.
 
-## Arc 2 — off the laptop
+## Arc 2 — off the laptop (now)
 
-First real deployment: the bridge and the first agents move to the home server per
-[deploy/README.md](../deploy/README.md). The founding use case ships: Claude Code on
-the laptop delegates to a server agent that edits homestead playbooks and applies
-them — propose-and-show-diff first, auto-apply only after approvals exist.
+The fleet is on the server: four agents, both bridges, `netd` everywhere, deployed
+from attested releases by the operator's Ansible per
+[deploy/README.md](../deploy/README.md). The founding use case is what remains:
+Claude Code on the laptop delegates to a server agent that edits the operator's
+playbooks and applies them — propose-and-show-diff first, auto-apply only after
+approvals exist. Proposals already flow and the privileged agent already applies
+host changes; what blocks the rest is approvals
+([#10](https://github.com/ivy/thicket/issues/10)), privilege inside a deployed
+agent's own unit ([#91](https://github.com/ivy/thicket/issues/91)), and the
+propose → review → approve → deploy → verify → rollback composition
+([#103](https://github.com/ivy/thicket/issues/103)).
 
 - Two iteration loops, kept separate. The **platform loop** — thicket itself — ships
   as attested release artifacts: a tag push runs the gate and publishes per-platform
@@ -55,9 +69,11 @@ a diff, and applied on the server — with the laptop closed the whole time.
 
 ## Arc 3 — reactivity
 
-Events join people and the clock as triggers.
+Events join people and the clock as triggers. `thicket send` shipped ahead of this
+arc because the first event consumer needed it — a git post-receive on the
+operator's host already wakes an agent through it.
 [#12](https://github.com/ivy/thicket/issues/12) leaves the icebox as the minimum viable
-ingress — with `thicket send`, a webhook receiver is a shell script — followed by a
+ingress — with `send`, a webhook receiver is a shell script — followed by a
 real GitHub-events bridge when a second consumer asks for one.
 [#9](https://github.com/ivy/thicket/issues/9) and
 [#10](https://github.com/ivy/thicket/issues/10) come out with it; approvals land before
