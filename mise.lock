@@ -18,6 +18,10 @@ version = "1.4.0"
 backend = "core:bun"
 specifiers = ["1.4.0"]
 
+[tools.bun."platforms.macos-arm64"]
+checksum = "sha256:c669e97f6164e1c96e0701748db98dfa77492908cbd8394c7557134a735de381"
+url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.0/bun-darwin-aarch64.zip"
+
 [[tools.go]]
 version = "1.27.0"
 backend = "core:go"
@@ -48,14 +52,14 @@ url_api = "https://api.github.com/repos/suzuki-shunsuke/pinact/releases/assets/4
 provenance = "github-attestations"
 
 [[tools.pnpm]]
-version = "10.15.0"
+version = "10.34.5"
 backend = "aqua:pnpm/pnpm"
-specifiers = ["10.15.0"]
+specifiers = ["10.34.5"]
 
 [tools.pnpm."platforms.macos-arm64"]
-checksum = "sha256:9a1ada22d959ad20f5131484fc79d6a096b43249cb6fbf3483d923a9d9e6e186"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.15.0/pnpm-macos-arm64"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/284092587"
+checksum = "sha256:888389e8dd5ed45279043c1d3383c0942a8248b3d29ce614b302f468191f7659"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.5/pnpm-macos-arm64"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/472419170"
 
 [[tools.shellcheck]]
 version = "0.11.0"

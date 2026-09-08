@@ -21,6 +21,8 @@ agents:
     user: hearth
     description: Personal assistant agent.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
     phone: { enabled: true, spokenName: Hearth }
   forge:
@@ -28,6 +30,8 @@ agents:
     user: forge
     description: CI fixer agent.
     tag: tag:thicket-forge
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/forge, model: claude-sonnet-5 }
 `;
 
@@ -158,6 +162,8 @@ test("adding an agent changes the bridge's allowlist and nothing else about it",
     user: ember
     description: An agent added to the roster and to nothing else.
     tag: tag:thicket-ember
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/ember, model: claude-opus-5 }
 `,
   );

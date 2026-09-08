@@ -105,6 +105,29 @@ async function attempt<T>(fn: () => Promise<T>): Promise<Probed<T>> {
   }
 }
 
+/**
+ * Who may talk to an agent and where, in one sentence. Says the open
+ * default out loud — an operator who has never heard of `reach` should
+ * learn from this line that every member of the workspace can open a turn.
+ */
+function describeReach(entry: Roster["agents"][string]): string {
+  const { operators, channels } = entry.reach;
+  const who =
+    operators === "anyone"
+      ? "anyone in the workspace"
+      : `${operators.length} operator${operators.length === 1 ? "" : "s"}`;
+  const listed = Object.keys(entry.channels);
+  const where =
+    channels === "any"
+      ? "any channel it is invited to"
+      : `${listed.length} listed channel${listed.length === 1 ? "" : "s"} (${listed.join(", ")})`;
+  const hint =
+    operators === "anyone" ? " — constrain it with reach.operators in agents.yaml" : "";
+  // The account, not the agent name: talking to an agent means running
+  // as that unix user on that host, which is the blast radius being opened.
+  return `${who} can open a turn as ${entry.user}@${entry.host}, in ${where}${hint}`;
+}
+
 export interface CheckResult {
   check: string;
   agent?: string;
@@ -198,6 +221,11 @@ export async function runDoctor(roster: Roster, probes: DoctorProbes): Promise<C
     } else {
       push("slack", true, "Slack app installed with Socket Mode", agent);
     }
+
+    // Reach is a fact, never a failure: the open default is what the fleet
+    // shipped with, and doctor's job is to make sure the operator knows it
+    // rather than to grade the choice.
+    push("reach", true, describeReach(entry), agent);
 
     const lingeringProbe = await attempt(() => probes.startsAtBoot(agent, entry.user));
     if (!lingeringProbe.ok) {

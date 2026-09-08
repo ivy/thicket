@@ -108,6 +108,7 @@ const entry: AgentEntry = {
   queueing: "harness",
   workspaces: {},
   channels: {},
+  reach: { channels: "any", operators: "anyone" },
   phone: { enabled: false, aliases: [], resumeWindowSeconds: 86_400 },
 };
 

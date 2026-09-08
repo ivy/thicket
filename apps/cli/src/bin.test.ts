@@ -15,12 +15,16 @@ agents:
     user: hearth
     description: Personal assistant agent.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
   forge:
     host: workshop
     user: forge
     description: CI fixer agent.
     tag: tag:thicket-forge
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/forge, model: claude-sonnet-5 }
 `;
 

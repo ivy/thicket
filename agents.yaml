@@ -6,6 +6,14 @@ agents:
     user: thicket-example
     description: Example agent used to exercise the toolchain.
     tag: tag:thicket-example
+    # Required: who may open a turn as this agent's unix account. There is
+    # no default — an agent nobody declared a reach for will not start.
+    # `anyone` means every member of the Slack workspace; a list means only
+    # those people, on every surface. `thicket doctor` says which it is.
+    reach:
+      operators: anyone
+      # operators: [U0123ABCDEF]  # only these people
+      # channels: listed          # and only the channels named below
     harness:
       type: claude-agent-sdk
       cwd: /home/thicket-example

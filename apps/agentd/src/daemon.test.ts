@@ -16,6 +16,8 @@ agents:
     user: hearth
     description: Socket activation test agent.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness:
       type: claude-agent-sdk
       cwd: /tmp

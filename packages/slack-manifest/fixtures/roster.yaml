@@ -8,6 +8,8 @@ agents:
       triage. Reads the inbox, sorts what matters, drafts replies, and keeps
       the week's plan honest.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     icon: ":herb:"
     skills:
       - id: email-triage
@@ -37,6 +39,8 @@ agents:
       bisects regressions, and proposes fixes as reviewable patches rather
       than pushing anything itself.
     tag: tag:thicket-forge
+    reach:
+      operators: anyone
     skills:
       - id: ci-triage
         name: CI triage

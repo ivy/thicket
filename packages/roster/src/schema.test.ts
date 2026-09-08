@@ -46,6 +46,7 @@ const minimalAgent = {
   description: "An agent.",
   tag: "tag:thicket-hearth",
   harness: { type: "claude-agent-sdk", cwd: "/home/hearth", model: "claude-opus-5" },
+  reach: { operators: "anyone" },
 };
 
 function yamlish(agents: Record<string, unknown>): string {
@@ -79,12 +80,16 @@ agents:
     user: hearth
     description: An agent.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
   hearth:
     host: home
     user: hearth2
     description: Another agent.
     tag: tag:thicket-hearth2
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/hearth2, model: claude-opus-5 }
 `;
   assert.throws(
@@ -202,6 +207,8 @@ agents:
     user: hearth
     description: A test agent with a persona block that is long enough to satisfy Slack copy.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     persona: |-
       You are warm and terse.
       Silence is a valid outcome.
@@ -221,6 +228,8 @@ agents:
     user: hearth
     description: A test agent whose persona is empty, which must be rejected loudly.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     persona: ""
     harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
 `),
@@ -236,6 +245,8 @@ agents:
     user: hearth
     description: d
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/hearth, model: m }
 `;
   const bare = parseRoster(base);
@@ -271,5 +282,90 @@ agents:
   assert.throws(
     () => parseRoster(base + `    workspaces:\n      w: /w\n    channels:\n      proj-x: w\n`),
     /channel keys are #name or a channel id/,
+  );
+});
+
+test("an agent with no reach is refused, and told what to write", () => {
+  const noReach: Record<string, unknown> = { ...minimalAgent };
+  delete noReach.reach;
+  assert.throws(
+    () => parseRoster(yamlish({ hearth: noReach })),
+    (err: unknown) => {
+      assert.ok(err instanceof RosterValidationError);
+      assert.match(err.message, /agents\.hearth\.reach: is required/);
+      assert.match(err.message, /operators: anyone/);
+      return true;
+    },
+  );
+});
+
+test("an empty operators list is refused rather than read as everyone", () => {
+  assert.throws(
+    () => parseRoster(yamlish({ hearth: { ...minimalAgent, reach: { operators: [] } } })),
+    (err: unknown) => {
+      assert.ok(err instanceof RosterValidationError);
+      assert.match(err.message, /agents\.hearth\.reach\.operators/);
+      assert.match(err.message, /write `anyone` if that is what you mean/);
+      return true;
+    },
+  );
+});
+
+test("operators: anyone is the open declaration, and channels still defaults", () => {
+  const roster = parseRoster(yamlish({ hearth: minimalAgent }));
+  assert.equal(roster.agents.hearth?.reach.operators, "anyone");
+  assert.equal(roster.agents.hearth?.reach.channels, "any");
+});
+
+test("reach constrains both axes when the operator asks", () => {
+  const roster = parseRoster(
+    yamlish({
+      hearth: {
+        ...minimalAgent,
+        workspaces: { home: "/home/hearth/src/home" },
+        channels: { "#ops": "home" },
+        reach: { channels: "listed", operators: ["U0123ABCDEF"] },
+      },
+    }),
+  );
+  assert.equal(roster.agents.hearth?.reach.channels, "listed");
+  assert.deepEqual(roster.agents.hearth?.reach.operators, ["U0123ABCDEF"]);
+});
+
+test("reach.channels listed with nothing listed is refused", () => {
+  assert.throws(
+    () =>
+      parseRoster(yamlish({ hearth: { ...minimalAgent, reach: { channels: "listed", operators: "anyone" } } })),
+    (err: unknown) => {
+      assert.ok(err instanceof RosterValidationError);
+      assert.match(err.message, /agents\.hearth\.reach\.channels/);
+      assert.match(err.message, /lists no channels/);
+      return true;
+    },
+  );
+});
+
+test("an operator that is not a Slack user id is refused", () => {
+  assert.throws(
+    () =>
+      parseRoster(
+        yamlish({ hearth: { ...minimalAgent, reach: { operators: ["@martin"] } } }),
+      ),
+    (err: unknown) => {
+      assert.ok(err instanceof RosterValidationError);
+      assert.match(err.message, /agents\.hearth\.reach\.operators\[0\]/);
+      return true;
+    },
+  );
+});
+
+test("an unknown reach key is refused rather than silently ignored", () => {
+  assert.throws(
+    () => parseRoster(yamlish({ hearth: { ...minimalAgent, reach: { operators: "anyone", dms: "none" } } })),
+    (err: unknown) => {
+      assert.ok(err instanceof RosterValidationError);
+      assert.match(err.message, /agents\.hearth\.reach/);
+      return true;
+    },
   );
 });

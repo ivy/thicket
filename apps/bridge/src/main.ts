@@ -173,6 +173,7 @@ export async function run(
       logger,
       ...(config.file_base_url === undefined ? {} : { fileBaseUrl: config.file_base_url }),
       ...(Object.keys(entry.channels).length === 0 ? {} : { bindings: entry.channels }),
+      reach: entry.reach,
     });
     engines.set(name, engine);
     await engine.start();

@@ -22,6 +22,8 @@ agents:
     user: hearth
     description: Personal assistant agent.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     skills:
       - id: triage
         name: Email triage
@@ -33,6 +35,8 @@ agents:
     user: vault
     description: An agent this caller may not reach.
     tag: tag:thicket-forbidden
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /tmp, model: claude-opus-5 }
 `;
 
