@@ -29,7 +29,7 @@ binaries an agent account installs.
 | `netd/` | Go; tsnet node per agent, tailnet ⇄ unix socket with verified peer tags |
 | `tests/integration/` | Real agentd + real bridge over HTTP; only Slack is faked |
 | `deploy/` | systemd units, launchd plists, and `deploy/dev/` stand-ins |
-| `.github/` | The CI gate and the Dependabot policy that moves its action pins |
+| `.github/` | The CI gate and the release workflows; `renovate.json5` at the root moves every pin |
 | `scripts/compile.ts` | `bun build --compile` → `dist-bin/<target>/{thicket,thicket-agentd,thicket-bridge}` |
 
 `agents.yaml` is the source of truth. Manifests, per-account config, and tailnet
