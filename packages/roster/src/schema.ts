@@ -58,6 +58,45 @@ const phoneSchema = z
   })
   .strict();
 
+/** A Slack user id, as the operator copies it out of a profile. */
+const SLACK_USER_ID = /^[UW][A-Z0-9]{8,}$/;
+
+/**
+ * Who may open a turn, and where. Required on every agent: talking to an
+ * agent means running as its unix account, so who may do that is a thing
+ * the operator writes down rather than a default they inherit.
+ *
+ * `operators: anyone` is spelled out for the same reason. An empty list
+ * reads as "not filled in yet", which is the last thing that should mean
+ * "the whole workspace".
+ */
+const reachSchema = z
+  .object(
+    {
+      /** `listed`: only channels named in `channels`. DMs are not channels. */
+      channels: z.enum(["any", "listed"]).default("any"),
+      /** `anyone` in the workspace, or exactly these people, on every surface. */
+      operators: z.union([
+        z.literal("anyone"),
+        z
+          .array(
+            z.string().regex(SLACK_USER_ID, {
+              message: "must be a Slack user id (U… or W…)",
+            }),
+          )
+          .min(1, { message: "is empty — write `anyone` if that is what you mean" }),
+      ]),
+    },
+    {
+      error: (issue) =>
+        issue.input === undefined
+          ? "is required — say who may open a turn as this agent's unix account " +
+            "before it will run (`operators: anyone` keeps it open to the workspace)"
+          : undefined,
+    },
+  )
+  .strict();
+
 const agentEntrySchema = z.object({
   host: z.string().min(1),
   user: z.string().min(1),
@@ -93,6 +132,12 @@ const agentEntrySchema = z.object({
    * what a key should look like.
    */
   channels: z.record(z.string(), workspaceNameSchema).default({}),
+  /**
+   * The fence in front of a turn. Enforced by the bridge, declared here
+   * so reachability is rendered from the roster like every other fact
+   * about an agent, rather than living in a Slack admin UI.
+   */
+  reach: reachSchema,
   phone: phoneSchema.default({ enabled: false, aliases: [], resumeWindowSeconds: 24 * 60 * 60 }),
 });
 
@@ -177,6 +222,16 @@ const rosterSchema = z
         }
       }
 
+      // `listed` with nothing listed leaves the agent reachable only by
+      // DM, which reads as a broken agent rather than a constrained one.
+      if (entry.reach.channels === "listed" && Object.keys(entry.channels).length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["agents", name, "reach", "channels"],
+          message: "is \"listed\", but agents." + name + ".channels lists no channels",
+        });
+      }
+
       const hostUser = `${entry.host}/${entry.user}`;
       const hostUserOwner = byHostUser.get(hostUser);
       if (hostUserOwner !== undefined) {
@@ -192,6 +247,7 @@ const rosterSchema = z
   });
 
 export type AgentPhone = z.infer<typeof phoneSchema>;
+export type AgentReach = z.infer<typeof reachSchema>;
 export type AgentSkillEntry = z.infer<typeof skillSchema>;
 export type AgentHarness = z.infer<typeof harnessSchema>;
 export type AgentEntry = z.infer<typeof agentEntrySchema>;

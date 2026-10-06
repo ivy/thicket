@@ -12,12 +12,16 @@ agents:
     user: hearth
     description: Personal assistant agent.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
   forge:
     host: workshop
     user: forge
     description: CI fixer agent.
     tag: tag:thicket-forge
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/forge, model: claude-sonnet-5 }
 `);
 
@@ -350,4 +354,40 @@ test("from a tagged host, a node it cannot see is not reported as absent", async
   assert.ok(strict);
   assert.equal(strict.ok, false);
   assert.match(strict.message, /no tailnet node named thicket-hearth/);
+});
+
+test("doctor says the open default out loud, and how to close it", async () => {
+  const results = await runDoctor(ROSTER, healthyProbes());
+  const reach = results.filter((r) => r.check === "reach");
+  assert.equal(reach.length, 2, "one per agent");
+  assert.ok(
+    reach.every((r) => r.ok),
+    "an open fleet is a fact to report, not a failure",
+  );
+  assert.match(
+    reach.find((r) => r.agent === "hearth")!.message,
+    /anyone in the workspace can open a turn as hearth@home, in any channel it is invited to/,
+  );
+  assert.match(reach[0]!.message, /constrain it with reach\.operators/);
+});
+
+test("a constrained agent is described by its constraints, with no hint to add one", async () => {
+  const roster = parseRoster(`
+agents:
+  hearth:
+    host: home
+    user: hearth
+    description: Personal assistant agent.
+    tag: tag:thicket-hearth
+    harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
+    workspaces: { homestead: /home/hearth/src/homestead }
+    channels: { "#ops": homestead }
+    reach: { channels: listed, operators: [U0OPERATOR1] }
+`);
+  const results = await runDoctor(roster, healthyProbes());
+  const reach = results.find((r) => r.check === "reach")!;
+  assert.equal(
+    reach.message,
+    "1 operator can open a turn as hearth@home, in 1 listed channel (#ops)",
+  );
 });

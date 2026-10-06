@@ -15,6 +15,8 @@ agents:
     user: hearth
     description: Personal assistant agent for probing the doctor's card check.
     tag: tag:thicket-hearth
+    reach:
+      operators: anyone
     harness: { type: claude-agent-sdk, cwd: /home/hearth, model: claude-opus-5 }
 `);
 

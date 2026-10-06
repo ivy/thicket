@@ -7,6 +7,7 @@ export {
   type AgentEntry,
   type AgentHarness,
   type AgentPhone,
+  type AgentReach,
   type AgentSkillEntry,
   type Roster,
 } from "./schema.js";
