@@ -44,6 +44,7 @@ export function agentEntry(name: string): AgentEntry {
     workspaces: {},
     channels: {},
     phone: { enabled: false, aliases: [], resumeWindowSeconds: 86_400 },
+    discord: { enabled: false, channels: {} },
   };
 }
 

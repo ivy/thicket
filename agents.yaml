@@ -17,3 +17,10 @@ agents:
       example: /home/thicket-example/src/example
     channels:
       "#proj-example": example
+    # Discord is opt-in per agent. Channels bind by id, never by name, and
+    # the application id and bot token live in the Discord bridge's own
+    # config, never here.
+    # discord:
+    #   enabled: true
+    #   channels:
+    #     "999999999999991001": example

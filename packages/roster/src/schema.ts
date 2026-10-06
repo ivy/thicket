@@ -58,6 +58,22 @@ const phoneSchema = z
   })
   .strict();
 
+/** A Discord channel id: a snowflake, never a name, which is not unique across a server. */
+const SNOWFLAKE = /^\d{17,20}$/;
+
+/**
+ * Whether the Discord bridge serves this agent, and which channels bind
+ * which workspaces. Capability only: the application id and bot token live
+ * in the bridge's own 0600 config, never here — the roster is in git.
+ */
+const discordSchema = z
+  .object({
+    enabled: z.boolean().default(false),
+    /** Channel id → workspace name; a thread binds through its parent. */
+    channels: z.record(z.string(), workspaceNameSchema).default({}),
+  })
+  .strict();
+
 const agentEntrySchema = z.object({
   host: z.string().min(1),
   user: z.string().min(1),
@@ -94,6 +110,7 @@ const agentEntrySchema = z.object({
    */
   channels: z.record(z.string(), workspaceNameSchema).default({}),
   phone: phoneSchema.default({ enabled: false, aliases: [], resumeWindowSeconds: 24 * 60 * 60 }),
+  discord: discordSchema.default({ enabled: false, channels: {} }),
 });
 
 const agentNameSchema = z
@@ -176,6 +193,23 @@ const rosterSchema = z
           });
         }
       }
+      for (const [channel, workspace] of Object.entries(entry.discord.channels)) {
+        if (!SNOWFLAKE.test(channel)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["agents", name, "discord", "channels", channel],
+            message: "Discord channels are bound by id (a snowflake), never by name",
+          });
+          continue;
+        }
+        if (entry.workspaces[workspace] === undefined) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["agents", name, "discord", "channels", channel],
+            message: `binds to workspace "${workspace}", which agents.${name}.workspaces does not declare`,
+          });
+        }
+      }
 
       const hostUser = `${entry.host}/${entry.user}`;
       const hostUserOwner = byHostUser.get(hostUser);
@@ -192,6 +226,7 @@ const rosterSchema = z
   });
 
 export type AgentPhone = z.infer<typeof phoneSchema>;
+export type AgentDiscord = z.infer<typeof discordSchema>;
 export type AgentSkillEntry = z.infer<typeof skillSchema>;
 export type AgentHarness = z.infer<typeof harnessSchema>;
 export type AgentEntry = z.infer<typeof agentEntrySchema>;

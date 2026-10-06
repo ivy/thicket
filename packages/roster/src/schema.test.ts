@@ -273,3 +273,44 @@ agents:
     /channel keys are #name or a channel id/,
   );
 });
+
+test("discord is off by default, binds channels by snowflake only, and refuses secrets", () => {
+  const base = `
+agents:
+  a:
+    host: h
+    user: u
+    description: d
+    tag: tag:thicket-a
+    harness:
+      type: claude-agent-sdk
+      cwd: /home/u
+      model: claude-sonnet-5
+    workspaces:
+      example: /home/u/src/example
+`;
+  const off = parseRoster(base);
+  assert.deepEqual(off.agents.a?.discord, { enabled: false, channels: {} });
+
+  const on = parseRoster(
+    base +
+      `    discord:
+      enabled: true
+      channels:
+        "999999999999991001": example
+`,
+  );
+  assert.equal(on.agents.a?.discord.enabled, true);
+  assert.deepEqual(on.agents.a?.discord.channels, { "999999999999991001": "example" });
+
+  assert.throws(
+    () => parseRoster(base + `    discord:\n      enabled: true\n      channels:\n        "#ops": example\n`),
+    (err: unknown) => err instanceof RosterValidationError && /snowflake/.test(err.message),
+    "a channel name is not a binding key",
+  );
+  assert.throws(
+    () => parseRoster(base + `    discord:\n      enabled: true\n      bot_token: xyz\n`),
+    RosterValidationError,
+    "a token in the roster is refused",
+  );
+});

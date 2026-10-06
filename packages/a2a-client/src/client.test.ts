@@ -109,6 +109,7 @@ const entry: AgentEntry = {
   workspaces: {},
   channels: {},
   phone: { enabled: false, aliases: [], resumeWindowSeconds: 86_400 },
+  discord: { enabled: false, channels: {} },
 };
 
 async function startAgent(): Promise<{ url: string; executor: ScriptedExecutor; server: Server }> {
