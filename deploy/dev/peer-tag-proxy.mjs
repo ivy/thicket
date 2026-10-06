@@ -6,7 +6,7 @@
 // so this asserts an identity instead — which is exactly why it must never
 // run anywhere real.
 //
-//   UPSTREAM=$XDG_RUNTIME_DIR/thicket/agentd.sock PEER_TAG=tag:thicket-bridge \
+//   UPSTREAM=$XDG_RUNTIME_DIR/thicket/agentd.sock PEER_TAG=tag:thicket-slack \
 //     PORT=8791 node peer-tag-proxy.mjs
 //
 // Both directions need one: agents are reached at their agentd socket

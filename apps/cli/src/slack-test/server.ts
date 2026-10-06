@@ -160,7 +160,7 @@ export function buildSlackTestServer(deps: SlackTestDeps): McpServer {
                   type: "text" as const,
                   text:
                     `no agent reply in thread ${thread_ts} within the timeout. ` +
-                    `${messages.length} message(s) present — check the bridge log ` +
+                    `${messages.length} message(s) present — check the Slack bridge log ` +
                     `for a "slack event" line to tell a lost event from a slow turn.`,
                 },
               ],

@@ -75,9 +75,9 @@ test("an agent absent from the roster still fails loudly", async () => {
 test("the health probe reads the system layout before this account's", async (t) => {
   const home = mkdtempSync(join(tmpdir(), "doctor-state-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
-  mkdirSync(join(home, "thicket", "bridge"), { recursive: true });
+  mkdirSync(join(home, "thicket", "slack"), { recursive: true });
   writeFileSync(
-    join(home, "thicket", "bridge", "health.json"),
+    join(home, "thicket", "slack", "health.json"),
     JSON.stringify({ ts: new Date().toISOString(), agents: [] }),
   );
 
@@ -91,7 +91,7 @@ test("the health probe reads the system layout before this account's", async (t)
     }
   });
 
-  const health = await realProbes().bridgeHealth();
+  const health = await realProbes().slackBridgeHealth();
   assert.ok(health, "the account's own state dir was not read");
   // The line doctor prints has to say which layout answered, or a wrong
   // inference is invisible.
@@ -110,10 +110,10 @@ test("a heartbeat that cannot be read is reported, not mistaken for no deploymen
   }
   const home = mkdtempSync(join(tmpdir(), "doctor-state-"));
   t.after(() => {
-    chmodSync(join(home, "thicket", "bridge"), 0o700);
+    chmodSync(join(home, "thicket", "slack"), 0o700);
     rmSync(home, { recursive: true, force: true });
   });
-  const dir = join(home, "thicket", "bridge");
+  const dir = join(home, "thicket", "slack");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "health.json"), JSON.stringify({ ts: new Date().toISOString(), agents: [] }));
   // What a system-unit deployment looked like before the heartbeat was
@@ -130,5 +130,5 @@ test("a heartbeat that cannot be read is reported, not mistaken for no deploymen
     }
   });
 
-  await assert.rejects(() => realProbes().bridgeHealth(), /cannot read it/);
+  await assert.rejects(() => realProbes().slackBridgeHealth(), /cannot read it/);
 });

@@ -1,4 +1,4 @@
-# The bridge's netd. Faces both ways: inbound, so agents can fetch the bytes
+# The Slack bridge's netd. Faces both ways: inbound, so agents can fetch the bytes
 # of a file a human uploaded from the bridge's own socket, and outbound,
 # because it is the only way the bridge can reach anything at all.
 #
@@ -27,20 +27,20 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=thicket-bridge-netd
+User=thicket-slack-netd
 # The bridge's own group, carried here as the primary one so the runtime
 # directory systemd creates below is owned by it: that directory is where the
 # bridge creates its socket. The pair and nothing else are members — a group
 # shared with the phone bridge pair would let either open the other's egress
 # socket, and with it the other's allowlist.
-Group=thicket-bridge
+Group=thicket-slack
 # And netd's own group back, because its credential is readable by that and
 # not by the shared one. The bridge has no business reading netd's tailnet
 # identity.
-SupplementaryGroups=thicket-bridge-netd
+SupplementaryGroups=thicket-slack-netd
 # Named outright: both edge pairs keep their config in one /etc/thicket,
 # so neither netd can be the one that takes the default name.
-ExecStart=/usr/local/bin/thicket-netd --config /etc/thicket/bridge-netd.json
+ExecStart=/usr/local/bin/thicket-netd --config /etc/thicket/slack-netd.json
 # netd.json may name its auth key file relative to the config directory, and
 # netd resolves that against the working directory.
 WorkingDirectory=/etc/thicket
@@ -55,7 +55,7 @@ RestartMaxDelaySec=120
 ConfigurationDirectory=thicket
 # Its own state. The bridge owns /var/lib/thicket and they are not the same
 # user; netd.json points tsnet at this one with "state_dir".
-StateDirectory=thicket-bridge-netd
+StateDirectory=thicket-slack-netd
 # tsnet's state includes this node's key. Nobody but netd, group included.
 StateDirectoryMode=0700
 RuntimeDirectory=thicket

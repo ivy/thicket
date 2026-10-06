@@ -119,7 +119,7 @@ if command -v systemd-analyze >/dev/null 2>&1; then
       sed -n 's/.*Overall exposure level for [^:]*: \([0-9.]*\).*/\1/p')
     [ -n "$score" ] || continue
     case "$(basename "$unit")" in
-      thicket-bridge.service | thicket-phone.service)
+      thicket-slack.service | thicket-phone.service)
         # No network at all; anything above this means a line went missing.
         limit=1.5 ;;
       *)
@@ -166,7 +166,7 @@ done
 # would let each open the other's egress socket, and with it the other's
 # allowlist — which is the whole reason the accounts are split. The socket
 # names are the same in every pair, so the directories cannot be.
-pairs="bridge phone"
+pairs="slack phone"
 pair_groups=""
 for pair in $pairs; do
   unit="$dir/systemd/system/thicket-$pair.service"
@@ -224,7 +224,7 @@ done
 
 # The two halves of a pair meet on a socket under /run. A private /tmp is one
 # namespace away from a rendezvous that silently does not happen.
-for unit in "$dir"/systemd/system/thicket-bridge.service "$dir"/systemd/system/thicket-phone.service; do
+for unit in "$dir"/systemd/system/thicket-slack.service "$dir"/systemd/system/thicket-phone.service; do
   grep -q '^PrivateTmp=no' "$unit" ||
     err "$unit: PrivateTmp must be explicitly off, with the reason"
   grep -q '^PrivateNetwork=yes' "$unit" ||

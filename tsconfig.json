@@ -20,7 +20,7 @@
       "path": "apps/agentd"
     },
     {
-      "path": "apps/bridge"
+      "path": "apps/slack"
     },
     {
       "path": "apps/phone"

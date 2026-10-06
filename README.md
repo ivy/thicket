@@ -17,7 +17,7 @@ the [roadmap](docs/roadmap.md) is the operator's, and [docs/vision.md](docs/visi
 is the argument behind it.
 
 ```
-Slack ────────► bridge ─┐
+Slack ────────► slack ──┐
 a phone call ─► phone ──┤
 Claude Code (MCP) ──────┴──► A2A ──► agentd (per unix account) ──► Claude Code session
                                                                    via Agent SDK
@@ -39,14 +39,14 @@ See [docs/vision.md](docs/vision.md) for the full rationale.
 |---|---|---|
 | `netd/` | Go | tsnet node per agent; tailnet ⇄ unix socket, injects verified peer tags |
 | `apps/agentd/` | TypeScript | A2A server + Claude Code session manager (hot/cold) |
-| `apps/bridge/` | TypeScript | Slack Socket Mode ⇄ A2A client; thread ⇄ session mapping |
+| `apps/slack/` | TypeScript | Slack Socket Mode ⇄ A2A client; thread ⇄ session mapping |
 | `apps/phone/` | TypeScript | Twilio ConversationRelay ⇄ A2A; the PIN gate, the picker, the call |
 | `apps/cli/` | TypeScript | `provision`, `render`, `doctor`, `fleet`, `journal`, `send`, `mcp`, `phone-test`, `slack-test-mcp` |
 | `packages/roster/` | TypeScript | `agents.yaml` → `AgentCard`; the shared contract |
 | `packages/executor/` | TypeScript | Agent SDK message stream → A2A task events |
 | `packages/slack-manifest/` | TypeScript | `AgentCard` → Slack app manifest |
 | `deploy/` | — | systemd units (user units for agents, system units for the edge), the SELinux module, launchd plists, and a local dev rig |
-| `tests/integration/` | TypeScript | real agentd + real bridge over HTTP; only Slack is faked |
+| `tests/integration/` | TypeScript | real agentd + real Slack bridge over HTTP; only Slack is faked |
 
 ## Status
 
@@ -82,7 +82,7 @@ working in the repo.
 ## Requirements
 
 - Node 22+ and Go 1.27+ — both pinned in [mise.toml](mise.toml), along with pnpm.
-  Node 22 is a floor, not a preference: the task store and the bridge's state both
+  Node 22 is a floor, not a preference: the task store and the Slack bridge's state both
   use `node:sqlite`.
 - A Tailscale tailnet with ACL tags you control, and tag owners for `tag:thicket-*`
 - A Slack workspace where you can create apps, and an

@@ -72,30 +72,30 @@ test("render writes the per-account tree with no Slack credential in reach", (t)
   assert.deepEqual(
     Object.keys(files).sort(),
     [
-      // The Slack bridge is an account like the others: its node, its tag and
-      // an allowlist that follows the roster. Its tokens are not rendered.
-      "bridge/agents.yaml",
-      "bridge/netd.json",
       "forge/agentd.json",
       "forge/agents.yaml",
       "forge/netd.json",
       "hearth/agentd.json",
       "hearth/agents.yaml",
       "hearth/netd.json",
+      // The Slack bridge is an account like the others: its node, its tag and
+      // an allowlist that follows the roster. Its tokens are not rendered.
+      "slack/agents.yaml",
+      "slack/netd.json",
     ],
   );
 
   const netd = JSON.parse(files["hearth/netd.json"]!) as { egress_allow: string[]; tag: string };
   assert.equal(netd.tag, "tag:thicket-hearth");
   assert.deepEqual(netd.egress_allow, [
-    "thicket-bridge.tail42.ts.net",
+    "thicket-slack.tail42.ts.net",
     "thicket-hearth.tail42.ts.net",
     "thicket-forge.tail42.ts.net",
   ]);
 
   const agentd = JSON.parse(files["hearth/agentd.json"]!) as { allowed_peer_tags: string[] };
   assert.deepEqual(agentd.allowed_peer_tags, [
-    "tag:thicket-bridge",
+    "tag:thicket-slack",
     "tag:thicket-hearth",
     "tag:thicket-forge",
   ]);

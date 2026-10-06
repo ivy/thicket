@@ -13,7 +13,7 @@ function configDirWith(raw: Record<string, unknown>): string {
   return path;
 }
 
-const base = { agent: "lode", allowed_peer_tags: ["tag:thicket-bridge"] };
+const base = { agent: "lode", allowed_peer_tags: ["tag:thicket-slack"] };
 
 test("a relative agents_file resolves against the config file, not the cwd", () => {
   // provision renders exactly this, meaning the roster copied in beside
@@ -30,6 +30,16 @@ test("an absolute agents_file is left alone", () => {
 test("an absent agents_file still falls back to the config dir", () => {
   const path = configDirWith(base);
   assert.match(loadConfig(path).agentsFile, /agents\.yaml$/);
+});
+
+test("a config still naming bridge_base_url is refused, not run without a toolbelt", () => {
+  const path = configDirWith({ ...base, bridge_base_url: "https://thicket-bridge.example.ts.net" });
+  assert.throws(() => loadConfig(path), /"bridge_base_url" is now "slack_base_url"/);
+});
+
+test("slack_base_url is read", () => {
+  const path = configDirWith({ ...base, slack_base_url: "https://thicket-slack.example.ts.net" });
+  assert.equal(loadConfig(path).slackBaseUrl, "https://thicket-slack.example.ts.net");
 });
 
 test("claude_executable wins over whatever PATH offers", () => {

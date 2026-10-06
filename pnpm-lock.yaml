@@ -58,46 +58,6 @@ importers:
         specifier: ^5.9.2
         version: 5.9.3
 
-  apps/bridge:
-    dependencies:
-      '@a2a-js/sdk':
-        specifier: ^1.1.0
-        version: 1.1.0(express@5.2.1)
-      '@slack/web-api':
-        specifier: ^7.19.0
-        version: 7.19.0
-      '@thicket/a2a-client':
-        specifier: workspace:*
-        version: link:../../packages/a2a-client
-      '@thicket/egress':
-        specifier: workspace:*
-        version: link:../../packages/egress
-      '@thicket/executor':
-        specifier: workspace:*
-        version: link:../../packages/executor
-      '@thicket/roster':
-        specifier: workspace:*
-        version: link:../../packages/roster
-      express:
-        specifier: ^5.2.1
-        version: 5.2.1
-      slack-ws:
-        specifier: npm:ws@^8.21.3
-        version: ws@8.21.3
-    devDependencies:
-      '@types/express':
-        specifier: ^5.0.6
-        version: 5.0.6
-      '@types/node':
-        specifier: ^22.17.0
-        version: 22.20.1
-      '@types/ws':
-        specifier: ^8.18.1
-        version: 8.18.1
-      typescript:
-        specifier: ^5.9.2
-        version: 5.9.3
-
   apps/cli:
     dependencies:
       '@a2a-js/sdk':
@@ -168,6 +128,46 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@types/node':
+        specifier: ^22.17.0
+        version: 22.20.1
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+
+  apps/slack:
+    dependencies:
+      '@a2a-js/sdk':
+        specifier: ^1.1.0
+        version: 1.1.0(express@5.2.1)
+      '@slack/web-api':
+        specifier: ^7.19.0
+        version: 7.19.0
+      '@thicket/a2a-client':
+        specifier: workspace:*
+        version: link:../../packages/a2a-client
+      '@thicket/egress':
+        specifier: workspace:*
+        version: link:../../packages/egress
+      '@thicket/executor':
+        specifier: workspace:*
+        version: link:../../packages/executor
+      '@thicket/roster':
+        specifier: workspace:*
+        version: link:../../packages/roster
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      slack-ws:
+        specifier: npm:ws@^8.21.3
+        version: ws@8.21.3
+    devDependencies:
+      '@types/express':
+        specifier: ^5.0.6
+        version: 5.0.6
       '@types/node':
         specifier: ^22.17.0
         version: 22.20.1
@@ -274,9 +274,6 @@ importers:
       '@thicket/agentd':
         specifier: workspace:*
         version: link:../../apps/agentd
-      '@thicket/bridge':
-        specifier: workspace:*
-        version: link:../../apps/bridge
       '@thicket/cli':
         specifier: workspace:*
         version: link:../../apps/cli
@@ -289,6 +286,9 @@ importers:
       '@thicket/roster':
         specifier: workspace:*
         version: link:../../packages/roster
+      '@thicket/slack':
+        specifier: workspace:*
+        version: link:../../apps/slack
       '@thicket/slack-manifest':
         specifier: workspace:*
         version: link:../../packages/slack-manifest

@@ -10,7 +10,7 @@ Enough context to work a task without reading every other file.
 
 **Runtime topology.** One `agentd` per unix account, each fronted by a `netd` process
 holding that agent's tailnet identity. `netd` terminates TLS on the tailnet and proxies
-to `agentd` over a unix socket; `agentd` has no network listener. A single `bridge`
+to `agentd` over a unix socket; `agentd` has no network listener. A single `thicket-slack`
 process holds one Slack Socket Mode connection per agent and acts as an A2A client.
 Local Claude Code reaches the same agents through an MCP server that wraps the same A2A
 client, and a shell script reaches them with `thicket send` — the same client again,
@@ -37,7 +37,7 @@ run time there is no shared config: each agent serves its own `AgentCard`.
 - Agents run as systemd **user** units in their own accounts, named
   `thicket-<component>.service`. No `%i` templates — the unix user is the
   instance.
-- The edge — the bridge and the phone, and their `netd`s — runs as **system**
+- The edge — the Slack and phone bridges, and their `netd`s — runs as **system**
   units under dedicated system accounts, with `XDG_CONFIG_HOME` pointed under
   `/etc`, secrets supplied by `LoadCredential`, and `PrivateNetwork` so only
   `netd` sees the network. [deploy/README.md](../deploy/README.md) has the

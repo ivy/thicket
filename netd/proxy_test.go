@@ -181,7 +181,7 @@ func TestInboundProxyRejectsWhenIdentityUnavailable(t *testing.T) {
 // has to stay inside DialContext, once per request.
 func TestInboundProxyServesOnceTheUpstreamAppears(t *testing.T) {
 	socket := shortSocketPath(t, "agentd.sock")
-	ident := &fakeIdentifier{tags: []string{"tag:thicket-bridge"}}
+	ident := &fakeIdentifier{tags: []string{"tag:thicket-slack"}}
 	front := httptest.NewServer(newInboundProxy(socket, ident, testLogger(t)))
 	defer front.Close()
 

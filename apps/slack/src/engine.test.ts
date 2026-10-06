@@ -702,7 +702,7 @@ function dmWithFile(text = "what do you make of this?") {
 test("an upload is recorded and referred to by url, never by bytes", async () => {
   const r = rig(
     { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
-    { fileBaseUrl: "https://thicket-bridge.example.ts.net/" },
+    { fileBaseUrl: "https://thicket-slack.example.ts.net/" },
   );
   await r.engine.handleEvent(dmWithFile());
 
@@ -720,7 +720,7 @@ test("an upload is recorded and referred to by url, never by bytes", async () =>
   assert.equal(
     file.content?.$case === "url" ? file.content.value : "",
     // The trailing slash on the configured base must not double up.
-    "https://thicket-bridge.example.ts.net/files/F1",
+    "https://thicket-slack.example.ts.net/files/F1",
   );
   assert.equal(file.filename, "quarterly.csv");
   assert.equal(file.mediaType, "text/csv");
@@ -751,7 +751,7 @@ test("an upload to an unreachable agent survives the queue", async () => {
       reachable: false,
       script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)],
     },
-    { fileBaseUrl: "https://thicket-bridge.example.ts.net" },
+    { fileBaseUrl: "https://thicket-slack.example.ts.net" },
   );
   await r.engine.handleEvent(dmWithFile());
   assert.deepEqual(r.state.queuedFor("hearth")[0]?.fileIds, ["F1"]);
@@ -770,7 +770,7 @@ test("an upload to an unreachable agent survives the queue", async () => {
 test("a context-only message carries its attachments too", async () => {
   const r = rig(
     { script: () => [taskEvent("t1", "ctx"), statusEvent("t1", TaskState.TASK_STATE_COMPLETED)] },
-    { fileBaseUrl: "https://thicket-bridge.example.ts.net" },
+    { fileBaseUrl: "https://thicket-slack.example.ts.net" },
   );
   await r.engine.handleEvent(dm("hello")); // engage the thread
   await r.engine.handleEvent({
@@ -951,7 +951,7 @@ test("unreachable agent: in-thread notice, queued, delivered on recovery", async
 test("bridge restart routes an in-flight task's completion to its thread", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "bridge-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const dbPath = join(dir, "bridge.db");
+  const dbPath = join(dir, "slack.db");
 
   // First process records the in-flight task, then dies.
   const first = new BridgeState(dbPath);
@@ -1752,7 +1752,7 @@ test("a surface that refuses the blocks keeps the prose question and the thread"
 
 test("a question survives a bridge restart: the tap still resolves from the database", async () => {
   const dir = mkdtempSync(join(tmpdir(), "thicket-q-"));
-  const dbPath = join(dir, "bridge.db");
+  const dbPath = join(dir, "slack.db");
   try {
     const first = rig({ script: () => [taskEvent("t1", "ctx"), questionEvent("t1")] }, { dbPath });
     await first.engine.handleEvent(dm("deploy it"));

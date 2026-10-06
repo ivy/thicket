@@ -93,7 +93,7 @@ async function startFileServer(
     fetchImpl,
   });
   const server = createServer(app);
-  const path = config.socket_path ?? socketPath("bridge");
+  const path = config.socket_path ?? socketPath("slack");
   mkdirSync(dirname(path), { recursive: true });
   rmSync(path, { force: true });
   await new Promise<void>((resolve) => server.listen(path, () => resolve()));
@@ -116,7 +116,7 @@ export function assertAgentsConfigured(
 ): void {
   if (config.agents === undefined || Object.keys(config.agents).length === 0) {
     throw new Error(
-      `bridge config ${configPath}: "agents" must map each agent to its Slack ` +
+      `Slack bridge config ${configPath}: "agents" must map each agent to its Slack ` +
         `tokens, as {"<agent>": {"app_token": "xapp-…", "bot_token": "xoxb-…"}} — ` +
         `mint both on the agent's app page after installing it`,
     );
@@ -124,7 +124,7 @@ export function assertAgentsConfigured(
 }
 
 export async function run(
-  configPath: string = process.env.THICKET_BRIDGE_CONFIG ?? join(configDir(), "bridge.json"),
+  configPath: string = process.env.THICKET_SLACK_CONFIG ?? join(configDir(), "slack.json"),
 ): Promise<void> {
   const logger = jsonLogger();
   const config = JSON.parse(readFileSync(configPath, "utf8")) as BridgeConfig;
@@ -144,20 +144,20 @@ export async function run(
   const slackAgent = egressAgent(egressSocket);
   logger.info("egress socket", { path: egressSocket });
 
-  const state = new BridgeState(config.db_path ?? join(stateDir(), "bridge", "bridge.db"));
+  const state = new BridgeState(config.db_path ?? join(stateDir(), "slack", "slack.db"));
 
   // Per-agent base-URL overrides for local development (no tailnet):
   // {"hearth": "http://127.0.0.1:8791"}.
   const endpointOverrides: Record<string, string> =
-    process.env.THICKET_BRIDGE_ENDPOINTS !== undefined
-      ? (JSON.parse(process.env.THICKET_BRIDGE_ENDPOINTS) as Record<string, string>)
+    process.env.THICKET_SLACK_ENDPOINTS !== undefined
+      ? (JSON.parse(process.env.THICKET_SLACK_ENDPOINTS) as Record<string, string>)
       : {};
 
   const engines = new Map<string, BridgeEngine>();
   for (const [name, agentConfig] of Object.entries(config.agents)) {
     const entry = roster.agents[name];
     if (entry === undefined) {
-      throw new Error(`bridge config names unknown agent ${name}`);
+      throw new Error(`Slack bridge config names unknown agent ${name}`);
     }
     const engine = new BridgeEngine({
       agent: name,
@@ -204,13 +204,13 @@ export async function run(
     },
   });
   await supervisor.start();
-  logger.info("bridge up", { agents: [...engines.keys()] });
+  logger.info("slack bridge up", { agents: [...engines.keys()] });
 
   // A heartbeat file `thicket doctor` can read: per-agent connection
   // state, freshly stamped, so "unhealthy" and "not running" are both
   // distinguishable from "present". Written atomically; a torn read must
   // not look like a wedged bridge.
-  const healthPath = join(stateDir(), "bridge", "health.json");
+  const healthPath = join(stateDir(), "slack", "health.json");
   mkdirSync(dirname(healthPath), { recursive: true });
   const writeHealth = () => {
     try {

@@ -21,7 +21,7 @@ units="$dir/../systemd/system"
 # accounts that may reach one. The two JavaScript domains must hold none: a
 # dependency that decides to phone home should be denied at the socket class,
 # not at a destination list it might find a hole in.
-for domain in thicket_bridge_t thicket_phone_t; do
+for domain in thicket_slack_t thicket_phone_t; do
   if grep -nE "^allow[^;]*\\b$domain\\b[^;]*:[^;]*\\b(tcp_socket|udp_socket|rawip_socket|packet_socket)\\b" "$te"; then
     err "$domain has been granted a network socket class; that is the property this module exists for"
   fi
@@ -35,7 +35,7 @@ grep -qE "^allow thicket_netd_t self : tcp_socket" "$te" ||
 # says nothing at all — no startup lines, no error from a unit that exits on
 # one, and no denial either, because that one is dontaudit'd. A module that
 # confines what it cannot observe is not one anybody can operate.
-for domain in thicket_netd_t thicket_bridge_t thicket_phone_t; do
+for domain in thicket_netd_t thicket_slack_t thicket_phone_t; do
   grep -qE "^allow[^;]*\\b$domain\\b[^;]*init_t : unix_stream_socket[^;]*\\bwrite\\b" "$te" ||
     err "$domain cannot write to the journal socket; it would run silently, and the denial is dontaudit'd"
 done
@@ -49,7 +49,7 @@ done
 for path in /etc/thicket /var/lib/thicket /run/thicket; do
   grep -qE "^$path([([:space:]]|\$)" "$fc" || err "$fc does not label $path"
 done
-for exe in netd bridge phone; do
+for exe in netd slack phone; do
   grep -q "/opt/thicket/\[^/\]+/bin/thicket-$exe" "$fc" ||
     err "$fc does not label the thicket-$exe executable"
 done

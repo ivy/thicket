@@ -313,7 +313,7 @@ test("thicket send reads stdin and finds this account's agent through agentd.jso
   const configPath = join(dir, "agentd.json");
   writeFileSync(
     configPath,
-    JSON.stringify({ agent: "ops", allowed_peer_tags: ["tag:thicket-bridge"], socket_path: socketPath }),
+    JSON.stringify({ agent: "ops", allowed_peer_tags: ["tag:thicket-slack"], socket_path: socketPath }),
   );
   const env = {
     PATH: process.env.PATH ?? "",

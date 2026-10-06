@@ -95,9 +95,9 @@ func nodeName(status *ipnstate.Status) string {
 
 // verifyHostname confirms the node came up under the name it was configured
 // with. When one of that name already exists, the coordination server assigns
-// a suffixed one — thicket-bridge-1 — and everything that dials this node by
+// a suffixed one — thicket-slack-1 — and everything that dials this node by
 // name goes to the other one instead: every account's egress_allow, the
-// bridge's base URL, the endpoint an agent is reached on, the public hostname
+// Slack bridge's base URL, the endpoint an agent is reached on, the public hostname
 // the phone bridge validates its callers against. None of that fails in a way
 // that points here; it fails as a 502 from a node with nothing behind it, or
 // as a hostname that does not resolve.

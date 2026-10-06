@@ -1,4 +1,4 @@
-export const packageName = "@thicket/bridge";
+export const packageName = "@thicket/slack";
 
 export { BridgeEngine, sessionTitle, slackStatusFor, type EngineOptions } from "./engine.js";
 export { BridgeState, type InFlightTask, type QueuedRequest } from "./state.js";

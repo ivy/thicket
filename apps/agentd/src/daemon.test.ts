@@ -34,7 +34,7 @@ function fixture(): { dir: string; configFile: string; socketPath: string } {
     JSON.stringify({
       agent: "hearth",
       agents_file: agentsFile,
-      allowed_peer_tags: ["tag:thicket-bridge"],
+      allowed_peer_tags: ["tag:thicket-slack"],
       db_path: join(dir, "tasks.db"),
       socket_path: socketPath,
     }),

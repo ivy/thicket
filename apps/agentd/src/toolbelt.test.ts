@@ -26,7 +26,7 @@ function options(
   return {
     calls,
     opts: {
-      bridgeBaseUrl: "http://bridge",
+      slackBaseUrl: "http://bridge",
       cwd,
       fetchImpl: (async (url: string | URL | Request, init?: RequestInit) => {
         calls.push({ url: String(url), ...(init === undefined ? {} : { init }) });

@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { agentUrl, configDir, parseRoster, stateDir } from "@thicket/roster";
 import type { AgentEntry } from "@thicket/roster";
 
-import type { BridgeHealth, DoctorProbes, PhoneHealth } from "./doctor.js";
+import type { SlackBridgeHealth, DoctorProbes, PhoneHealth } from "./doctor.js";
 import {
   desiredNumberSettings,
   HttpTwilioNumberApi,
@@ -21,7 +21,7 @@ const execFileAsync = promisify(execFile);
 const THICKET_EXECUTABLES = [
   "thicket",
   "thicket-agentd",
-  "thicket-bridge",
+  "thicket-slack",
   "thicket-netd",
   "thicket-phone",
 ];
@@ -182,8 +182,8 @@ export function realProbes(options: {
       return { installed, cap: 10 };
     },
 
-    async bridgeHealth() {
-      return readHealth<BridgeHealth>("bridge");
+    async slackBridgeHealth() {
+      return readHealth<SlackBridgeHealth>("slack");
     },
 
     async phoneNumber() {

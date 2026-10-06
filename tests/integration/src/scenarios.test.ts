@@ -203,7 +203,7 @@ agents:
     http: (spec) =>
       fetch(spec.url, {
         method: spec.method,
-        headers: { "x-thicket-peer-tags": "tag:thicket-bridge", ...spec.headers },
+        headers: { "x-thicket-peer-tags": "tag:thicket-slack", ...spec.headers },
         body: spec.body,
       }).then(async (res) => ({
         status: res.status,

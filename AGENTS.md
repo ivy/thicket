@@ -23,14 +23,14 @@ binaries an agent account installs.
 | `packages/executor/` | Claude Agent SDK frame stream → A2A task events |
 | `packages/slack-manifest/` | `AgentCard` → Slack app manifest |
 | `apps/agentd/` | A2A server + session manager; binds a unix socket, never a port |
-| `apps/bridge/` | Slack Socket Mode ⇄ A2A, plus the file surface agents fetch from |
+| `apps/slack/` | Slack Socket Mode ⇄ A2A, plus the file surface agents fetch from |
 | `apps/phone/` | Twilio ConversationRelay ⇄ A2A: the codec, the call engine, the signed edge; see [docs/phone-bridge.md](docs/phone-bridge.md) |
 | `apps/cli/` | `provision`, `doctor`, `fleet`, `send`, `mcp`, `slack-test-mcp` |
 | `netd/` | Go; tsnet node per agent, tailnet ⇄ unix socket with verified peer tags |
-| `tests/integration/` | Real agentd + real bridge over HTTP; only Slack is faked |
+| `tests/integration/` | Real agentd + real Slack bridge over HTTP; only Slack is faked |
 | `deploy/` | systemd units, launchd plists, and `deploy/dev/` stand-ins |
 | `.github/` | The CI gate and the release workflows; `renovate.json5` at the root moves every pin |
-| `scripts/compile.ts` | `bun build --compile` → `dist-bin/<target>/{thicket,thicket-agentd,thicket-bridge}` |
+| `scripts/compile.ts` | `bun build --compile` → `dist-bin/<target>/{thicket,thicket-agentd,thicket-slack}` |
 
 `agents.yaml` is the source of truth. Manifests, per-account config, and tailnet
 identities are all rendered from it; anything hand-edited afterwards is a generator bug.
@@ -110,14 +110,14 @@ Two traps worth knowing:
 - [docs/runbook.md](docs/runbook.md) — what to do when an agent stops responding, a
   socket will not reconnect, or a task is stuck in `working`.
 - [deploy/README.md](deploy/README.md) — real deployment: accounts, units, tailnet
-  identity, and the bridge's inbound netd.
+  identity, and the Slack bridge's inbound netd.
 
 ## Where to look first
 
-- **A Slack behaviour is wrong** → `apps/bridge/src/engine.ts` (policy) and
+- **A Slack behaviour is wrong** → `apps/slack/src/engine.ts` (policy) and
   `slack-api.ts` (the API surface, which logs every call it makes).
 - **An agent's reply is wrong or missing** → `packages/executor/src/translator.ts`, the
   seam where SDK frames become A2A events. Turn boundaries are not message boundaries.
 - **Something about identity, paths, or capability** → `packages/roster/src/`.
 - **Reproducing anything end to end** → `./deploy/dev/rig.sh restart`, then
-  `tail -f ~/thicket-test/bridge.log`.
+  `tail -f ~/thicket-test/slack.log`.

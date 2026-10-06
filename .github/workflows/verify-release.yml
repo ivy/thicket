@@ -52,6 +52,6 @@ jobs:
           mise use "github:${GITHUB_REPOSITORY}[prerelease=true]@${TAG#v}" 2>&1 | tee install.log
           grep -q "attestations verified" install.log
           PATH="$(mise bin-paths | tr '\n' ':')$PATH"
-          for bin in thicket thicket-agentd thicket-bridge thicket-netd; do
+          for bin in thicket thicket-agentd thicket-slack thicket-netd; do
             command -v "$bin"
           done

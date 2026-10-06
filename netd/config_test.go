@@ -128,13 +128,13 @@ func TestSocketGroupIsOptional(t *testing.T) {
 func TestSocketNamesResolveUnderTheRuntimeDir(t *testing.T) {
 	runtime := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", runtime)
-	base := `"hostname": "thicket-bridge", "tag": "tag:thicket-bridge"`
+	base := `"hostname": "thicket-slack", "tag": "tag:thicket-slack"`
 
-	cfg, err := loadConfig(writeConfig(t, `{`+base+`, "upstream_socket": "bridge", "egress_socket": "out"}`))
+	cfg, err := loadConfig(writeConfig(t, `{`+base+`, "upstream_socket": "slack", "egress_socket": "out"}`))
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if want := filepath.Join(runtime, "thicket", "bridge.sock"); cfg.UpstreamSocket != want {
+	if want := filepath.Join(runtime, "thicket", "slack.sock"); cfg.UpstreamSocket != want {
 		t.Errorf("upstream_socket = %q, want %q", cfg.UpstreamSocket, want)
 	}
 	if want := filepath.Join(runtime, "thicket", "out.sock"); cfg.EgressSocket != want {

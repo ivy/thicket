@@ -19,7 +19,7 @@ mise exec -- pnpm compile     # the rig runs dist-bin/, not src/
 
 Recompiling and restarting is not optional housekeeping. Skip either and
 every live check measures the previous commit, which is worse than no check
-at all because it looks like one. agentd and the bridge run as the same
+at all because it looks like one. agentd and the Slack bridge run as the same
 standalone binaries an agent account installs; only the netd stand-ins are
 still scripts, run under `bun`.
 
@@ -28,15 +28,15 @@ Six processes, all local, under `~/thicket-test/`:
 | | |
 |---|---|
 | `agentd` | the agent, on a unix socket |
-| `bridge` | Slack Socket Mode ↔ A2A, plus the file surface on its own socket |
+| `slack` | Slack Socket Mode ↔ A2A, plus the file surface on its own socket |
 | `phone` | Twilio ConversationRelay ↔ A2A, on `127.0.0.1:8793`, with `tailscale funnel` in front so Twilio can reach it |
-| `peer-tag-proxy` ×2 | `deploy/dev/peer-tag-proxy.mjs`, standing in for netd inbound — one in front of agentd carrying `tag:thicket-bridge`, one in front of the bridge carrying `tag:thicket-hearth` |
+| `peer-tag-proxy` ×2 | `deploy/dev/peer-tag-proxy.mjs`, standing in for netd inbound — one in front of agentd carrying `tag:thicket-slack`, one in front of the Slack bridge carrying `tag:thicket-hearth` |
 | `egress-proxy` | `deploy/dev/egress-proxy.mjs`, standing in for netd outbound |
 
 Both stand-ins assert an identity that netd would verify, which is exactly
 why they are development-only. The phone bridge dials the agent through
 the same stand-in the Slack bridge uses, so it arrives carrying the
-bridge's tag; in deployment it has its own.
+Slack bridge's tag; in deployment it has its own.
 
 Logs and pidfiles sit beside each other in `~/thicket-test/`, one pair per
 process. `status` checks liveness rather than presence — it asks the agent
@@ -54,7 +54,7 @@ THICKET_EGRESS_SOCKET=~/thicket-test/run/thicket/netd-egress.sock \
 ```
 
 The endpoint is the peer-tag proxy in front of agentd, so the call arrives
-carrying the bridge's tag, which is the only one agentd admits.
+carrying the Slack bridge's tag, which is the only one agentd admits.
 
 ## Driving Slack
 
@@ -225,7 +225,7 @@ contextId that doubles as the Claude session id.
 
 ## Reading what happened
 
-The bridge logs one line per inbound Slack event (shape only, never content)
+The Slack bridge logs one line per inbound Slack event (shape only, never content)
 and one per Slack API call, nested under `slack` so an argument named `ts`
 cannot shadow the record's own timestamp. When something produces no
 response, that log is what separates "Slack never delivered it" from "we
@@ -233,7 +233,7 @@ declined to act on it" — a distinction that cost two debugging rounds before
 those lines existed.
 
 ```
-tail -f ~/thicket-test/bridge.log
+tail -f ~/thicket-test/slack.log
 tail -f ~/thicket-test/agentd.log
 tail -f ~/thicket-test/phone.log
 ```

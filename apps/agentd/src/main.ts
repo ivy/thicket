@@ -56,21 +56,21 @@ export async function run(
     logger.warn("failed unfinished tasks from previous process", { count: reconciled });
   }
 
-  // The Slack toolbelt exists only when the bridge is addressable — like
+  // The Slack toolbelt exists only when the Slack bridge is addressable — like
   // attachments, absence of configuration means absence of capability. A
   // factory, because an MCP server instance serves exactly one session.
   // Routines ride the same condition: standing work that cannot post is
   // standing work that cannot report, which is worse than none.
-  const bridgeBaseUrl = config.bridgeBaseUrl;
-  const routines = bridgeBaseUrl === undefined ? undefined : new RoutineStore(
+  const slackBaseUrl = config.slackBaseUrl;
+  const routines = slackBaseUrl === undefined ? undefined : new RoutineStore(
     join(dirname(config.dbPath), "routines.db"),
   );
   const toolbeltFactory =
-    bridgeBaseUrl === undefined
+    slackBaseUrl === undefined
       ? undefined
       : (contextId: string) => ({
           thicket: buildToolbelt({
-            bridgeBaseUrl,
+            slackBaseUrl,
             fetchImpl: egressFetch(config.egressSocket),
             cwd: entry.harness.cwd,
             contextId,
@@ -78,7 +78,7 @@ export async function run(
           }),
         });
   if (toolbeltFactory === undefined) {
-    logger.info("slack toolbelt disabled: no bridge_base_url configured");
+    logger.info("slack toolbelt disabled: no slack_base_url configured");
   }
   // Re-read at each session spawn so a persona edit in agents.yaml takes
   // effect on the next session, no restart needed. A file that has gone

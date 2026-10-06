@@ -22,7 +22,7 @@ import { listen } from "./listen.js";
 import type { Logger } from "./logger.js";
 import { SqliteTaskStore } from "./store/sqlite-task-store.js";
 
-const ALLOWED_TAG = "tag:thicket-bridge";
+const ALLOWED_TAG = "tag:thicket-slack";
 const LOCAL_USER = "hearth";
 
 const entry: AgentEntry = {

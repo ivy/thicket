@@ -39,7 +39,7 @@ jobs:
           cat agents.yaml > ~/.config/thicket/agents.yaml
           agent="$(sed -n 's/^  \([a-z0-9][a-z0-9-]*\):$/\1/p' agents.yaml | head -1)"
           echo "agent=$agent" >> "$GITHUB_ENV"
-          printf '%s\n' "{\"agent\": \"$agent\", \"allowed_peer_tags\": [\"tag:thicket-bridge\"]}" \
+          printf '%s\n' "{\"agent\": \"$agent\", \"allowed_peer_tags\": [\"tag:thicket-slack\"]}" \
             > ~/.config/thicket/agentd.json
 
       - name: Start agentd under systemd and ask its socket

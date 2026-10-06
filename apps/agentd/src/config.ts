@@ -33,10 +33,10 @@ export interface AgentdConfig {
   /** netd's outbound proxy socket; the only route off this machine. */
   egressSocket: string;
   /**
-   * The bridge's base URL on the tailnet, for the agent's Slack toolbelt.
+   * The Slack bridge's base URL on the tailnet, for the agent's Slack toolbelt.
    * Absent means no toolbelt: the session gets no Slack tools at all.
    */
-  bridgeBaseUrl?: string;
+  slackBaseUrl?: string;
   /**
    * The Claude Code CLI sessions run. A standalone agentd has no
    * node_modules beside it, so the Agent SDK cannot reach the per-platform
@@ -58,7 +58,8 @@ interface RawConfig {
   max_sessions?: number;
   attachments_dir?: string;
   egress_socket?: string;
-  bridge_base_url?: string;
+  slack_base_url?: string;
+  bridge_base_url?: unknown;
   claude_executable?: string;
 }
 
@@ -84,6 +85,15 @@ export function loadConfig(path: string): AgentdConfig {
         `an empty allow-list would reject every caller including the bridge`,
     );
   }
+  // The old name for slack_base_url. Read as absent it would start agentd
+  // without its Slack toolbelt and log one info line, so a config rendered
+  // by an older thicket fails here instead.
+  if (raw.bridge_base_url !== undefined) {
+    throw new Error(
+      `agentd config ${path}: "bridge_base_url" is now "slack_base_url" — ` +
+        `re-render the config with this release's thicket`,
+    );
+  }
   return {
     // Relative to this config file, not the process cwd: provision
     // renders `"agents_file": "agents.yaml"` meaning the roster copied in
@@ -105,7 +115,7 @@ export function loadConfig(path: string): AgentdConfig {
     maxSessions: raw.max_sessions,
     attachmentsDir: raw.attachments_dir ?? join(cacheDir(), "attachments"),
     egressSocket: raw.egress_socket ?? socketPath("netd-egress"),
-    ...(raw.bridge_base_url === undefined ? {} : { bridgeBaseUrl: raw.bridge_base_url }),
+    ...(raw.slack_base_url === undefined ? {} : { slackBaseUrl: raw.slack_base_url }),
     ...((): { claudeExecutable?: string } => {
       const configured = raw.claude_executable ?? process.env.THICKET_CLAUDE_EXECUTABLE;
       const found = configured ?? findOnPath("claude");

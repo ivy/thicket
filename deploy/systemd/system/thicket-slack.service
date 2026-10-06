@@ -21,17 +21,17 @@ Description=thicket Slack bridge
 # netd owns the runtime directory the two of them meet in, and there is
 # nothing for the bridge to say until it exists. Wants, not Requires: netd
 # restarting must not take the bridge with it.
-After=thicket-bridge-netd.service
-Wants=thicket-bridge-netd.service
+After=thicket-slack-netd.service
+Wants=thicket-slack-netd.service
 
 [Service]
 Type=simple
-User=thicket-bridge
-Group=thicket-bridge
+User=thicket-slack
+Group=thicket-slack
 # Its own group is the group the pair meet in: netd carries it as a
 # supplementary and nothing else on the host is a member. A group shared with
 # the phone bridge pair would hand each of them the other's egress allowlist.
-ExecStart=/usr/local/bin/thicket-bridge
+ExecStart=/usr/local/bin/thicket-slack
 Restart=on-failure
 RestartSec=5
 RestartSteps=5
@@ -44,7 +44,7 @@ ConfigurationDirectory=thicket
 # Its own subdirectory, not the whole of /var/lib/thicket: the phone bridge
 # keeps its state in the sibling one, and two units that each declare the
 # parent fight over who owns it.
-StateDirectory=thicket/bridge
+StateDirectory=thicket/slack
 # Explicit, because the heartbeat below it is written for an operator
 # running `thicket doctor` from their own account: a directory only
 # this service can enter makes that file unreadable whatever its mode.
@@ -59,8 +59,8 @@ Environment=XDG_RUNTIME_DIR=/run
 # Every agent's Slack tokens, handed over by systemd rather than left where
 # the account could read them. The file on disk is root's alone; the process
 # sees a copy that exists only while it runs.
-LoadCredential=bridge.json:/etc/thicket/bridge.json
-Environment=THICKET_BRIDGE_CONFIG=%d/bridge.json
+LoadCredential=slack.json:/etc/thicket/slack.json
+Environment=THICKET_SLACK_CONFIG=%d/slack.json
 
 # The containment. No network namespace at all — no interface, no route, no
 # resolver — so netd's socket is not the preferred way out, it is the only

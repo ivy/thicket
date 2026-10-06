@@ -19,10 +19,10 @@ journalctl --user -u thicket-agentd -n 100     # structured JSON lines on stderr
 ```
 
 - `fleet` says DOWN, netd unit dead → netd problem (next entries).
-- `fleet` says up but Slack is silent → the bridge: check its account's
-  `journalctl -u thicket-bridge` (a system unit), look for `socket mode connection down`,
+- `fleet` says up but Slack is silent → the Slack bridge: check its account's
+  `journalctl -u thicket-slack` (a system unit), look for `socket mode connection down`,
   `abandoning socket mode connection`, or `event handling failed`. On the
-  bridge's host, `thicket doctor` reads the bridge's heartbeat file and says
+  Slack bridge's host, `thicket doctor` reads its heartbeat file and says
   per agent whether the Socket Mode connection is up. A quietly dead socket
   is abandoned and rebuilt within about a minute on its own; each inbound
   event logs `ageMs`, so a message that sat out a dead window shows how
@@ -31,19 +31,19 @@ journalctl --user -u thicket-agentd -n 100     # structured JSON lines on stderr
   wedged session (see below).
 
 **Fix.** For a dead unit: `systemctl --user restart thicket-agentd` (netd needs
-no restart, and vice versa). For a silent bridge: `systemctl restart
-thicket-bridge` as root; queued messages are delivered from its SQLite queue
+no restart, and vice versa). For a silent Slack bridge: `systemctl restart
+thicket-slack` as root; queued messages are delivered from its SQLite queue
 when agents become reachable.
 
 ## Socket Mode will not reconnect
 
-**Symptom.** Bridge log shows repeated `socket mode connect failed` /
+**Symptom.** The Slack bridge log shows repeated `socket mode connect failed` /
 `socket mode connection down`; the app appears offline in Slack.
 
 **Diagnose.**
 
 ```sh
-journalctl -u thicket-bridge -n 50             # system unit: which agent's connection, what error
+journalctl -u thicket-slack -n 50             # system unit: which agent's connection, what error
 thicket doctor                                 # app installed? workspace at app cap?
 ```
 
@@ -52,8 +52,9 @@ thicket doctor                                 # app installed? workspace at app
   off automatically (1s → 60s), wait one minute.
 - App uninstalled → doctor says so; reinstall via the printed authorize URL.
 
-**Fix.** Rotate the app-level token in the app's settings, update the bridge
-config (`bridge.json` under the bridge account's `XDG_CONFIG_HOME`), restart the bridge. Connections are
+**Fix.** Rotate the app-level token in the app's settings, update the Slack
+bridge's config (`/etc/thicket/slack.json`, handed to the unit as a credential), restart
+`thicket-slack`. Connections are
 per-agent: one bad token never takes other agents down.
 
 ## Tailnet credential expired or wrong
@@ -100,7 +101,7 @@ thicket fleet                                  # in-flight count, last error
 journalctl --user -u thicket-agentd -n 200 | grep <contextId>
 ```
 
-The contextId is `uuidv5(channel_id:thread_ts)` — the bridge logs it on
+The contextId is `uuidv5(channel_id:thread_ts)` — the Slack bridge logs it on
 mismatch, and every task carries it.
 
 **Fix.** Press stop in Slack (issues a real `CancelTask`), or restart

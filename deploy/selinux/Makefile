@@ -7,7 +7,7 @@
 #   sudo make permissive  put the three domains in permissive mode
 #   sudo make enforce     take them out of it
 NAME = thicket
-DOMAINS = thicket_netd_t thicket_bridge_t thicket_phone_t
+DOMAINS = thicket_netd_t thicket_slack_t thicket_phone_t
 
 all: $(NAME).pp
 

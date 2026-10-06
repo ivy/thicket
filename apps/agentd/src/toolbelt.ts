@@ -9,14 +9,14 @@ import { parseCron } from "./cron.js";
 import type { RoutineOrigin, RoutineStore } from "./store/routines.js";
 
 /**
- * Uploads are buffered through the bridge, so the cap protects two heaps.
- * It matches the bridge's own request limit; Slack's per-file cap is 1 GB.
+ * Uploads are buffered through the Slack bridge, so the cap protects two heaps.
+ * It matches the Slack bridge's own request limit; Slack's per-file cap is 1 GB.
  */
 const UPLOAD_LIMIT_BYTES = 50 * 1024 * 1024;
 
 export interface ToolbeltOptions {
-  /** The bridge's base URL on the tailnet; reached through netd egress. */
-  bridgeBaseUrl: string;
+  /** The Slack bridge's base URL on the tailnet; reached through netd egress. */
+  slackBaseUrl: string;
   /** The egress fetch — the only route off this machine. */
   fetchImpl: typeof fetch;
   /** Session working directory; relative upload paths resolve here. */
@@ -34,8 +34,8 @@ export interface ToolbeltOptions {
 }
 
 /**
- * Outcome of a bridge call, in words the model can act on. `refused` is
- * the bridge answering an authorization question — retrying will not
+ * Outcome of a Slack bridge call, in words the model can act on. `refused` is
+ * the Slack bridge answering an authorization question — retrying will not
  * help, but a different channel might. `redundant` is the bridge saying
  * the call had nothing to do: what it asked for is already happening.
  * `failed` is transport or Slack trouble that may be transient.
@@ -53,25 +53,25 @@ async function callBridge(
 ): Promise<ToolOutcome> {
   let response: globalThis.Response;
   try {
-    response = await options.fetchImpl(`${options.bridgeBaseUrl}${path}`, init);
+    response = await options.fetchImpl(`${options.slackBaseUrl}${path}`, init);
   } catch (err) {
     return {
       outcome: "failed",
-      error: `bridge unreachable: ${err instanceof Error ? err.message : String(err)}`,
+      error: `Slack bridge unreachable: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
   let body: Record<string, unknown>;
   try {
     body = (await response.json()) as Record<string, unknown>;
   } catch {
-    return { outcome: "failed", error: `bridge returned ${response.status} with no body` };
+    return { outcome: "failed", error: `Slack bridge returned ${response.status} with no body` };
   }
   if (response.status === 403) {
     const error = String(body.error ?? "refused");
     return body.redundant === true ? { outcome: "redundant", error } : { outcome: "refused", error };
   }
   if (!response.ok) {
-    return { outcome: "failed", error: String(body.error ?? `bridge returned ${response.status}`) };
+    return { outcome: "failed", error: String(body.error ?? `Slack bridge returned ${response.status}`) };
   }
   return { outcome: "ok", detail: body };
 }
@@ -121,7 +121,7 @@ export async function uploadFile(
   });
 }
 
-/** A GET against one of the bridge's read routes. */
+/** A GET against one of the Slack bridge's read routes. */
 export async function readBridge(
   options: ToolbeltOptions,
   path: string,
@@ -152,7 +152,7 @@ export async function resolveOrigin(options: ToolbeltOptions): Promise<RoutineOr
   }
   const { channel, thread_ts, context_id } = outcome.detail;
   if (typeof channel !== "string" || typeof thread_ts !== "string" || typeof context_id !== "string") {
-    return { error: "bridge returned no origin" };
+    return { error: "Slack bridge returned no origin" };
   }
   return { channel, threadTs: thread_ts, contextId: context_id };
 }
@@ -167,7 +167,7 @@ export function toToolResult(outcome: ToolOutcome): {
   }
   const text =
     outcome.outcome === "refused"
-      ? `Refused by the bridge: ${outcome.error}. This is an authorization decision — ` +
+      ? `Refused by the Slack bridge: ${outcome.error}. This is an authorization decision — ` +
         `the app is not in that conversation (or it does not exist). Do not retry the ` +
         `same channel; tell the user what you needed.`
       : outcome.outcome === "redundant"
@@ -355,9 +355,9 @@ export function routineTools(options: ToolbeltOptions, store: RoutineStore) {
 
 /**
  * The agent's Slack toolbelt: an MCP server living in the agentd process,
- * reachable by the session and by nothing else. Every tool is a bridge
+ * reachable by the session and by nothing else. Every tool is a Slack bridge
  * call carrying the agent's netd-verified identity; no Slack credential
- * exists on this side, and the bridge decides what the agent may address.
+ * exists on this side, and the Slack bridge decides what the agent may address.
  */
 export function buildToolbelt(options: ToolbeltOptions): McpSdkServerConfigWithInstance {
   return createSdkMcpServer({

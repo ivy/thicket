@@ -3,8 +3,8 @@
 One agent = one unix account = one tailnet node = one Slack app. Everything below
 runs **as that account or as the operator** — never as root except where marked.
 
-The bridge is deployed the same way (its own account, its own `netd`), swapping
-`thicket-bridge.service` for `thicket-agentd.service`.
+The Slack bridge is deployed the same way (its own account, its own `netd`), swapping
+`thicket-slack.service` for `thicket-agentd.service`.
 
 ## 0. Prerequisites
 
@@ -128,10 +128,10 @@ runtime and no checkout, only the Claude Code CLI the harness drives.
 mkdir -p ~/.local/bin
 # netd (single Go binary)
 cp /path/to/repo/netd/bin/netd ~/.local/bin/thicket-netd
-# agentd, bridge and the CLI, compiled by `pnpm compile --all` on a build
+# agentd, the Slack bridge and the CLI, compiled by `pnpm compile --all` on a build
 # machine. linux-x64 here; macos-arm64 on a Mac.
 cp /path/to/repo/dist-bin/linux-x64/thicket-agentd ~/.local/bin/
-cp /path/to/repo/dist-bin/linux-x64/thicket-bridge ~/.local/bin/
+cp /path/to/repo/dist-bin/linux-x64/thicket-slack ~/.local/bin/
 cp /path/to/repo/dist-bin/linux-x64/thicket        ~/.local/bin/
 # Claude Code CLI for the harness. agentd resolves it on PATH at startup and
 # logs which one it found; `claude_executable` in agentd.json overrides that.
@@ -150,7 +150,7 @@ systemctl --user enable --now thicket-agentd.service thicket-netd.service
 loginctl enable-linger "$USER"   # so the units survive logout
 ```
 
-The bridge account instead installs `thicket-bridge.service` (plus its own
+The Slack bridge's account instead installs `thicket-slack.service` (plus its own
 `thicket-netd.service`) and enables both.
 
 ### Who creates the socket, and what a caller in the gap sees
@@ -187,7 +187,7 @@ has no egress at all.
   "hostname": "thicket-hearth",
   "tag": "tag:thicket-hearth",
   "auth_key_file": "tailnet-auth-key",
-  "egress_allow": ["thicket-bridge.tailXXXX.ts.net", "thicket-forge.tailXXXX.ts.net"]
+  "egress_allow": ["thicket-slack.tailXXXX.ts.net", "thicket-forge.tailXXXX.ts.net"]
 }
 ```
 
@@ -227,7 +227,7 @@ rule loads, and a restarted unit gets a new one.
 So: netd as its own user with the network, the process it fronts as another
 with none, both in a group that owns the socket between them.
 
-The two halves are one decision. `socket_group` in `bridge.json` and in
+The two halves are one decision. `socket_group` in `slack.json` and in
 `phone.json` does the same for the socket netd proxies *to* — the file
 surface agents fetch uploaded files from, and the phone bridge's own
 listener. Split the accounts with only netd's option set and netd can no
@@ -258,7 +258,7 @@ is two pairs, and they have to stay apart:
   `$XDG_CONFIG_HOME/thicket/netd.json` by default, and both units pin that
   variable at `/etc`, so without `--config` the second pair to start reads the
   first one's hostname, tag, allowlist and credential. The shipped units name
-  their own — `bridge-netd.json` and `phone-netd.json` — and each names its own
+  their own — `slack-netd.json` and `phone-netd.json` — and each names its own
   tailnet credential inside it, because one key mints for one tag.
 
 The shipped units put the phone bridge's pair in `/run/thicket-phone`, so its
@@ -325,7 +325,7 @@ unwritable.
 
 **The runtime has no network.** `PrivateNetwork=yes`: no interface, no route,
 no resolver. netd's socket beside it is not the preferred way out, it is the
-only one. That is honest only because every leg is routed — for the bridge,
+only one. That is honest only because every leg is routed — for the Slack bridge,
 A2A, the Slack Web API and the Socket Mode websocket, which is why the bridge
 speaks that protocol itself rather than through a library that cannot be
 told where to go.
@@ -358,7 +358,7 @@ Three things are off deliberately, each with the reason in the unit:
 On a Fedora targeted-policy host, a service with no policy of its own runs
 `unconfined_service_t`: SELinux is enforcing and doing nothing for it. The
 module in `deploy/selinux/` gives the edge three domains — `thicket_netd_t`,
-`thicket_bridge_t`, `thicket_phone_t` — and the asymmetry between them is
+`thicket_slack_t`, `thicket_phone_t` — and the asymmetry between them is
 the design. netd holds the network permissions because it is the only
 process in these accounts that may reach a network; the two runtimes hold
 none, so a dependency that decides to phone home is denied at the socket
@@ -397,7 +397,7 @@ repository. What is loaded on a host is a separate question, and one command
 answers it exhaustively — every rule, not the one a probe happened to try:
 
 ```sh
-sudo sesearch -A -s thicket_bridge_t -c tcp_socket -p create,connect   # expect: nothing
+sudo sesearch -A -s thicket_slack_t -c tcp_socket -p create,connect   # expect: nothing
 sudo sesearch -A -s thicket_phone_t  -c tcp_socket -p create,connect   # expect: nothing
 sudo sesearch -A -s thicket_netd_t   -c tcp_socket -p create,connect   # expect: one rule
 ```
@@ -412,16 +412,16 @@ Edge components are **Linux-only** by policy. launchd has no equivalent for
 any of the above worth trusting, and the containment is the point of the
 account.
 
-### The bridge's netd faces inward too
+### The Slack bridge's netd faces inward too
 
-The bridge's netd was already there for egress. Attachments also need the
+The Slack bridge's netd was already there for egress. Attachments also need the
 reverse: an agent fetches the bytes of a file a human uploaded, because the
 bot token that redeems Slack's private URL lives only in the bridge. So this
 netd's upstream is the bridge itself rather than an agentd that does not exist
 in this account.
 
-`render` writes that file — `rendered/bridge/netd.json`, beside the agents'
-and the phone's. Install it as `/etc/thicket/bridge-netd.json`, named for its
+`render` writes that file — `rendered/slack/netd.json`, beside the agents'
+and the phone's. Install it as `/etc/thicket/slack-netd.json`, named for its
 pair because the phone bridge's netd keeps its own config in the same
 directory, and add what belongs to the deployment rather than the roster: the
 credential's path, the group the pair meet in, and a state directory of its
@@ -429,10 +429,10 @@ own. What is rendered:
 
 ```json
 {
-  "hostname": "thicket-bridge",
-  "tag": "tag:thicket-bridge",
+  "hostname": "thicket-slack",
+  "tag": "tag:thicket-slack",
   "auth_key_file": "tailnet-auth-key",
-  "upstream_socket": "bridge",
+  "upstream_socket": "slack",
   "egress_allow": [
     "thicket-hearth.tailXXXX.ts.net",
     "slack.com",
@@ -448,7 +448,7 @@ unit whose is `/run/thicket`. A deployment that puts a pair somewhere of its
 own — a second pair on one host — writes a path instead, and netd takes it as
 written.
 
-The bridge is the account with the most to reach and the most to lose: it
+The Slack bridge is the account with the most to reach and the most to lose: it
 holds every agent's Slack tokens, and its way out is this socket alone —
 including its Socket Mode websockets, which is why the bridge speaks that
 protocol itself rather than through a library that cannot be routed. Every
@@ -460,14 +460,14 @@ they changed.
 
 Nothing else is reachable, and there is no fallback: with no egress socket the
 bridge refuses to start and says which path it looked at. `egress_socket` in
-`bridge.json` overrides the default (`$XDG_RUNTIME_DIR/thicket/netd-egress.sock`),
+`slack.json` overrides the default (`$XDG_RUNTIME_DIR/thicket/netd-egress.sock`),
 which is netd's own default in the same account and rarely needs saying.
 
-and write the bridge's own config, `~/.config/thicket/bridge.json`:
+and write the Slack bridge's own config, `~/.config/thicket/slack.json`:
 
 ```json
 {
-  "file_base_url": "https://thicket-bridge.tailXXXX.ts.net",
+  "file_base_url": "https://thicket-slack.tailXXXX.ts.net",
   "agents": {
     "hearth": { "app_token": "xapp-...", "bot_token": "xoxb-..." }
   }
@@ -681,8 +681,8 @@ deliberate:
 
 ```json
 "acls": [
-  {"action": "accept", "src": ["tag:thicket-bridge", "tag:thicket-phone"], "dst": ["tag:thicket-hearth:443"]},
-  {"action": "accept", "src": ["tag:thicket-hearth"], "dst": ["tag:thicket-bridge:443"]}
+  {"action": "accept", "src": ["tag:thicket-slack", "tag:thicket-phone"], "dst": ["tag:thicket-hearth:443"]},
+  {"action": "accept", "src": ["tag:thicket-hearth"], "dst": ["tag:thicket-slack:443"]}
 ],
 "nodeAttrs": [
   {"target": ["tag:thicket-phone"], "attr": ["funnel"]}
@@ -740,5 +740,5 @@ them on failure. Logs land in `~/Library/Logs/thicket-*.log`.
   the same files work in every account. `deploy/check.sh` enforces this.
 - Config is rendered by `thicket provision`, never hand-edited; if you need to
   hand-edit, the generator has a bug.
-- Secrets (`tailnet-auth-key`, `slack-config-token.json`, bridge tokens) are
+- Secrets (`tailnet-auth-key`, `slack-config-token.json`, Slack bridge tokens) are
   mode 0600 and never committed.

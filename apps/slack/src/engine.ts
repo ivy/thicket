@@ -48,7 +48,7 @@ export interface EngineOptions {
   logger?: EngineLogger;
   /**
    * Base URL agents can reach this bridge on, e.g.
-   * https://thicket-bridge.tail1234.ts.net. Attachments are referred to
+   * https://thicket-slack.tail1234.ts.net. Attachments are referred to
    * beneath it; without one there is nowhere to point, so they are
    * declined in-thread rather than linked into the void.
    */

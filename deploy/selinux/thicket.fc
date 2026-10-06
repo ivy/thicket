@@ -7,7 +7,7 @@
 # holds every installed version and a `current` symlink, and only the real
 # path carries a label.
 /opt/thicket/[^/]+/bin/thicket-netd     --  system_u:object_r:thicket_netd_exec_t:s0
-/opt/thicket/[^/]+/bin/thicket-bridge   --  system_u:object_r:thicket_bridge_exec_t:s0
+/opt/thicket/[^/]+/bin/thicket-slack    --  system_u:object_r:thicket_slack_exec_t:s0
 /opt/thicket/[^/]+/bin/thicket-phone    --  system_u:object_r:thicket_phone_exec_t:s0
 
 # What the operator writes. Root-owned; the domains only read it.

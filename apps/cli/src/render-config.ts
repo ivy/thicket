@@ -7,9 +7,9 @@ import { nodeName, phoneEnabledAgents, type Roster } from "@thicket/roster";
 export const PHONE_TAG = "tag:thicket-phone";
 export const PHONE_HOSTNAME = "thicket-phone";
 
-/** The bridge's tailnet node: the fleet's Slack surface, and its file surface. */
-export const BRIDGE_HOSTNAME = "thicket-bridge";
-export const BRIDGE_TAG = "tag:thicket-bridge";
+/** The Slack bridge's tailnet node: the fleet's Slack surface, and its file surface. */
+export const SLACK_HOSTNAME = "thicket-slack";
+export const SLACK_TAG = "tag:thicket-slack";
 
 /**
  * Where the Slack Web API answers. The phone bridge posts its security
@@ -45,7 +45,7 @@ export interface RenderConfigOptions {
   /** Output root; one directory per agent is created inside. */
   outDir: string;
   tailnetDomain?: string;
-  /** Peer tags allowed to call every agent (the bridge's tag, plus peers). */
+  /** Peer tags allowed to call every agent (the Slack bridge's tag, plus peers). */
   allowedPeerTags: string[];
 }
 
@@ -63,13 +63,13 @@ export function renderAccountConfigs(
   const written: string[] = [];
   const onThePhone = new Set(phoneEnabledAgents(roster).map((a) => a.name));
   // netd reaches nothing it was not told to reach. An agent account talks to
-  // the bridge — the Slack toolbelt, and the file surface attachments are
+  // the Slack bridge — the Slack toolbelt, and the file surface attachments are
   // fetched from — and to the rest of the fleet, because the CLI dials agents
   // from whichever account runs it. That is the edge the tailnet ACL already
   // draws; what the allowlist adds is that nothing off the tailnet is
   // reachable at all.
   const fleet = [
-    tailnetName(BRIDGE_HOSTNAME, options.tailnetDomain),
+    tailnetName(SLACK_HOSTNAME, options.tailnetDomain),
     ...Object.values(roster.agents).map((entry) => tailnetName(nodeName(entry), options.tailnetDomain)),
   ];
   for (const [agent, entry] of Object.entries(roster.agents)) {
@@ -86,10 +86,10 @@ export function renderAccountConfigs(
       // opts in: that line is where a privileged agent gets onto the phone.
       allowed_peer_tags: onThePhone.has(agent) ? [...options.allowedPeerTags, PHONE_TAG] : options.allowedPeerTags,
       ...(options.tailnetDomain !== undefined ? { tailnet_domain: options.tailnetDomain } : {}),
-      // The bridge's inbound netd, named per deploy/README.md; gives the
+      // The Slack bridge's inbound netd, named per deploy/README.md; gives the
       // session its Slack toolbelt. Development rigs override by hand.
       ...(options.tailnetDomain !== undefined
-        ? { bridge_base_url: `https://${tailnetName(BRIDGE_HOSTNAME, options.tailnetDomain)}` }
+        ? { slack_base_url: `https://${tailnetName(SLACK_HOSTNAME, options.tailnetDomain)}` }
         : {}),
     };
     writeFileSync(join(dir, "agentd.json"), JSON.stringify(agentd, null, 2) + "\n");
@@ -112,19 +112,19 @@ export function renderAccountConfigs(
   // closed and quietly, leaving a newly added agent unreachable for a reason
   // that lives in a file nobody re-reads.
   {
-    const dir = join(options.outDir, "bridge");
+    const dir = join(options.outDir, "slack");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "agents.yaml"), rosterYaml);
     written.push(join(dir, "agents.yaml"));
     const netd = {
-      hostname: BRIDGE_HOSTNAME,
-      tag: BRIDGE_TAG,
+      hostname: SLACK_HOSTNAME,
+      tag: SLACK_TAG,
       auth_key_file: "tailnet-auth-key",
-      // The bridge's own socket, not an agentd's: this account runs no agent,
-      // and what a tailnet peer comes here for is the bytes of a file the
-      // bridge holds. A name rather than a path, so one rendered file is
+      // The Slack bridge's own socket, not an agentd's: this account runs no
+      // agent, and what a tailnet peer comes here for is the bytes of a file
+      // the bridge holds. A name rather than a path, so one rendered file is
       // right whether the account runs as a user unit or a system one.
-      upstream_socket: "bridge",
+      upstream_socket: "slack",
       egress_allow: [
         ...Object.values(roster.agents).map((entry) => tailnetName(nodeName(entry), options.tailnetDomain)),
         SLACK_API_HOST,
@@ -136,7 +136,7 @@ export function renderAccountConfigs(
   }
 
   // The phone account exists once any agent answers the phone. Its
-  // roster-derived half is the roster itself (the bridge reads
+  // roster-derived half is the roster itself (the phone bridge reads
   // phone.enabled and the spoken names from it) and a netd that faces the
   // internet; the secrets half — numbers, PIN, tokens — is the operator's
   // 0600 phone.json and is never rendered.

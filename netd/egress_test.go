@@ -147,11 +147,11 @@ func TestEgressPolicyWithNoRulesRefusesEverything(t *testing.T) {
 func TestEgressPolicyRoutesTailnetNamesThroughTsnet(t *testing.T) {
 	policy, _ := namedPolicy(t, nil, "example-tailnet.ts.net", "")
 	for host, want := range map[string]string{
-		"thicket-bridge":                          routeTailnet,
-		"thicket-bridge.example-tailnet.ts.net":   routeTailnet,
-		"api.example.com":                         routeHost,
-		"thicket-bridge.other-tailnet.ts.net":     routeHost,
-		"thicket-bridge.example-tailnet.ts.net.x": routeHost,
+		"thicket-slack":                          routeTailnet,
+		"thicket-slack.example-tailnet.ts.net":   routeTailnet,
+		"api.example.com":                        routeHost,
+		"thicket-slack.other-tailnet.ts.net":     routeHost,
+		"thicket-slack.example-tailnet.ts.net.x": routeHost,
 	} {
 		if got := policy.route(host); got != want {
 			t.Errorf("route(%q) = %q, want %q", host, got, want)
@@ -163,10 +163,10 @@ func TestEgressPolicyRoutesTailnetNamesThroughTsnet(t *testing.T) {
 // one, so only short names take the tailnet route. netd says so at startup.
 func TestEgressPolicyWithoutASuffixRoutesOnlyShortNamesToTheTailnet(t *testing.T) {
 	policy, _ := namedPolicy(t, nil, "", "")
-	if got := policy.route("thicket-bridge"); got != routeTailnet {
+	if got := policy.route("thicket-slack"); got != routeTailnet {
 		t.Errorf("route(short name) = %q, want %q", got, routeTailnet)
 	}
-	if got := policy.route("thicket-bridge.example-tailnet.ts.net"); got != routeHost {
+	if got := policy.route("thicket-slack.example-tailnet.ts.net"); got != routeHost {
 		t.Errorf("route(fqdn) = %q, want %q", got, routeHost)
 	}
 }

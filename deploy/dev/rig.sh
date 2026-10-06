@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The local development rig: agentd, the bridge, and the three stand-ins
+# The local development rig: agentd, the Slack bridge, and the three stand-ins
 # that play netd where there is no tailnet. Development only — the
 # stand-ins assert identities netd would verify.
 #
@@ -43,8 +43,8 @@ export XDG_RUNTIME_DIR="$HOME_DIR/run"
 export XDG_CACHE_HOME="$HOME_DIR/cache"
 
 SOCKETS="$XDG_RUNTIME_DIR/thicket"
-AGENTD_PORT=8791   # bridge -> agentd, carrying the bridge's tag
-BRIDGE_PORT=8792   # agent -> bridge file surface, carrying the agent's tag
+AGENTD_PORT=8791   # slack -> agentd, carrying the Slack bridge's tag
+SLACK_PORT=8792    # agent -> Slack bridge file surface, carrying the agent's tag
 PHONE_PORT=8793    # Twilio -> phone bridge, through Tailscale Funnel
 PHONE_TEST_PORT=8797  # the synthetic operator's caller leg (thicket phone-test-mcp), path /operator on the same Funnel
 
@@ -91,7 +91,7 @@ start() {
     exit 2
   fi
   local name
-  for name in thicket-agentd thicket-bridge thicket-phone; do
+  for name in thicket-agentd thicket-slack thicket-phone; do
     if [[ ! -x "$BIN_DIR/$name" ]]; then
       echo "no $BIN_DIR/$name — run: mise exec -- pnpm compile" >&2
       exit 2
@@ -99,17 +99,17 @@ start() {
   done
   mkdir -p "$SOCKETS" "$HOME_DIR"
 
-  # netd stand-ins first: the bridge dials the agent through one of them.
-  UPSTREAM="$SOCKETS/agentd.sock" PEER_TAG=tag:thicket-bridge PORT="$AGENTD_PORT" \
+  # netd stand-ins first: the Slack bridge dials the agent through one of them.
+  UPSTREAM="$SOCKETS/agentd.sock" PEER_TAG=tag:thicket-slack PORT="$AGENTD_PORT" \
     start_one proxy "$BUN" "$REPO/deploy/dev/peer-tag-proxy.mjs"
-  UPSTREAM="$SOCKETS/bridge.sock" PEER_TAG="tag:thicket-$AGENT" PORT="$BRIDGE_PORT" \
-    start_one bridge-proxy "$BUN" "$REPO/deploy/dev/peer-tag-proxy.mjs"
+  UPSTREAM="$SOCKETS/slack.sock" PEER_TAG="tag:thicket-$AGENT" PORT="$SLACK_PORT" \
+    start_one slack-proxy "$BUN" "$REPO/deploy/dev/peer-tag-proxy.mjs"
   SOCKET="$SOCKETS/netd-egress.sock" \
     start_one egress "$BUN" "$REPO/deploy/dev/egress-proxy.mjs"
 
   start_one agentd "$BIN_DIR/thicket-agentd"
-  THICKET_BRIDGE_ENDPOINTS="{\"$AGENT\":\"http://127.0.0.1:$AGENTD_PORT\"}" \
-    start_one bridge "$BIN_DIR/thicket-bridge"
+  THICKET_SLACK_ENDPOINTS="{\"$AGENT\":\"http://127.0.0.1:$AGENTD_PORT\"}" \
+    start_one slack "$BIN_DIR/thicket-slack"
 
   # The phone bridge reads $XDG_CONFIG_HOME/thicket/phone.json (0600) and
   # dials the agent through the same stand-in the Slack bridge uses.
@@ -163,7 +163,7 @@ funnel_host() {
 stop() {
   local name pid
   funnel_off
-  for name in phone bridge agentd egress bridge-proxy proxy; do
+  for name in phone slack agentd egress slack-proxy proxy; do
     pid="$(cat "$(pidfile "$name")" 2>/dev/null || true)"
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
@@ -171,13 +171,13 @@ stop() {
     fi
     rm -f "$(pidfile "$name")"
   done
-  # The bridge unlinks its socket on a clean exit; a killed one may not.
-  rm -f "$SOCKETS/bridge.sock"
+  # The Slack bridge unlinks its socket on a clean exit; a killed one may not.
+  rm -f "$SOCKETS/slack.sock"
 }
 
 status() {
   local name pid ok=0
-  for name in agentd bridge phone proxy bridge-proxy egress; do
+  for name in agentd slack phone proxy slack-proxy egress; do
     pid="$(cat "$(pidfile "$name")" 2>/dev/null || true)"
     if running "$name"; then
       printf '%-14s up    %s\n' "$name" "$pid"

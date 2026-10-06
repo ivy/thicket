@@ -18,11 +18,11 @@ import {
   type AgentActivity,
   type SlackApi,
   type SlackSessionStatus,
-} from "@thicket/bridge";
+} from "@thicket/slack";
 import { ClaudeAgentExecutor, PushQueue, SessionManager } from "@thicket/executor";
 import { toAgentCard, type AgentEntry } from "@thicket/roster";
 
-export const BRIDGE_TAG = "tag:thicket-bridge";
+export const SLACK_TAG = "tag:thicket-slack";
 
 export function agentEntry(name: string): AgentEntry {
   return {
@@ -229,7 +229,7 @@ export async function startAgent(
   const executor = new ClaudeAgentExecutor({ sessions });
   const card = toAgentCard(name, agentEntry(name));
   const handler = new DefaultRequestHandler(card, store, executor);
-  const app = buildServer({ handler, allowedPeerTags: [BRIDGE_TAG], logger: quietLogger() });
+  const app = buildServer({ handler, allowedPeerTags: [SLACK_TAG], logger: quietLogger() });
   const server = createServer(app);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
   const address = server.address();
@@ -263,7 +263,7 @@ export async function startAgent(
 }
 
 /** Plays netd's role for the bridge: stamps the verified peer tag. */
-export function netdFetch(tag: string = BRIDGE_TAG): typeof fetch {
+export function netdFetch(tag: string = SLACK_TAG): typeof fetch {
   return (input, init) => {
     const headers = new Headers(init?.headers);
     headers.set("x-thicket-peer-tags", tag);

@@ -44,7 +44,7 @@ function healthyProbes(): DoctorProbes {
     phoneConfig: async () => ({ ok: true, source: "/etc/thicket (system unit)" }),
     phonePublic: async () => ({ url: "https://thicket-phone.tail0000.ts.net/", status: 404 }),
     phoneHealth: async () => ({ ts: new Date().toISOString(), openCalls: 0 }),
-    bridgeHealth: async () => ({
+    slackBridgeHealth: async () => ({
       ts: new Date().toISOString(),
       agents: [
         { agent: "hearth", connected: true, attempts: 0 },
@@ -151,7 +151,7 @@ test("workspace at the app cap is detected", async () => {
 
 test("a disconnected Socket Mode connection is reported unhealthy, not merely present", async () => {
   const probes = healthyProbes();
-  probes.bridgeHealth = async () => ({
+  probes.slackBridgeHealth = async () => ({
     ts: new Date().toISOString(),
     agents: [
       { agent: "hearth", connected: true, attempts: 0 },
@@ -161,29 +161,29 @@ test("a disconnected Socket Mode connection is reported unhealthy, not merely pr
   const results = await runDoctor(ROSTER, probes);
   const failure = results.find((r) => !r.ok);
   assert.ok(failure);
-  assert.equal(failure.check, "bridge");
+  assert.equal(failure.check, "slack-bridge");
   assert.equal(failure.agent, "forge");
   assert.match(failure.message, /connection down \(3 reconnect attempts\)/);
 });
 
-test("a stale bridge heartbeat is a failure; an absent one is not", async () => {
+test("a stale Slack bridge heartbeat is a failure; an absent one is not", async () => {
   const probes = healthyProbes();
-  probes.bridgeHealth = async () => ({
+  probes.slackBridgeHealth = async () => ({
     ts: new Date(Date.now() - 5 * 60_000).toISOString(),
     agents: [{ agent: "hearth", connected: true, attempts: 0 }],
   });
   const stale = (await runDoctor(ROSTER, probes)).find((r) => !r.ok);
   assert.ok(stale);
-  assert.equal(stale.check, "bridge");
+  assert.equal(stale.check, "slack-bridge");
   assert.match(stale.message, /stale/);
 
-  probes.bridgeHealth = async () => undefined;
+  probes.slackBridgeHealth = async () => undefined;
   const results = await runDoctor(ROSTER, probes);
   assert.equal(doctorExitCode(results), 0);
-  const absent = results.find((r) => r.check === "bridge");
+  const absent = results.find((r) => r.check === "slack-bridge");
   assert.ok(absent);
   assert.ok(absent.ok);
-  assert.match(absent.message, /no bridge health file/);
+  assert.match(absent.message, /no Slack bridge health file/);
 });
 
 test("formatResults marks failures loudly and names the agent", async () => {
@@ -213,7 +213,7 @@ test("a throwing probe becomes a failed check and every other check still runs",
   assert.equal(lingering.length, 2, "still one row per agent");
   assert.ok(lingering.every((r) => !r.ok && /`loginctl` is not installed/.test(r.message)));
 
-  for (const check of ["card", "slack", "bridge", "workspace"]) {
+  for (const check of ["card", "slack", "slack-bridge", "workspace"]) {
     assert.ok(
       results.some((r) => r.check === check),
       `${check} still ran`,
@@ -232,7 +232,7 @@ test("a probe that throws something other than ENOENT reports the error itself",
   assert.ok(workspace);
   assert.equal(workspace.ok, false);
   assert.match(workspace.message, /cannot check: network is down/);
-  assert.ok(results.some((r) => r.check === "bridge" && r.ok), "later checks unaffected");
+  assert.ok(results.some((r) => r.check === "slack-bridge" && r.ok), "later checks unaffected");
 });
 
 test("a number pointed elsewhere by hand is reported as drift; no twilio.json is not a failure", async () => {

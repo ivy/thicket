@@ -66,7 +66,7 @@ function renderInto(roster: Roster, rosterYaml: string, outDir: string): void {
   const written = renderAccountConfigs(roster, rosterYaml, {
     outDir,
     allowedPeerTags: [
-      "tag:thicket-bridge",
+      "tag:thicket-slack",
       ...Object.values(roster.agents).map((entry) => entry.tag),
     ],
     tailnetDomain: process.env.THICKET_TAILNET_DOMAIN,
