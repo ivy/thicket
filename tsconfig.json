@@ -26,6 +26,9 @@
       "path": "apps/phone"
     },
     {
+      "path": "apps/discord"
+    },
+    {
       "path": "apps/cli"
     },
     {

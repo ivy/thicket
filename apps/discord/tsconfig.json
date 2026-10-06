@@ -18,22 +18,7 @@
       "path": "../../packages/a2a-client"
     },
     {
-      "path": "../../apps/agentd"
-    },
-    {
-      "path": "../../apps/slack"
-    },
-    {
-      "path": "../../apps/phone"
-    },
-    {
-      "path": "../../apps/discord"
-    },
-    {
-      "path": "../../apps/cli"
-    },
-    {
-      "path": "../../packages/slack-manifest"
+      "path": "../../packages/egress"
     }
   ]
 }

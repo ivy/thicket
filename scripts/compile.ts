@@ -20,6 +20,7 @@ export const EXECUTABLES = [
   { name: "thicket-agentd", entry: "apps/agentd/src/bin.ts" },
   { name: "thicket-slack", entry: "apps/slack/src/bin.ts" },
   { name: "thicket-phone", entry: "apps/phone/src/bin.ts" },
+  { name: "thicket-discord", entry: "apps/discord/src/bin.ts" },
 ] as const;
 
 export function chosenPlatforms(argv: string[]): Platform[] {

@@ -10,11 +10,12 @@
     "@a2a-js/sdk": "^1.1.0",
     "@thicket/a2a-client": "workspace:*",
     "@thicket/agentd": "workspace:*",
-    "@thicket/slack": "workspace:*",
     "@thicket/cli": "workspace:*",
+    "@thicket/discord": "workspace:*",
     "@thicket/executor": "workspace:*",
     "@thicket/phone": "workspace:*",
     "@thicket/roster": "workspace:*",
+    "@thicket/slack": "workspace:*",
     "@thicket/slack-manifest": "workspace:*",
     "ws": "^8.21.3"
   },
