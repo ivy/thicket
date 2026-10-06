@@ -10,7 +10,7 @@ local workflows = new Mapping<String, Step> {
         check = "actionlint {{files}}"
     }
     ["zizmor"] {
-        glob = List(".github/**/*.yml", ".github/**/*.yaml")
+        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
         check = "zizmor --offline --no-progress {{files}}"
     }
     ["pinact"] {

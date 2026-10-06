@@ -1,0 +1,9 @@
+rules:
+  # Wants `uses: $/...` in place of `uses: ./...`. Every in-repo `uses:` here
+  # is a job-level reusable workflow call, which GitHub resolves from the
+  # triggering commit before any step runs, so there is no workspace for an
+  # earlier step to have planted a file in. actionlint rejects `$/` outright
+  # (rhysd/actionlint#732), and losing its input/secret checks on these calls
+  # costs more than this audit protects.
+  self-repository:
+    disable: true
