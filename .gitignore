@@ -3,6 +3,8 @@ dist/
 *.tsbuildinfo
 netd/bin/
 netd/netd
+deploy/selinux/thicket.mod
+deploy/selinux/thicket.pp
 .claude/*.local.*
 dist-bin/
 dist-release/
