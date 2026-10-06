@@ -79,6 +79,13 @@ export const META_CONTEXT_ONLY = "thicket.contextOnly";
 export const META_SLACK_CHANNEL = "thicket.slackChannel";
 export const META_SLACK_THREAD = "thicket.slackThread";
 /**
+ * Where the message came from, when it came from Discord: the guild
+ * channel (or the DM channel) and the thread (or, in a DM, the same
+ * channel). Ids only, never content.
+ */
+export const META_DISCORD_CHANNEL = "thicket.discordChannel";
+export const META_DISCORD_THREAD = "thicket.discordThread";
+/**
  * Where the message came from, when it came from a phone call: the
  * call's identifier (an opaque string the bridge minted or was given),
  * the two numbers, the direction, and what kind of message this is. Ids

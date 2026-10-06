@@ -1,6 +1,14 @@
 import { TaskState } from "@a2a-js/sdk";
 import type { Message, Task } from "@a2a-js/sdk";
-import { deriveSessionId, parseAgentQuestions, type AgentQuestion } from "@thicket/executor";
+import {
+  deriveSessionId,
+  linksIn,
+  META_ENVELOPE,
+  parseAgentQuestions,
+  type AgentQuestion,
+  type Envelope,
+  type Participant,
+} from "@thicket/executor";
 
 import { reopen, START, takeChunk, type Cursor } from "./markdown.js";
 import {
@@ -142,6 +150,20 @@ function filePart(url: string, file: SlackFile) {
     filename: file.name,
     metadata: { [META_FILE_SIZE]: file.size },
   };
+}
+
+/** The people a Slack message names, as `<@U…>`; Slack does not say which are apps. */
+function mentionsIn(text: string): Participant[] {
+  const seen = new Set<string>();
+  const out: Participant[] = [];
+  for (const match of text.matchAll(/<@([A-Z0-9]+)(?:\|[^>]*)?>/g)) {
+    const id = match[1]!;
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push({ id, kind: "person" });
+    }
+  }
+  return out;
 }
 
 export function slackStatusFor(state: TaskState): SlackSessionStatus {
@@ -305,6 +327,7 @@ export class BridgeEngine {
             false,
             files,
             bound.workspace,
+            event.authorId,
           ),
         );
         return;
@@ -513,6 +536,7 @@ export class BridgeEngine {
       true,
       fileIds,
       bound.workspace,
+      authorId,
     );
     try {
       if (card.streaming) {
@@ -685,6 +709,7 @@ export class BridgeEngine {
     shouldQuery: boolean,
     fileIds: string[],
     workspace?: string,
+    authorId?: string,
   ): Message {
     const files = fileIds
       .map((id) => this.state.fileFor(this.agent, id))
@@ -711,6 +736,13 @@ export class BridgeEngine {
         // reach "this thread" without the model being told by a person.
         [META_SLACK_CHANNEL]: channel,
         [META_SLACK_THREAD]: threadTs,
+        [META_ENVELOPE]: {
+          surface: "slack",
+          place: { kind: channel.startsWith("D") ? "DM" : "channel", channel, thread: threadTs, message: messageTs },
+          ...(authorId === undefined ? {} : { author: { id: authorId, kind: "person" } }),
+          ...(mentionsIn(text).length === 0 ? {} : { mentions: mentionsIn(text) }),
+          ...(linksIn(text).length === 0 ? {} : { references: linksIn(text).map((url) => ({ kind: "link", url })) }),
+        } satisfies Envelope,
         ...(workspace === undefined ? {} : { [META_WORKSPACE]: workspace }),
         ...(shouldQuery ? {} : { [META_SHOULD_QUERY]: false }),
       },

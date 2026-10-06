@@ -17,6 +17,7 @@ import {
   type AttachmentStore,
   type StoredAttachment,
 } from "./attachments.js";
+import { envelopePreamble } from "./envelope.js";
 import { UnknownWorkspaceError } from "./session-manager.js";
 import { TurnTranslator, type TurnAccounting } from "./translator.js";
 import {
@@ -262,8 +263,11 @@ export class ClaudeAgentExecutor implements AgentExecutor {
    * question in the message is usually still answerable.
    */
   private async preamble(contextId: string, inbound: Message): Promise<string> {
+    // A bridge that wrote the envelope gets the shared rendering; the Slack
+    // coordinate keys alone still get the older line.
+    const envelope = envelopePreamble(inbound);
     return (
-      threadPreamble(inbound) +
+      (envelope !== "" ? envelope : threadPreamble(inbound)) +
       phonePreamble(inbound, this.now) +
       sendPreamble(inbound) +
       (await this.attachmentsPreamble(contextId, inbound))

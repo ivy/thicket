@@ -28,6 +28,19 @@ export {
   type ToolDescription,
 } from "./activity.js";
 export {
+  envelopeOf,
+  envelopePreamble,
+  linksIn,
+  META_ENVELOPE,
+  type ReferencedAttachment,
+  type Envelope,
+  type Participant,
+  type ParticipantKind,
+  type Place,
+  type Reference,
+  type Surface,
+} from "./envelope.js";
+export {
   META_QUESTIONS,
   parseAgentQuestions,
   type AgentQuestion,
@@ -74,6 +87,8 @@ export {
   META_SHOULD_QUERY,
   META_SLACK_CHANNEL,
   META_SLACK_THREAD,
+  META_DISCORD_CHANNEL,
+  META_DISCORD_THREAD,
   META_STILL_QUEUED,
   META_TRIGGER,
   META_UNATTENDED,
