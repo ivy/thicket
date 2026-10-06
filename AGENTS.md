@@ -25,6 +25,7 @@ binaries an agent account installs.
 | `apps/agentd/` | A2A server + session manager; binds a unix socket, never a port |
 | `apps/slack/` | Slack Socket Mode ⇄ A2A, plus the file surface agents fetch from |
 | `apps/phone/` | Twilio ConversationRelay ⇄ A2A: the codec, the call engine, the signed edge; see [docs/phone-bridge.md](docs/phone-bridge.md) |
+| `apps/discord/` | Discord Gateway ⇄ A2A: the turn table, the turn card, the edit budget; see [docs/discord-bridge.md](docs/discord-bridge.md) |
 | `apps/cli/` | `provision`, `doctor`, `fleet`, `send`, `mcp`, `slack-test-mcp` |
 | `netd/` | Go; tsnet node per agent, tailnet ⇄ unix socket with verified peer tags |
 | `tests/integration/` | Real agentd + real Slack bridge over HTTP; only Slack is faked |
@@ -105,6 +106,8 @@ Two traps worth knowing:
   external facts (Slack API quirks, A2A semantics).
 - [docs/phone-bridge.md](docs/phone-bridge.md) — the phone bridge design the `M0`–`M3`
   milestones assume: the operator console, its PIN gate, identity, the call, and the vendor facts.
+- [docs/discord-bridge.md](docs/discord-bridge.md) — the Discord bridge design: the
+  Gateway through egress, the turn card and its edit budget, questions as forms, identity.
 - [docs/live-testing.md](docs/live-testing.md) — the local rig, the two Slack MCP
   servers, and what still needs a human. **Read before any live check.**
 - [docs/runbook.md](docs/runbook.md) — what to do when an agent stops responding, a
