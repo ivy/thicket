@@ -37,14 +37,14 @@ checksum = "sha256:61130f394c1630d211dd50aecc4353d379480f36d3ac913cd85dbba1aed58
 url = "https://nodejs.org/dist/v22.23.2/node-v22.23.2-darwin-arm64.tar.gz"
 
 [[tools.pinact]]
-version = "4.1.1"
+version = "5.0.0"
 backend = "aqua:suzuki-shunsuke/pinact"
-specifiers = ["4.1.1"]
+specifiers = ["5.0.0"]
 
 [tools.pinact."platforms.macos-arm64"]
-checksum = "sha256:c13998c9f0dd09d8973700938aa5f6ac52a1db4e94d4f578d8cc976cda478614"
-url = "https://github.com/suzuki-shunsuke/pinact/releases/download/v4.1.1/pinact_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/suzuki-shunsuke/pinact/releases/assets/494702257"
+checksum = "sha256:3437ebfc9db720e431e86fd03ed19173b88dcb80b0f177d11a892126108661b5"
+url = "https://github.com/suzuki-shunsuke/pinact/releases/download/v5.0.0/pinact_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/suzuki-shunsuke/pinact/releases/assets/558638064"
 provenance = "github-attestations"
 
 [[tools.pnpm]]
