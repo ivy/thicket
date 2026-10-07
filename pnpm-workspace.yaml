@@ -11,3 +11,6 @@ packages:
 # published, and waiting costs nothing that matters — a fix urgent enough to
 # need the current hour can be pinned by hand with a reason.
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  # Renovate security update: @modelcontextprotocol/sdk@1.31.0
+  - "@modelcontextprotocol/sdk@1.31.0"
