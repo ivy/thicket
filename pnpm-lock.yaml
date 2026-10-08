@@ -86,7 +86,7 @@ importers:
         version: link:../../packages/slack-manifest
       ws:
         specifier: ^8.21.3
-        version: 8.21.3
+        version: 8.22.0
       yaml:
         specifier: ^2.9.0
         version: 2.9.1
@@ -154,7 +154,7 @@ importers:
         version: link:../../packages/roster
       ws:
         specifier: ^8.21.3
-        version: 8.21.3
+        version: 8.22.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -328,7 +328,7 @@ importers:
         version: link:../../packages/slack-manifest
       ws:
         specifier: ^8.21.3
-        version: 8.21.3
+        version: 8.22.0
     devDependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.247
@@ -1371,6 +1371,18 @@ packages:
 
   ws@8.21.3:
     resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
+  ws@8.22.0:
+    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -2454,6 +2466,8 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.21.3: {}
+
+  ws@8.22.0: {}
 
   yaml@2.9.1: {}
 
