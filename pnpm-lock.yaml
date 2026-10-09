@@ -13,7 +13,7 @@ importers:
         version: 9.39.5
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       eslint:
         specifier: ^9.34.0
         version: 9.39.5
@@ -53,7 +53,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -96,7 +96,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.2
@@ -127,7 +127,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.2
@@ -161,7 +161,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.2
@@ -201,7 +201,7 @@ importers:
         version: 5.0.6
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.2
@@ -226,7 +226,7 @@ importers:
         version: 5.0.6
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -238,7 +238,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -254,7 +254,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -273,7 +273,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -289,7 +289,7 @@ importers:
     devDependencies:
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       typescript:
         specifier: ^5.9.2
         version: 5.9.3
@@ -335,7 +335,7 @@ importers:
         version: 0.3.287(@anthropic-ai/sdk@0.121.0(zod@4.4.3))(@modelcontextprotocol/sdk@1.31.0(zod@4.4.3))(zod@4.4.3)
       '@types/node':
         specifier: ^22.17.0
-        version: 22.20.4
+        version: 22.20.5
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.2
@@ -548,8 +548,8 @@ packages:
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
-  '@types/node@22.20.4':
-    resolution: {integrity: sha512-zJRE40jpHtKqE/C4fgHrAKQLJuSpzEnP9ff9Y7YtoR3Wd2pwqzlekDeEuUQXjRd+QCYnVnNwuJYmhdk9XV8gvA==}
+  '@types/node@22.20.5':
+    resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
 
   '@types/qs@6.15.1':
     resolution: {integrity: sha512-GZHUBZR9hckSUhrxmp1nG6NwdpM9fCunJwyThLW1X3AyHgd9IlHb6VANpQQqDr2o/qQp6McZ3y/IA2rVzKzSbw==}
@@ -1556,7 +1556,7 @@ snapshots:
 
   '@slack/logger@4.0.1':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@slack/types@2.22.0': {}
 
@@ -1564,7 +1564,7 @@ snapshots:
     dependencies:
       '@slack/logger': 4.0.1
       '@slack/types': 2.22.0
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       '@types/retry': 0.12.0
       axios: 1.20.0
       eventemitter3: 5.0.4
@@ -1583,17 +1583,17 @@ snapshots:
   '@types/body-parser@1.19.6':
     dependencies:
       '@types/connect': 3.4.38
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/estree@1.0.9': {}
 
   '@types/express-serve-static-core@5.1.3':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
       '@types/qs': 6.15.1
       '@types/range-parser': 1.2.7
       '@types/send': 1.2.1
@@ -1608,7 +1608,7 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
-  '@types/node@22.20.4':
+  '@types/node@22.20.5':
     dependencies:
       undici-types: 6.21.0
 
@@ -1620,16 +1620,16 @@ snapshots:
 
   '@types/send@1.2.1':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/serve-static@2.2.0':
     dependencies:
       '@types/http-errors': 2.0.5
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@types/ws@8.18.2':
     dependencies:
-      '@types/node': 22.20.4
+      '@types/node': 22.20.5
 
   '@typescript-eslint/eslint-plugin@8.71.0(@typescript-eslint/parser@8.71.0(eslint@9.39.5)(typescript@5.9.3))(eslint@9.39.5)(typescript@5.9.3)':
     dependencies:
