@@ -14,18 +14,22 @@ url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/3849248
 provenance = "github-attestations"
 
 [[tools.bun]]
-version = "1.4.0"
+version = "1.4.2"
 backend = "core:bun"
-specifiers = ["1.4.0"]
+specifiers = ["1.4.2"]
+
+[tools.bun."platforms.macos-arm64"]
+checksum = "sha256:90987a3a16d7db556d886ac3d551e7b6d3edf0a1cf43acaed622e8676be1d12f"
+url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.2/bun-darwin-aarch64.zip"
 
 [[tools.go]]
-version = "1.27.0"
+version = "1.27.1"
 backend = "core:go"
-specifiers = ["1.27.0"]
+specifiers = ["1.27.1"]
 
 [tools.go."platforms.macos-arm64"]
-checksum = "sha256:90493b3bbd5e10f91d12153198bf1994fd756399b4fec93b49b0c6e2acdeeb3e"
-url = "https://dl.google.com/go/go1.27.0.darwin-arm64.tar.gz"
+checksum = "sha256:ee215d57e0ec269c60cc9ceca68e6bda321ba9ee5afe24f4b0988703c2d87d12"
+url = "https://dl.google.com/go/go1.27.1.darwin-arm64.tar.gz"
 
 [[tools.node]]
 version = "22.23.2"
@@ -48,14 +52,14 @@ url_api = "https://api.github.com/repos/suzuki-shunsuke/pinact/releases/assets/4
 provenance = "github-attestations"
 
 [[tools.pnpm]]
-version = "10.15.0"
+version = "10.34.6"
 backend = "aqua:pnpm/pnpm"
-specifiers = ["10.15.0"]
+specifiers = ["10.34.6"]
 
 [tools.pnpm."platforms.macos-arm64"]
-checksum = "sha256:9a1ada22d959ad20f5131484fc79d6a096b43249cb6fbf3483d923a9d9e6e186"
-url = "https://github.com/pnpm/pnpm/releases/download/v10.15.0/pnpm-macos-arm64"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/284092587"
+checksum = "sha256:62f067df42ba26d3ffbe8b42b8c92a251eb3a69bfa32a8a3a98623a4958e8ca4"
+url = "https://github.com/pnpm/pnpm/releases/download/v10.34.6/pnpm-macos-arm64"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/596100724"
 
 [[tools.shellcheck]]
 version = "0.11.0"
@@ -68,12 +72,12 @@ url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellche
 url_api = "https://api.github.com/repos/koalaman/shellcheck/releases/assets/279056932"
 
 [[tools.zizmor]]
-version = "1.29.0"
+version = "1.30.1"
 backend = "aqua:zizmorcore/zizmor"
-specifiers = ["1.29.0"]
+specifiers = ["1.30.1"]
 
 [tools.zizmor."platforms.macos-arm64"]
-checksum = "sha256:720322fade9e83a9c7953944c438f2ba942636b86b96a8f0e6b15ce94c8a6b6f"
-url = "https://github.com/zizmorcore/zizmor/releases/download/v1.29.0/zizmor-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/498263141"
+checksum = "sha256:e28d22b087f9ebb8d99da6e740d348c930f559961c7c3f12badda54f882195a2"
+url = "https://github.com/zizmorcore/zizmor/releases/download/v1.30.1/zizmor-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/zizmorcore/zizmor/releases/assets/552067640"
 provenance = "github-attestations"
