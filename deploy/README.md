@@ -135,7 +135,9 @@ cp /path/to/repo/dist-bin/linux-x64/thicket-slack ~/.local/bin/
 cp /path/to/repo/dist-bin/linux-x64/thicket        ~/.local/bin/
 # Claude Code CLI for the harness. agentd resolves it on PATH at startup and
 # logs which one it found; `claude_executable` in agentd.json overrides that.
-mise use -g "npm:@anthropic-ai/claude-code"
+# 2.1.303 is the floor: older releases trust the compromised eMudhra
+# intermediates (CVE-2026-111943).
+mise use -g "npm:@anthropic-ai/claude-code@2.1.303"
 ```
 
 ## 6. Install and start the units (as the agent account)
