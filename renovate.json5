@@ -39,8 +39,10 @@
 
   // pnpm-lock.yaml is lockfileVersion 9.0, which Renovate maps to "pnpm >=9" —
   // that would regenerate the lockfile with whatever pnpm is newest, not the
-  // one mise.toml pins and CI installs with --frozen-lockfile. 11.28.8 is the
-  // first release whose standalone build embeds a Node.js that distrusts the
+  // one mise.toml pins and CI installs with --frozen-lockfile. The floor has to
+  // honour minimumReleaseAge in pnpm-workspace.yaml (10.16 and later), the
+  // week-long floor this whole file is built around, and 11.28.8 is the first
+  // release whose standalone build embeds a Node.js that distrusts the
   // compromised eMudhra intermediates (CVE-2026-111943). A pnpm major is never
   // automerged, so whoever lands one moves this too.
   "constraints": {
