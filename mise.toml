@@ -1,7 +1,7 @@
 [tools]
-bun = "1.4.2"
-go = "1.27.2"
-pnpm = "10.34.6"
+bun = "1.4.4"
+go = "1.27.3"
+pnpm = "11.28.8"
 
 # Workflow linters. actionlint shells out to shellcheck for every `run:` block,
 # so the two travel together.
