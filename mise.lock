@@ -43,14 +43,14 @@ url_api = "https://api.github.com/repos/suzuki-shunsuke/pinact/releases/assets/4
 provenance = "github-attestations"
 
 [[tools.pnpm]]
-version = "11.28.8"
+version = "12.14.0"
 backend = "aqua:pnpm/pnpm"
-specifiers = ["11.28.8"]
+specifiers = ["12.14.0"]
 
 [tools.pnpm."platforms.macos-arm64"]
-checksum = "sha256:a2c05d2b7269ca19bd7b87e0cfae6ad58d17597b474ef304efeb1d0320cb35ea"
-url = "https://github.com/pnpm/pnpm/releases/download/v11.28.8/pnpm-darwin-arm64.tar.gz"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/667216937"
+checksum = "sha256:50f48e0e17508952790a3fbf58fcf14f3b82efa5f594ca04ad904e29aaf854b0"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.14.0/pnpm-darwin-arm64.tar.gz"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/643957413"
 provenance = "github-attestations"
 
 [[tools.shellcheck]]
