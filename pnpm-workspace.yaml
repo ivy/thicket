@@ -25,3 +25,5 @@ minimumReleaseAgeExclude:
   - "@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.303"
   - "@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.303"
   - "@anthropic-ai/claude-agent-sdk-win32-x64@0.3.303"
+  # Renovate security update: zod@4.6.6
+  - zod@4.6.6
