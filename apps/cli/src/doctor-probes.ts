@@ -137,9 +137,10 @@ export function realProbes(options: {
           throw new Error(
             `${new URL(base).hostname} does not resolve over ${route} — no tailnet on this ` +
               `host? (dev rigs set THICKET_MCP_ENDPOINTS to probe local agents)`,
+            { cause: err },
           );
         }
-        throw new Error(`${detail} (over ${route})`);
+        throw new Error(`${detail} (over ${route})`, { cause: err });
       }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);

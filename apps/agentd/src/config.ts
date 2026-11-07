@@ -74,6 +74,7 @@ export function loadConfig(path: string): AgentdConfig {
   } catch (err) {
     throw new Error(
       `agentd config ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
     );
   }
   if (typeof raw.agent !== "string" || raw.agent === "") {
