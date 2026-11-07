@@ -183,7 +183,7 @@ export class SlackTestClient {
     const put = await this.fetchImpl(uploadUrl, {
       method: "POST",
       headers: { "content-type": "application/octet-stream" },
-      body: new Blob([bytes]),
+      body: new Blob([new Uint8Array(bytes)]),
     });
     if (!put.ok) {
       throw new Error(`upload POST failed: ${put.status}`);
