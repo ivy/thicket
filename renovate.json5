@@ -4,36 +4,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
 
-  // Presets: sensible defaults, conventional-commit PR titles, no dashboard issue
-  "extends": [
-    "config:recommended",
-    ":semanticCommits",
-    ":disableDependencyDashboard"
-  ],
-
-  // Evaluate schedules in Pacific time
-  "timezone": "America/Los_Angeles",
-
-  // Commit via the GitHub API instead of pushing with git
-  "platformCommit": "enabled",
-
-  // Auto-raise a PR when Renovate config options need migration
-  "configMigration": true,
-
-  // Squash-merge passing PRs automatically; packageRules below hold some back
-  "automerge": true,
-  "automergeStrategy": "squash",
-
-  // main has no required status checks, so GitHub's native auto-merge would
-  // merge a PR before CI reports. Renovate merges it itself instead, and only
-  // once every check on the branch is green.
-  "platformAutomerge": false,
-
-  // "auto" rebases every open branch on every push to main whenever automerge
-  // is on. Nothing requires branches to be up to date, so only rebase on conflict.
-  "rebaseWhen": "conflicted",
-
-  "labels": ["dependencies"],
+  // Shared defaults. This file holds only what is true of thicket.
+  "extends": ["github>ivy/renovate-config"],
 
   "enabledManagers": ["npm", "gomod", "mise", "github-actions"],
 
@@ -57,28 +29,13 @@
     "schedule": ["on monday"]
   },
 
-  "github-actions": {
-    // pinact enforces full-length SHAs on every `uses:`; keep them that way
-    "pinDigests": true
-  },
-
   "postUpdateOptions": ["gomodTidy"],
 
   "packageRules": [
-    // -------------------------------------------------------------------------
-    // What a human still reviews
-    //
-    // The dependency tree is compiled into the release binaries. A major is a
-    // stated breaking change, and in a 0.x package a minor is one too — the
-    // Agent SDK's frame stream is exactly the seam translator.ts depends on.
-    // -------------------------------------------------------------------------
+    // The constraint above has to move with a pnpm major, so a person does both.
     {
+      "matchPackageNames": ["pnpm"],
       "matchUpdateTypes": ["major"],
-      "automerge": false
-    },
-    {
-      "matchCurrentVersion": "<1.0.0",
-      "matchUpdateTypes": ["minor"],
       "automerge": false
     },
 
@@ -108,31 +65,6 @@
       "matchDepTypes": ["devDependencies"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "npm dev dependencies"
-    },
-
-    // -------------------------------------------------------------------------
-    // Supply-chain quarantine
-    //
-    // A week, matching minimumReleaseAge in pnpm-workspace.yaml: a shorter
-    // wait here would open npm PRs that pnpm then refuses to resolve, and the
-    // same reasoning — most compromises are pulled within days — holds for an
-    // Action or a Go module as much as for an npm package.
-    //
-    // Keyed on datasource because the binding constraint is whether a
-    // releaseTimestamp comes back at all: minimumReleaseAgeBehaviour defaults
-    // to "timestamp-required", which leaves an update with none pending
-    // forever. matchUpdateTypes is load-bearing for the same reason — only
-    // major/minor/patch carry a releaseTimestamp onto the upgrade, so a digest
-    // or pin update gated here would open a PR that never merges.
-    //
-    // Vulnerability PRs bypass this gate by Renovate's default; pnpm's floor
-    // still applies to them.
-    // -------------------------------------------------------------------------
-    {
-      "matchDatasources": ["npm", "go", "github-tags", "github-releases"],
-      "matchUpdateTypes": ["major", "minor", "patch"],
-      "minimumReleaseAge": "7 days",
-      "internalChecksFilter": "strict"
     }
   ]
 }
