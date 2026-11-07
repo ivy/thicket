@@ -80,6 +80,7 @@ export class A2aJsonRpcClient {
     } catch (err) {
       throw new Error(
         `agent unreachable at ${this.rpcUrl}: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
       );
     }
     let envelope: JsonRpcEnvelope;
