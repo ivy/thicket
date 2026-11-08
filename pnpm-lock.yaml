@@ -86,7 +86,7 @@ importers:
         version: link:../../packages/slack-manifest
       ws:
         specifier: ^8.21.3
-        version: 8.22.0
+        version: 8.22.1
       yaml:
         specifier: ^2.9.0
         version: 2.9.1
@@ -123,7 +123,7 @@ importers:
         version: link:../../packages/roster
       discord-ws:
         specifier: npm:ws@^8.21.3
-        version: ws@8.21.3
+        version: ws@8.22.1
     devDependencies:
       '@types/node':
         specifier: ^26.0.0
@@ -154,7 +154,7 @@ importers:
         version: link:../../packages/roster
       ws:
         specifier: ^8.21.3
-        version: 8.22.0
+        version: 8.22.1
       zod:
         specifier: ^4.4.3
         version: 4.6.7
@@ -194,7 +194,7 @@ importers:
         version: 5.3.0(supports-color@7.2.0)
       slack-ws:
         specifier: npm:ws@^8.21.3
-        version: ws@8.21.3
+        version: ws@8.22.1
     devDependencies:
       '@types/express':
         specifier: ^5.0.6
@@ -328,7 +328,7 @@ importers:
         version: link:../../packages/slack-manifest
       ws:
         specifier: ^8.21.3
-        version: 8.22.0
+        version: 8.22.1
     devDependencies:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.303
@@ -1375,20 +1375,8 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
-  ws@8.21.3:
-    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
-    engines: {node: '>=10.0.0'}
-    peerDependencies:
-      bufferutil: ^4.0.1
-      utf-8-validate: '>=5.0.2'
-    peerDependenciesMeta:
-      bufferutil:
-        optional: true
-      utf-8-validate:
-        optional: true
-
-  ws@8.22.0:
-    resolution: {integrity: sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg==}
+  ws@8.22.1:
+    resolution: {integrity: sha512-oyL6OPYme/CmiFvNuGzeoxCJ4nOrZE2O1FwM9MWM1AsGri6nLXB2pg+lNA8aLeXMSav0J6eIVS1j6vUPzUtK9g==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -2481,9 +2469,7 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.21.3: {}
-
-  ws@8.22.0: {}
+  ws@8.22.1: {}
 
   yaml@2.9.1: {}
 
