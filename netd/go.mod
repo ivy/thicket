@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	golang.org/x/time v0.16.0
-	tailscale.com v1.104.4
+	tailscale.com v1.104.5
 )
 
 require (
