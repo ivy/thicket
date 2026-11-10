@@ -168,7 +168,7 @@ export async function run(
           agentUrl(entry, { tailnetDomain: config.tailnet_domain }).replace(/\/a2a\/v1$/, ""),
         outbound,
       ),
-      slack: new WebSlackApi(new WebClient(agentConfig.bot_token, { agent: slackAgent }), logger),
+      slack: new WebSlackApi(new WebClient(agentConfig.bot_token, { fetch: outbound }), logger),
       state,
       logger,
       ...(config.file_base_url === undefined ? {} : { fileBaseUrl: config.file_base_url }),

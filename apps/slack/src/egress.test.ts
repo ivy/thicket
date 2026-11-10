@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { WebClient } from "@slack/web-api";
-import { egressAgent } from "@thicket/egress";
+import { egressFetch } from "@thicket/egress";
 
 /**
  * A proxy that records what it was asked for and refuses it. Refusing is
@@ -42,7 +42,7 @@ async function recordingProxy(t: { after(fn: () => void): void }): Promise<{
 test("the Slack Web API leaves through the egress socket, or not at all", async (t) => {
   const proxy = await recordingProxy(t);
   const web = new WebClient("xoxb-not-a-real-token", {
-    agent: egressAgent(proxy.socketPath),
+    fetch: egressFetch(proxy.socketPath),
     retryConfig: { retries: 0 },
   });
 
