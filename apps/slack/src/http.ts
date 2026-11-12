@@ -224,7 +224,12 @@ export function buildFileServer(options: FileServerOptions): express.Express {
 
   app.post("/api/messages", identify, express.json(), (req, res) => {
     const agent = res.locals.agent as string;
-    const body = req.body as { channel?: unknown; text?: unknown; thread_ts?: unknown };
+    const body = req.body as {
+      channel?: unknown;
+      text?: unknown;
+      thread_ts?: unknown;
+      context_id?: unknown;
+    };
     if (typeof body.channel !== "string" || body.channel === "") {
       res.status(400).json({ error: "channel is required" });
       return;
@@ -256,6 +261,22 @@ export function buildFileServer(options: FileServerOptions): express.Express {
       if (!result.ok) {
         refuseOrFail(res, agent, "post", result.error);
         return;
+      }
+      // A post the agent made on its own opens a thread the bridge has never
+      // seen, and a reply there would derive a fresh context and reach a
+      // session with no memory of the post. Anchor the thread to the
+      // conversation that wrote it instead: the new thread root, or a thread
+      // nobody has engaged yet. A thread already in conversation keeps its
+      // own context; the post is just a message in it.
+      const contextId = typeof body.context_id === "string" ? body.context_id : undefined;
+      const postedTs = typeof result.body.ts === "string" ? result.body.ts : undefined;
+      const postedChannel =
+        typeof result.body.channel === "string" ? result.body.channel : (body.channel as string);
+      if (contextId !== undefined && postedTs !== undefined) {
+        const anchor = threadTs ?? postedTs;
+        if (!state.isEngaged(postedChannel, anchor)) {
+          state.saveContext(postedChannel, anchor, contextId);
+        }
       }
       res.status(200).json({ ok: true, channel: result.body.channel, ts: result.body.ts });
     })().catch((err: unknown) => {
