@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/jdx/jactionlint/main/schema/jactionlint-config.json
+ignores:
+  # Both run as a job of a caller (ci.yml, release.yml), which sets the
+  # concurrency, or by hand. Inside a called workflow `github.workflow` names
+  # the caller, so a group here would share the caller's and cancel or
+  # deadlock it; a hand-dispatched run has no newer commit to give way to.
+  - rule: concurrency-limits
+    file: .github/workflows/deploy-check.yml
+    reason: called workflow or manual run; the caller owns concurrency
+  - rule: concurrency-limits
+    file: .github/workflows/verify-release.yml
+    reason: called workflow or manual run; the caller owns concurrency

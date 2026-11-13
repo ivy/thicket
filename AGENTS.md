@@ -57,14 +57,13 @@ package is allowlisted to run install scripts without a reason beside it.
 
 Before landing anything: **build, test, lint — all three, from the repo root.**
 `.github/workflows/ci.yml` runs exactly those on every push to `main` and every pull
-request, in a `gate` job; a `workflows` job re-runs the three workflow linters —
-[actionlint](https://github.com/rhysd/actionlint) (syntax, expressions, shellcheck over
-every `run:`), [zizmor](https://github.com/zizmorcore/zizmor) (security: unpinned
-`uses:`, template injection, over-broad permissions) and
-[pinact](https://github.com/suzuki-shunsuke/pinact) (`uses:` pinned to a commit SHA).
-Those three are also in `pnpm lint` and in the pre-commit hook, so a workflow that would
-fail CI fails at the desk first. `pnpm lint` covers the Go module too — `gofmt -l` over
-`netd/`, then `go vet` — so `go test` is not the only thing that reads it.
+request, in a `gate` job; a `workflows` job re-runs the workflow linter,
+[jactionlint](https://github.com/jdx/jactionlint) (syntax, expressions, shellcheck over
+every `run:`, template injection, over-broad permissions, and `uses:` pinned to a commit
+SHA), with its online checks on. Its config is `.github/jactionlint.yaml`. It is also in
+`pnpm lint` and in the pre-commit hook, so a workflow that would fail CI fails at the
+desk first. `pnpm lint` covers the Go module too — `gofmt -l` over `netd/`, then
+`go vet` — so `go test` is not the only thing that reads it.
 
 A tag is a release. Pushing `v*` runs the same gate, then builds one archive per fleet
 platform — `bin/` holding all four executables — attests them, and creates the release;

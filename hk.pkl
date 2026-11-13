@@ -5,17 +5,12 @@ amends "package://github.com/jdx/hk/releases/download/v1.50.0/hk@1.50.0#/Config.
 // global gitleaks step. Verified against hk 1.50.0.
 
 local workflows = new Mapping<String, Step> {
-    ["actionlint"] {
+    // Reads .github/jactionlint.yaml and .github/workflows/actions.lock, so a
+    // tag ref the lockfile pins passes the unpinned-uses rule.
+    ["jactionlint"] {
         glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
-        check = "actionlint {{files}}"
-    }
-    ["zizmor"] {
-        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
-        check = "zizmor --offline --no-progress {{files}}"
-    }
-    ["pinact"] {
-        glob = List(".github/workflows/*.yml", ".github/workflows/*.yaml")
-        check = "pinact run --check {{files}}"
+        check = "jactionlint --format gcc {{files}}"
+        fix = "jactionlint --fix {{files}}"
     }
 }
 

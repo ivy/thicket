@@ -11,7 +11,7 @@
     "lint:go": "./scripts/lint-go.sh",
     "lint:deploy": "./deploy/check.sh && ./deploy/selinux/check.sh",
     "lint:supply-chain": "./scripts/check-supply-chain.sh",
-    "lint:workflows": "actionlint && zizmor --offline --no-progress .github/ && pinact run --check",
+    "lint:workflows": "jactionlint",
     "build:netd": "go build -o netd/bin/netd ./netd",
     "compile": "bun run scripts/compile.ts",
     "package": "bun run scripts/package.ts"

@@ -56,7 +56,7 @@ jobs:
             sleep 1
           done
           systemctl --user --no-pager status thicket-agentd.service || true
-          journalctl --user -u thicket-agentd.service --no-pager | tail -30
+          journalctl --user -u thicket-agentd.service --no-pager -n 30 || true
 
           # The socket agentd made, at the mode the trust model assumes.
           test -S "$XDG_RUNTIME_DIR/thicket/agentd.sock"

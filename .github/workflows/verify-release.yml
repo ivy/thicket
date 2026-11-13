@@ -42,6 +42,9 @@ jobs:
           cache: false
 
       - name: Install the release through mise
+        # pipefail, so a failed `mise use` or `mise bin-paths` fails the step
+        # rather than hiding behind `tee` or `tr`.
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
