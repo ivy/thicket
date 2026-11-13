@@ -59,11 +59,15 @@ Before landing anything: **build, test, lint — all three, from the repo root.*
 `.github/workflows/ci.yml` runs exactly those on every push to `main` and every pull
 request, in a `gate` job; a `workflows` job re-runs the workflow linter,
 [jactionlint](https://github.com/jdx/jactionlint) (syntax, expressions, shellcheck over
-every `run:`, template injection, over-broad permissions, and `uses:` pinned to a commit
-SHA), with its online checks on. Its config is `.github/jactionlint.yaml`. It is also in
-`pnpm lint` and in the pre-commit hook, so a workflow that would fail CI fails at the
-desk first. `pnpm lint` covers the Go module too — `gofmt -l` over `netd/`, then
-`go vet` — so `go test` is not the only thing that reads it.
+every `run:`, template injection, over-broad permissions, and `uses:` pinned either to a
+commit SHA or to a tag that `.github/workflows/actions.lock` locks), with its online
+checks on. Its config is `.github/jactionlint.yaml`. It is also in `pnpm lint` and in the
+pre-commit hook, so a workflow that would fail CI fails at the desk first. The
+`actions-lock` workflow fails when `actions.lock` no longer matches the workflows;
+`gh actions-lock` (the [github/gh-actions-lock](https://github.com/github/gh-actions-lock)
+extension) regenerates it, and Renovate does so on every action bump. `pnpm lint`
+covers the Go module too — `gofmt -l` over `netd/`, then `go vet` — so `go test` is
+not the only thing that reads it.
 
 A tag is a release. Pushing `v*` runs the same gate, then builds one archive per fleet
 platform — `bin/` holding all four executables — attests them, and creates the release;

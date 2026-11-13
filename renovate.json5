@@ -1,5 +1,5 @@
-// Renovate configuration for thicket. Picked up by the self-hosted runner in
-// ivy/renovate-runner, which autodiscovers ivy/* repositories that carry one.
+// Renovate configuration for thicket, run by the Mend Renovate app installed on
+// the steading-ai organization.
 // Full reference: https://docs.renovatebot.com/configuration-options/
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
@@ -7,7 +7,10 @@
   // Shared defaults. This file holds only what is true of thicket.
   "extends": ["github>ivy/renovate-config"],
 
-  "enabledManagers": ["npm", "gomod", "mise", "github-actions"],
+  // custom.regex is the shared preset's manager for the gh-actions-lock pin in
+  // .github/workflows/actions-lock.yml; github-actions also regenerates
+  // .github/workflows/actions.lock.
+  "enabledManagers": ["npm", "gomod", "mise", "github-actions", "custom.regex"],
 
   // pnpm-lock.yaml is lockfileVersion 9.0, which Renovate maps to "pnpm >=9" —
   // that would regenerate the lockfile with whatever pnpm is newest, not the

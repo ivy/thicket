@@ -29,7 +29,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - uses: steading-ai/stead.ing@f20832bb1f9a122150d9cc6c8da072d325b532b9
@@ -48,7 +48,7 @@ jobs:
       name: github-pages
       url: ${{ steps.site.outputs.url }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - id: site
