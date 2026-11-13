@@ -1,0 +1,8 @@
+# steading-ai/stead.ing publishes no release tags, so its pin in
+# .github/workflows/site.yml is a commit with no version to name beside it.
+# The pin is still a full commit hash, which zizmor checks.
+version: 3
+rules:
+  - ignore: true
+    conditions:
+      - expr: ActionName == "steading-ai/stead.ing"
