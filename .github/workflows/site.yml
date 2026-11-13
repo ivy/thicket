@@ -1,0 +1,55 @@
+# Builds thicket.stead.ing from this repository and publishes it to GitHub
+# Pages: site.yaml writes the front page, and README.md and docs/ are the
+# docs. The site's code is shared by every Steading project and comes from
+# steading-ai/stead.ing, whose README documents site.yaml. That action has no
+# release tags, so it is pinned to a commit on its main branch.
+name: site
+
+on:
+  push:
+    branches: [main]
+    paths: ["site.yaml", "README.md", "docs/**", ".github/workflows/site.yml"]
+  pull_request:
+    paths: ["site.yaml", "README.md", "docs/**", ".github/workflows/site.yml"]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # A pull request builds the site without publishing it, so a change to the
+  # docs that breaks the site is caught before it merges.
+  build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: steading-ai/stead.ing@f20832bb1f9a122150d9cc6c8da072d325b532b9
+        with:
+          deploy: "false"
+
+  publish:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.site.outputs.url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: site
+        uses: steading-ai/stead.ing@f20832bb1f9a122150d9cc6c8da072d325b532b9

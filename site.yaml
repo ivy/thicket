@@ -1,0 +1,180 @@
+# What thicket.stead.ing says on its front page, and how its docs are arranged.
+# The pages under /docs/ are README.md and every Markdown file in docs/.
+# The fields are documented at https://github.com/steading-ai/stead.ing
+project: thicket
+headline: Agents on the systems you run, reachable from Slack or a phone call.
+summary: >-
+  Thicket runs AI agents on the systems you operate. Each agent is a Claude Code session bound to
+  one unix account on one host, so what that account can touch is what the agent can touch. An agent
+  is reachable from a Slack thread, a phone call, Claude Code, or a shell script, and each of those
+  reaches it through the same A2A interface. It is early: one operator runs it, with four agents on
+  a home server, and there is no installer yet.
+fit: >-
+  Thicket suits one operator who runs their own machines and wants a standing agent in each account,
+  reachable when away from the keyboard. It needs a Tailscale network with ACL tags the operator
+  controls, a Slack workspace where apps can be created (one app per agent), and Claude Code signed
+  in for each agent's unix account. Agents run on Linux with systemd or on macOS. The Slack and
+  phone bridges are deployed as Linux system units, and the phone bridge needs a Twilio number. It
+  is built for one operator, one Slack workspace, and one tailnet, and multi-tenancy is a stated
+  non-goal. Approvals for actions an agent may not take alone are not built yet.
+facts:
+  - Open source
+  - ISC
+  - Built in TypeScript and Go
+
+video:
+  caption: One agent on a home server, given work from a Slack thread and then from a phone call, with the laptop closed.
+
+offers:
+  title: What thicket runs
+  items:
+    - title: An agent per account
+      body: >-
+        Each agent is a Claude Code session in one unix account on one host. What that account can
+        read, write, and run is what the agent can.
+    - title: One roster
+      body: >-
+        `agents.yaml`, kept in git, names each agent: its host, its account, its tailnet tag, and
+        its skills. Slack app manifests, per-account config, and tailnet identities are rendered
+        from it.
+    - title: Slack
+      body: >-
+        Each agent is its own Slack app. DMs, mentions, and threads work end to end, with streamed
+        answers, a step timeline, attachments, questions with buttons, reactions, routines, and
+        one-shot schedules. A channel can be bound to a working directory, so a mention there runs
+        in that checkout.
+    - title: A phone call
+      body: >-
+        A call authenticates on a PIN, picks an agent by name, and holds a session that
+        survives a dropped call. Every session start, session end, and failed PIN is posted to a
+        Slack channel.
+    - title: Claude Code
+      body: >-
+        `thicket mcp` is an MCP server for a local Claude Code session. Its three tools list the
+        fleet, ask an agent, and check on a long-running task.
+    - title: Scripts
+      body: >-
+        `thicket send` hands one message to one agent from a git hook, a systemd unit, or a cron
+        job. Its exit code says whether the agent took the message and how the turn ended.
+    - title: A network the agent never holds
+      body: >-
+        `agentd`, the agent runtime, binds a unix socket and nothing else. `netd`, a small Go
+        process beside it, holds the agent's tailnet identity, verifies each caller's tags, and
+        lets traffic out only to the hosts its config names.
+    - title: Operator tools
+      body: >-
+        `thicket fleet` prints one line per agent: up or down, tasks in flight, and the last error.
+        `thicket doctor` checks the roster, agent cards, tailnet tags, and Slack apps, and exits
+        non-zero when something fails.
+    - title: Discord, in progress
+      body: >-
+        A third bridge is in the repository: DMs, mentions, and a thread per conversation, with a
+        card that updates while the agent works. It is not deployed yet, and
+        [its design](/docs/discord-bridge/) lists the milestones that remain.
+
+thinking:
+  title: How thicket thinks about agents
+  items:
+    - title: The account is the boundary
+      body: >-
+        An agent's identity is a host and a unix user. Instructions and skills cannot enforce what
+        an agent may touch; a unix account can. The roster grows when a new boundary is needed, not
+        when a new skill is.
+      href: /docs/vision/
+    - title: The runtime never touches the network
+      body: >-
+        The agent runtime listens on a unix socket and nothing else. A separate process joins the
+        tailnet, verifies who is calling, and proxies inward. Which agents may call which is a
+        Tailscale ACL, so an agent that reads untrusted text can be kept from reaching one that
+        holds privilege.
+      href: /docs/reference/
+    - title: A bridge is an adapter
+      body: >-
+        A bridge translates one surface, such as Slack events or a phone call, into a message for
+        the right agent, and carries the answer back. It holds no workflow definitions. Slack was
+        the first bridge and the phone is the second.
+      href: /docs/phone-bridge/
+
+quickstart:
+  title: Stand up one agent
+  steps:
+    - title: Check the fit
+      body: >-
+        Paste this into your agent. It reads what thicket is, what it needs, and how far along it
+        is, and helps you decide whether it suits the machines you run.
+      prompt: true
+    - title: Build it
+      body: >-
+        From a clone of [thicket's repository](https://github.com/steading-ai/thicket), with
+        [mise](https://mise.jdx.dev/) installed. The toolchain is pinned in `mise.toml`. The
+        executables land in `dist-bin/`, one folder per platform, and `thicket` there is the
+        command line the next steps use. `netd` lands in `netd/bin/`.
+      code: |-
+        mise install
+        mise exec -- pnpm install
+        mise exec -- pnpm build
+        mise exec -- pnpm compile
+        mise exec -- pnpm build:netd
+    - title: Describe the agent
+      body: >-
+        One entry in `agents.yaml` is one agent: a host, a unix account, a tailnet tag, and the
+        model it runs. This is the example in the repository.
+      code: |-
+        agents:
+          example:
+            host: thicket-host
+            user: thicket-example
+            description: Example agent used to exercise the toolchain.
+            tag: tag:thicket-example
+            harness:
+              type: claude-agent-sdk
+              cwd: /home/thicket-example
+              model: claude-sonnet-5
+    - title: Provision it
+      body: >-
+        `provision` creates the agent's Slack app and renders its config from the roster. The dry
+        run prints the plan and changes nothing. There is no installer yet, so the unix account,
+        the tailnet credential, and the service units are set up by hand.
+        [The deployment guide](https://github.com/steading-ai/thicket/blob/main/deploy/README.md)
+        has each step in order.
+      code: |-
+        thicket provision --dry-run
+        thicket provision
+    - title: Check it
+      body: >-
+        `doctor` checks the configuration and exits non-zero on a failure. `fleet` prints one line
+        per agent. `send --wait` runs a whole turn and prints the agent's reply.
+      code: |-
+        thicket doctor
+        thicket fleet
+        thicket send --wait example "say hi"
+
+not:
+  - title: Not a task tracker.
+    body: It keeps each agent's sessions and task history, not a plan of what is ready to work on.
+    use: skift
+  - title: Not a runner.
+    body: It has no fixed workflow that carries a task to a merged change. An agent does what its conversation asks.
+    use: mill
+  - title: Not a sandbox.
+    body: The boundary is a unix account and the tailnet's ACL. A session is not confined further inside its account.
+    use: croft
+  - title: Not a credential proxy.
+    body: A session uses the credentials of its own account, including its Claude Code sign-in.
+    use: gateway
+  - title: Not multi-tenant.
+    body: One operator, one Slack workspace, one tailnet. Serving other organizations is a stated non-goal.
+instead: >-
+  Built for reaching the agents on your own machines, from a thread, a call, a terminal, or a
+  script.
+
+pairs:
+  - project: skift
+    body: >-
+      holds the work a conversation turns into. An agent reaches it the way any Claude Code session
+      does, through skift's command line or MCP server. Thicket has no skift integration of its own.
+
+docs:
+  order: [vision, reference, phone-bridge, discord-bridge, runbook, roadmap]
+  exclude:
+    - docs/live-testing.md
