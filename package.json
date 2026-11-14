@@ -20,7 +20,7 @@
     "@eslint/js": "^10.0.0",
     "@types/node": "^26.0.0",
     "eslint": "^10.0.0",
-    "typescript": "^5.9.2",
+    "typescript": "^7.0.0",
     "typescript-eslint": "^8.40.0"
   }
 }
