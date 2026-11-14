@@ -31,14 +31,14 @@ url = "https://github.com/jdx/jactionlint/releases/download/v2.6.0/jactionlint_2
 signer = "sigstore-oidc:https://github.com/jdx/jactionlint/.github/workflows/release.yaml"
 
 [[tools.pnpm]]
-version = "11.28.11"
+version = "12.18.0"
 backend = "aqua:pnpm/pnpm"
-specifiers = ["11.28.11"]
+specifiers = ["12.18.0"]
 
 [tools.pnpm."platforms.macos-arm64"]
-checksum = "sha256:c9412b905060f37f16cd94e5fd06b1a14dd1beff74555479190505a4921790f4"
-url = "https://github.com/pnpm/pnpm/releases/download/v11.28.11/pnpm-darwin-arm64.tar.gz"
-url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/711481964"
+checksum = "sha256:9b647f634d7e8f23162c9d3d1d0e0950d1152402ca0f4c331583ed7c75cd3706"
+url = "https://github.com/pnpm/pnpm/releases/download/v12.18.0/pnpm-darwin-arm64.tar.gz"
+url_api = "https://api.github.com/repos/pnpm/pnpm/releases/assets/711505537"
 provenance = "github-attestations"
 
 [[tools.shellcheck]]
